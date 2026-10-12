@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: customers
+    description: "Output port: published Customers. Raw PII is pseudonymised; see the ODCS contract."
+    columns:
+      - name: customer_id
+        description: "Per-order customer key (joins to sales.orders)."
+        tests:
+          - not_null
+          - unique
+      - name: customer_pseudonym
+        description: "Stable pseudonym of the person identifier (PII masked)."
+        tests:
+          - not_null
+      - name: customer_state
+        description: "Two-letter Brazilian state."
+        tests:
+          - not_null

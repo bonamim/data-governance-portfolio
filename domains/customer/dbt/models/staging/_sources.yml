@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: customer_raw
+    description: "Customer data as loaded from shop_oltp (text columns; internal, holds raw PII)."
+    schema: customer_raw
+    tables:
+      - name: customers

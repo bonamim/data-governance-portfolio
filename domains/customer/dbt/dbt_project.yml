@@ -1,0 +1,16 @@
+name: dgp_customer
+version: "1.0.0"
+config-version: 2
+profile: dgp_customer
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  dgp_customer:
+    staging:
+      +schema: staging
+      +materialized: view
+    customer:
+      +materialized: table

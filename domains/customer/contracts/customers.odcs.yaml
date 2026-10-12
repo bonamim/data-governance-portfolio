@@ -1,0 +1,54 @@
+# ODCS contract for the customer.customers OUTPUT PORT (a published table).
+# Demonstrates PII governance: the raw person identifier is never published; the
+# output exposes a pseudonym. Classifications below are what consumers see.
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: customer.customers
+name: Customer - Customers (output port)
+status: active
+description:
+  purpose: Customer master with location and a pseudonymised person identity.
+domain: customer
+schema:
+  - name: customers
+    physicalType: table
+    properties:
+      - name: customer_id
+        description: "Per-order customer key; joins to sales.orders."
+        logicalType: string
+        physicalType: text
+        required: true
+        unique: true
+        classification: internal
+      - name: customer_pseudonym
+        description: "Pseudonym of the person identifier. Masked from raw PII (customer_unique_id); real value never published."
+        logicalType: string
+        physicalType: text
+        required: true
+        classification: pii
+      - name: customer_zip_code_prefix
+        description: "Location quasi-identifier."
+        logicalType: string
+        physicalType: text
+        required: true
+        classification: internal
+      - name: customer_city
+        logicalType: string
+        physicalType: text
+        required: true
+        classification: public
+      - name: customer_state
+        logicalType: string
+        physicalType: text
+        required: true
+        classification: public
+    quality:
+      - type: library
+        metric: rowCount
+        mustBeGreaterThan: 1000
+customProperties:
+  - property: piiMasking
+    value: "customer_pseudonym = md5(customer_unique_id); production uses keyed HMAC via secrets manager"
+team:
+  name: customer

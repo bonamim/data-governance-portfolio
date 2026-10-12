@@ -1,0 +1,14 @@
+# Data product definition for customer.customers (governance/standards/data-product.md).
+name: customers
+type: source-aligned
+purpose: "Publish the customer master with location and a pseudonymised person identity."
+owner:
+  team: customer
+  accountable: "Customer data product owner"
+consumers:
+  - team: sales
+    use_case: "Attribute orders and revenue to customers by location (sales_performance)."
+output_ports:
+  - kind: table
+    contract: domains/customer/contracts/customers.odcs.yaml
+inputs: []   # source-aligned: built from customer_raw
