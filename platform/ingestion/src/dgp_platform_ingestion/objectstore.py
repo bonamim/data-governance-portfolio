@@ -56,3 +56,11 @@ class ObjectStore:
 
     def download_to(self, key: str, dest: Path) -> None:
         self._client.download_file(self.landing_bucket, key, str(dest))
+
+    def copy_within_bucket(self, src_key: str, dst_key: str) -> None:
+        """Copy an object to another key in the same bucket (used to quarantine)."""
+        self._client.copy_object(
+            Bucket=self.landing_bucket,
+            CopySource={"Bucket": self.landing_bucket, "Key": src_key},
+            Key=dst_key,
+        )

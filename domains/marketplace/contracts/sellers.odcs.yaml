@@ -1,0 +1,56 @@
+# ODCS contract for the Marketplace sellers landing file.
+# Seller registry (reference-style): no event timestamp, so timeliness + frequency +
+# completeness apply, but not content-freshness. Checked by the quality gate (P2).
+version: 1.1.0
+kind: DataContract
+apiVersion: v3.2.0
+id: marketplace.sellers.landing
+name: Marketplace - Sellers (landing)
+status: draft
+description:
+  purpose: Seller registry, landing daily from the source system as partitioned CSV files.
+domain: marketplace
+schema:
+  - name: sellers
+    physicalType: file
+    properties:
+      - name: seller_id
+        logicalType: string
+        physicalType: string
+        required: true
+        unique: true
+        classification: internal
+      - name: seller_zip_code_prefix
+        logicalType: string
+        physicalType: string
+        required: true
+        classification: public
+      - name: seller_city
+        logicalType: string
+        physicalType: string
+        required: true
+        classification: public
+      - name: seller_state
+        logicalType: string
+        physicalType: string
+        required: true
+        classification: public
+    quality:
+      - type: library
+        metric: rowCount
+        mustBeGreaterThan: 100
+slaProperties:
+  - property: timeOfAvailability
+    value: "04:00+00:00"
+  - property: frequency
+    value: 1
+    unit: d
+customProperties:
+  - property: partitionGranularity
+    value: daily
+  - property: partitionScheme
+    value: dt=YYYY-MM-DD
+  - property: retentionDays
+    value: 365
+team:
+  name: marketplace

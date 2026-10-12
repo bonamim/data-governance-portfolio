@@ -8,6 +8,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "pyyaml>=6",
     "kaggle>=1.6",
+    "dgp-platform-quality",
 ]
 
 [project.scripts]
@@ -19,3 +20,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dgp_platform_ingestion"]
+
+[tool.uv.sources]
+dgp-platform-quality = { workspace = true }

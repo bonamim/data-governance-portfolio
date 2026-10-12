@@ -23,6 +23,8 @@ jobs:
         run: uv sync --all-packages
       - name: Module boundaries (ADR-0008)
         run: uv run python governance/policies/check_boundaries.py
+      - name: Contract governance (every landing dataset has a valid ODCS contract)
+        run: uv run python governance/policies/check_contracts.py
       - name: Lint
         run: uv run ruff check .
       - name: Format check

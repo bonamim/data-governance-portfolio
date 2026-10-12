@@ -37,8 +37,10 @@ def test_load_datasets_discovers_domains_and_reference(tmp_path: Path):
     assert by_name["orders"].raw_schema == "sales_raw"
     assert by_name["orders"].oltp_table == "orders"
     assert by_name["geolocation"].raw_schema == "reference_raw"
+    # Source-aligned, partitioned, consumer-neutral landing key (ADR-0011).
     assert (
-        by_name["geolocation"].landing_key == "reference/geolocation/olist_geolocation_dataset.csv"
+        by_name["geolocation"].landing_key("2026-10-12")
+        == "olist/geolocation/dt=2026-10-12/olist_geolocation_dataset.csv"
     )
     assert olist_files(datasets) == {
         "olist_orders_dataset.csv",

@@ -17,7 +17,11 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
+
+from dgp_platform_quality.contract import load_contract_for
+from dgp_platform_quality.engine import validate_file
 
 from . import db, ledger
 from .config import Dataset, load_datasets, olist_files
@@ -25,6 +29,10 @@ from .objectstore import ObjectStore
 from .settings import Settings
 
 log = logging.getLogger("dgp.ingestion")
+
+
+def _today_utc() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 def _oltp_datasets(datasets: list[Dataset]) -> list[Dataset]:
@@ -81,31 +89,37 @@ def seed_oltp(
 
 # ------------------------------------------------------------------------ land
 def land_files(
-    repo_root: Path, settings: Settings, data_dir: Path, domain: str | None = None
+    repo_root: Path,
+    settings: Settings,
+    data_dir: Path,
+    domain: str | None = None,
+    partition_date: str | None = None,
 ) -> None:
-    """Upload file-sourced CSVs to the landing zone (versioned bucket)."""
+    """Upload file-sourced CSVs to the landing zone (versioned, daily-partitioned)."""
     cache = data_dir / "olist"
+    pdate = partition_date or _today_utc()
     store = ObjectStore(settings.objectstore)
     for d in _landing_datasets(load_datasets(repo_root, domain)):
         csv_path = cache / d.olist_file
         if not csv_path.exists():
             raise FileNotFoundError(f"{csv_path} missing — run acquire first")
-        etag = store.upload_file(csv_path, d.landing_key)
-        log.info(
-            "landed %s -> s3://%s/%s (etag %s)",
-            d.olist_file,
-            store.landing_bucket,
-            d.landing_key,
-            etag,
-        )
+        key = d.landing_key(pdate)
+        etag = store.upload_file(csv_path, key)
+        log.info("landed %s -> s3://%s/%s (etag %s)", d.olist_file, store.landing_bucket, key, etag)
 
 
 # -------------------------------------------------------------------- load-raw
 def load_raw(
-    repo_root: Path, settings: Settings, data_dir: Path, run_id: str, domain: str | None = None
+    repo_root: Path,
+    settings: Settings,
+    data_dir: Path,
+    run_id: str,
+    domain: str | None = None,
+    partition_date: str | None = None,
 ) -> None:
     """Load every dataset into <domain>_raw, recording the ingestion ledger."""
     datasets = load_datasets(repo_root, domain)
+    pdate = partition_date or _today_utc()
     store = ObjectStore(settings.objectstore)
 
     with db.connect(settings.analytics_loader) as analytics:
@@ -134,12 +148,13 @@ def load_raw(
         # Landing-sourced: read back from MinIO, skip if the same ETag already loaded.
         with tempfile.TemporaryDirectory() as tmp:
             for d in _landing_datasets(datasets):
-                etag = store.etag(d.landing_key)
-                if ledger.file_already_loaded(analytics, d.landing_key, etag):
+                key = d.landing_key(pdate)
+                etag = store.etag(key)
+                if ledger.file_already_loaded(analytics, key, etag):
                     ledger.record(
                         analytics,
                         source_type="file",
-                        source_identifier=d.landing_key,
+                        source_identifier=key,
                         object_etag=etag,
                         target_schema=d.raw_schema,
                         target_table=d.raw_table,
@@ -147,16 +162,49 @@ def load_raw(
                         run_id=run_id,
                         message="unchanged file (same ETag) already loaded",
                     )
-                    log.info("skipped %s (unchanged, etag %s)", d.landing_key, etag)
+                    log.info("skipped %s (unchanged, etag %s)", key, etag)
                     continue
                 local = Path(tmp) / d.olist_file
-                store.download_to(d.landing_key, local)
+                store.download_to(key, local)
+
+                # Landing-zone quality gate: a file must match its ODCS contract
+                # before it is allowed into the warehouse. A failure quarantines the
+                # file and loads nothing (proof P2). Datasets without a contract yet
+                # pass through (contract is None).
+                contract = load_contract_for(repo_root, d.domain, d.name)
+                if contract is not None:
+                    result = validate_file(local, contract)
+                    if not result.passed:
+                        quarantine_key = f"quarantine/{key}"
+                        store.copy_within_bucket(key, quarantine_key)
+                        ledger.record(
+                            analytics,
+                            source_type="file",
+                            source_identifier=key,
+                            object_etag=etag,
+                            contract_version=contract.version,
+                            target_schema=d.raw_schema,
+                            target_table=d.raw_table,
+                            status="quarantined",
+                            run_id=run_id,
+                            message=result.summary(),
+                        )
+                        analytics.commit()
+                        log.warning(
+                            "QUARANTINED %s -> %s (not loaded): %s",
+                            key,
+                            quarantine_key,
+                            result.summary(),
+                        )
+                        continue
+
                 rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, local)
                 ledger.record(
                     analytics,
                     source_type="file",
-                    source_identifier=d.landing_key,
+                    source_identifier=key,
                     object_etag=etag,
+                    contract_version=contract.version if contract else None,
                     target_schema=d.raw_schema,
                     target_table=d.raw_table,
                     row_count=rows,

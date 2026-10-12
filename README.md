@@ -226,7 +226,11 @@ Each milestone is done only when its production-readiness and disaster-recovery 
 - [x] **M1 — Platform:** Docker Compose with MinIO, 2× Postgres and Airflow 3 (per-domain DAG
   bundles). The config-driven ingestion downloads the real Olist dataset from Kaggle and loads
   every dataset to `<domain>_raw` with an ingestion ledger (idempotent landing loads by ETag).
-- [ ] **M2 — Contracts & quality:** ODCS contracts for every layer; landing-zone quality gate before load
+- [~] **M2 — Contracts & quality:** ODCS contracts at the governed boundaries (not internal
+  layers). **Landing-zone gate done** — every landing file is validated against its ODCS
+  contract and quarantined on failure (proof P2), enforced in CI that each landing dataset has
+  a valid contract. *Remaining:* output-port (table/view) contracts, authored with the data
+  products in M3.
 - [ ] **M3 — Domains:** four dbt projects, cross-domain refs, contract-enforced data products
 - [ ] **M4 — Catalog:** DataHub with end-to-end lineage, domains, data products, glossary, quality results
 - [ ] **M5 — Contract gate:** PR blocked on breaking change, consuming domains alerted

@@ -28,22 +28,27 @@ SourceType = str  # "oltp" | "landing"
 
 @dataclass(frozen=True)
 class Dataset:
-    domain: str
+    domain: str  # the single owning domain (who is accountable for the contract)
     name: str
     source_type: SourceType
     olist_file: str
     raw_table: str
     oltp_table: str | None  # required when source_type == "oltp"
+    source_system: str  # where the data comes from — drives the landing path
     config_path: Path
 
     @property
     def raw_schema(self) -> str:
         return f"{self.domain}_raw"
 
-    @property
-    def landing_key(self) -> str:
-        """Object key in the landing bucket for a file-sourced dataset."""
-        return f"{self.domain}/{self.name}/{self.olist_file}"
+    def landing_key(self, partition_date: str) -> str:
+        """Object key for a file-sourced dataset in the landing bucket.
+
+        Source-aligned and partitioned by day: the path reflects *where the data
+        comes from*, never which domain consumes it (ADR-0011). Ownership is the
+        contract's concern, not the folder's.
+        """
+        return f"{self.source_system}/{self.name}/dt={partition_date}/{self.olist_file}"
 
 
 def _find_config_files(repo_root: Path) -> list[Path]:
@@ -59,6 +64,7 @@ def _parse_file(path: Path) -> list[Dataset]:
     domain = raw.get("domain")
     if not domain:
         raise ValueError(f"{path}: missing 'domain'")
+    source_system = raw.get("source_system", "olist")
     datasets: list[Dataset] = []
     for entry in raw.get("datasets", []):
         source = entry.get("source", {})
@@ -77,6 +83,7 @@ def _parse_file(path: Path) -> list[Dataset]:
                 olist_file=source["olist_file"],
                 raw_table=target.get("raw_table", name),
                 oltp_table=source.get("oltp_table"),
+                source_system=source_system,
                 config_path=path,
             )
         )

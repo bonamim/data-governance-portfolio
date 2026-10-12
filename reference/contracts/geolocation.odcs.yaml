@@ -1,0 +1,67 @@
+# ODCS contract for the shared geolocation landing file (reference data).
+# Consumed by Customer and Marketplace, so it is governed at the landing boundary
+# to keep consumption standardized. Reference data: timeliness + frequency +
+# completeness apply, not content-freshness. Checked by the quality gate (P2).
+version: 1.1.0
+kind: DataContract
+apiVersion: v3.2.0
+id: reference.geolocation.landing
+name: Reference - Geolocation (landing)
+status: draft
+description:
+  purpose: Zip-code to latitude/longitude reference data, landing as partitioned CSV files.
+domain: reference
+schema:
+  - name: geolocation
+    physicalType: file
+    properties:
+      - name: geolocation_zip_code_prefix
+        logicalType: string
+        physicalType: string
+        required: true
+        classification: public
+      - name: geolocation_lat
+        logicalType: number
+        physicalType: string
+        required: true
+        classification: public
+        logicalTypeOptions:
+          minimum: -90
+          maximum: 90
+      - name: geolocation_lng
+        logicalType: number
+        physicalType: string
+        required: true
+        classification: public
+        logicalTypeOptions:
+          minimum: -180
+          maximum: 180
+      - name: geolocation_city
+        logicalType: string
+        physicalType: string
+        required: true
+        classification: public
+      - name: geolocation_state
+        logicalType: string
+        physicalType: string
+        required: true
+        classification: public
+    quality:
+      - type: library
+        metric: rowCount
+        mustBeGreaterThan: 100000
+slaProperties:
+  - property: timeOfAvailability
+    value: "04:00+00:00"
+  - property: frequency
+    value: 1
+    unit: d
+customProperties:
+  - property: partitionGranularity
+    value: daily
+  - property: partitionScheme
+    value: dt=YYYY-MM-DD
+  - property: retentionDays
+    value: 365
+team:
+  name: reference

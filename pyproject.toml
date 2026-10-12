@@ -12,10 +12,10 @@ package = false
 [tool.uv.workspace]
 # One package per platform capability. Add platform/quality, platform/catalog, etc.
 # as later milestones introduce them.
-members = ["platform/ingestion", "platform/orchestration"]
+members = ["platform/ingestion", "platform/orchestration", "platform/quality"]
 
 [dependency-groups]
-dev = ["ruff>=0.6", "pytest>=8"]
+dev = ["ruff>=0.6", "pytest>=8", "datacontract-cli>=1.2"]
 
 [tool.ruff]
 line-length = 100

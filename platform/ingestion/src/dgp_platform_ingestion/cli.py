@@ -42,6 +42,11 @@ def main(argv: list[str] | None = None) -> int:
         "--domain", default=None, help="limit seed/land/load-raw to one domain (default: all)"
     )
     parser.add_argument(
+        "--partition-date",
+        default=None,
+        help="landing partition date YYYY-MM-DD (default: today UTC)",
+    )
+    parser.add_argument(
         "command",
         choices=["acquire", "seed", "land", "load-raw", "all"],
         help="pipeline step to run",
@@ -60,8 +65,12 @@ def main(argv: list[str] | None = None) -> int:
     steps = {
         "acquire": lambda: pipeline.acquire(repo_root, settings, data_dir),
         "seed": lambda: pipeline.seed_oltp(repo_root, settings, data_dir, args.domain),
-        "land": lambda: pipeline.land_files(repo_root, settings, data_dir, args.domain),
-        "load-raw": lambda: pipeline.load_raw(repo_root, settings, data_dir, run_id, args.domain),
+        "land": lambda: pipeline.land_files(
+            repo_root, settings, data_dir, args.domain, args.partition_date
+        ),
+        "load-raw": lambda: pipeline.load_raw(
+            repo_root, settings, data_dir, run_id, args.domain, args.partition_date
+        ),
     }
     order = ["acquire", "seed", "land", "load-raw"] if args.command == "all" else [args.command]
     for step in order:

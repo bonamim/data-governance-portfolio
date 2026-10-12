@@ -75,7 +75,12 @@ services:
         for bucket in "$$LANDING_BUCKET" "$$STATE_BUCKET"; do
           mc mb --ignore-existing "local/$$bucket"
           mc version enable "local/$$bucket"
-          echo "bucket ready (versioned): $$bucket"
+          # Retention (ADR-0011): keep current versions; expire superseded/deleted
+          # versions after the retention window so storage does not grow forever.
+          # Production also sets object-lock on landing (production-readiness.md).
+          mc ilm rule add --noncurrent-expire-days 365 "local/$$bucket" >/dev/null 2>&1 \
+            || mc ilm rule add --expire-days 365 --noncurrent-expire-days 365 "local/$$bucket" >/dev/null 2>&1 || true
+          echo "bucket ready (versioned, 365d retention): $$bucket"
         done
     networks: [platform]
     restart: "no"

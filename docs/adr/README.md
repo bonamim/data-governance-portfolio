@@ -12,3 +12,4 @@
 | [0008](0008-monorepo-module-boundaries.md) | Monorepo with enforced module boundaries | Accepted |
 | [0009](0009-cloud-portability.md) | Cloud-portable by design | Accepted |
 | [0010](0010-semantic-layer-ossie.md) | Apache Ossie as the semantic layer standard | Accepted |
+| [0011](0011-landing-zone-slas-and-partitioning.md) | Landing-zone SLAs, partitioning, retention, shared-dataset ownership | Accepted |

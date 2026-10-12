@@ -97,5 +97,9 @@ test: ## Run the Python test suite
 check-boundaries: ## Enforce ADR-0008 module boundaries (governance policy)
 	uv run python governance/policies/check_boundaries.py
 
+.PHONY: check-contracts
+check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
+	uv run python governance/policies/check_contracts.py
+
 .PHONY: check
-check: check-boundaries lint test ## Run all governance + quality checks
+check: check-boundaries check-contracts lint test ## Run all governance + quality checks
