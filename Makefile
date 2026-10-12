@@ -57,6 +57,18 @@ psql-analytics: ## Open psql on the analytics warehouse
 verify-infra: ## Check buckets, schemas, roles and the ingestion ledger exist
 	@bash platform/infra/verify.sh
 
+.PHONY: endpoints
+endpoints: ## Print local service URLs and credentials (from .env)
+	@echo "UIs"
+	@echo "  MinIO console   http://localhost:$(MINIO_CONSOLE_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
+	@echo "  Airflow         http://localhost:$(AIRFLOW_API_PORT)       (dev: no login)"
+	@echo "  DataHub         http://localhost:9002                      (planned — M4)"
+	@echo "  Superset        http://localhost:8088                      (planned — M6)"
+	@echo "Databases / APIs"
+	@echo "  MinIO S3 API    http://localhost:$(MINIO_API_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
+	@echo "  Postgres OLTP   localhost:$(OLTP_PORT)   db: $(OLTP_DB)   user: $(OLTP_SUPERUSER)   pass: $(OLTP_SUPERUSER_PASSWORD)"
+	@echo "  Postgres WH     localhost:$(ANALYTICS_PORT)   db: $(ANALYTICS_DB)   user: $(ANALYTICS_SUPERUSER)   pass: $(ANALYTICS_SUPERUSER_PASSWORD)"
+
 # --- Airflow 3 orchestration ------------------------------------------------
 .PHONY: airflow-build
 airflow-build: ## Build the Airflow image (installs ingestion + orchestration)
