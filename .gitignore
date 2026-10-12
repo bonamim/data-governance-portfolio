@@ -14,9 +14,10 @@ data/
 *.csv
 *.parquet
 
-# dbt
-transform/target/
-transform/dbt_packages/
-transform/logs/
+# dbt (artifacts in each domain's project)
+**/dbt/target/
+**/dbt/dbt_packages/
+**/dbt/logs/
+logs/
 
 .DS_Store

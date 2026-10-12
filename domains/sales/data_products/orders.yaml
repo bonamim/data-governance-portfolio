@@ -1,0 +1,16 @@
+# Data product definition for sales.orders (governance/standards/data-product.md).
+name: orders
+type: source-aligned
+purpose: "Publish the authoritative record of customer orders and their lifecycle status."
+owner:
+  team: sales
+  accountable: "Sales data product owner"
+consumers:
+  - team: customer_experience
+    use_case: "Attach each review to the order it refers to."
+  - team: sales
+    use_case: "Aggregate order and revenue performance (sales_performance)."
+output_ports:
+  - kind: table
+    contract: domains/sales/contracts/orders.odcs.yaml
+inputs: []   # source-aligned: built from sales_raw, consumes no other data product

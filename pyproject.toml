@@ -16,6 +16,9 @@ members = ["platform/ingestion", "platform/orchestration", "platform/quality"]
 
 [dependency-groups]
 dev = ["ruff>=0.6", "pytest>=8", "datacontract-cli>=1.2"]
+# dbt is heavy and can clash with other tools' pins, so keep it in its own group:
+#   uv run --group dbt dbt build
+dbt = ["dbt-core>=1.9", "dbt-postgres>=1.9"]
 
 [tool.ruff]
 line-length = 100

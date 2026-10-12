@@ -101,5 +101,9 @@ check-boundaries: ## Enforce ADR-0008 module boundaries (governance policy)
 check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
 	uv run python governance/policies/check_contracts.py
 
+.PHONY: check-data-products
+check-data-products: ## Enforce the data product standard on every definition
+	uv run python governance/policies/check_data_products.py
+
 .PHONY: check
-check: check-boundaries check-contracts lint test ## Run all governance + quality checks
+check: check-boundaries check-contracts check-data-products lint test ## Run all governance + quality checks

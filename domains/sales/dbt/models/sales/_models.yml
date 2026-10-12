@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: orders
+    description: "Output port: published Sales orders. Governed by its ODCS contract."
+    columns:
+      - name: order_id
+        description: "Order identifier (primary key)."
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        description: "Customer who placed the order."
+        tests:
+          - not_null
+      - name: order_status
+        description: "Lifecycle status of the order."
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - delivered
+                - shipped
+                - canceled
+                - unavailable
+                - invoiced
+                - processing
+                - created
+                - approved
+      - name: order_purchase_timestamp
+        description: "When the order was placed."
+        tests:
+          - not_null

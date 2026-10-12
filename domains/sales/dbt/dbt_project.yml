@@ -1,0 +1,19 @@
+name: dgp_sales
+version: "1.0.0"
+config-version: 2
+profile: dgp_sales
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  dgp_sales:
+    # Internal staging (engineering layer): typed/cleaned from <domain>_raw.
+    # Lands in sales_staging (dbt concatenates target schema "sales" + "staging").
+    staging:
+      +schema: staging
+      +materialized: view
+    # Output ports (the data products): published tables in the "sales" schema.
+    sales:
+      +materialized: table

@@ -1,0 +1,59 @@
+# dbt connection profiles — platform-owned (the platform provides the warehouse
+# wiring; domains own only their models). One profile per domain: dbt connects as
+# that domain's least-privilege role and its target schema is the output-port schema
+# <domain>; staging models land in <domain>_staging via dbt's default schema
+# concatenation. Passwords come from the environment (.env locally).
+config:
+  send_anonymous_usage_stats: false
+
+dgp_sales: &pg
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: sales_role
+      password: "{{ env_var('SALES_ROLE_PASSWORD') }}"
+      schema: sales
+      threads: 4
+
+dgp_customer:
+  <<: *pg
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: customer_role
+      password: "{{ env_var('CUSTOMER_ROLE_PASSWORD') }}"
+      schema: customer
+      threads: 4
+
+dgp_customer_experience:
+  <<: *pg
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: customer_experience_role
+      password: "{{ env_var('CUSTOMER_EXPERIENCE_ROLE_PASSWORD') }}"
+      schema: customer_experience
+      threads: 4
+
+dgp_marketplace:
+  <<: *pg
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: marketplace_role
+      password: "{{ env_var('MARKETPLACE_ROLE_PASSWORD') }}"
+      schema: marketplace
+      threads: 4
