@@ -6,6 +6,7 @@ governance/standards/data-product.md (a valid product has a purpose, a type, an
 owner, a named consumer with a use case, output ports backed by valid ODCS
 contracts, and — for aggregates — at least three consumers).
 """
+
 from __future__ import annotations
 
 import re
@@ -55,9 +56,9 @@ def _check(defn: dict, path: Path) -> list[str]:
     consumers = defn.get("consumers") or []
     with_use_case = [c for c in consumers if (c or {}).get("use_case")]
     if not with_use_case:
-        errs.append(f"{where}: needs at least one consumer with a use_case (no use case, no product)")
+        errs.append(f"{where}: needs a consumer with a use_case (no use case, no product)")
     if dptype == "aggregate" and len(with_use_case) < 3:
-        errs.append(f"{where}: aggregate products need >= 3 consuming teams (has {len(with_use_case)})")
+        errs.append(f"{where}: aggregate needs >= 3 consuming teams (has {len(with_use_case)})")
 
     for port in defn.get("output_ports") or []:
         contract = (port or {}).get("contract")
@@ -75,7 +76,7 @@ def _check(defn: dict, path: Path) -> list[str]:
 
     for ref in defn.get("inputs") or []:
         if not INPUT_RE.match(str(ref)):
-            errs.append(f"{where}: input '{ref}' must be a <domain>.<product> output port, not raw/staging")
+            errs.append(f"{where}: input '{ref}' must be a <domain>.<product> output port")
 
     return errs
 

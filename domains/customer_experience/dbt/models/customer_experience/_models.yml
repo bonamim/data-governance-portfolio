@@ -1,0 +1,96 @@
+version: 2
+
+models:
+  - name: reviews
+    description: "Output port: published Reviews. Free-text comments excluded (PII)."
+    columns:
+      - name: review_id
+        description: "Review identifier (not unique in the source — can map to several orders)."
+        data_type: text
+        data_tests:
+          - not_null:
+              description: Check that field review_id has no missing values
+              config:
+                meta:
+                  datacontract_cli:
+                    include_in_tests: true
+                    check: reviews__review_id__field_required
+                    contract_versions:
+                      - 1.0.0
+                    generated: false
+      - name: order_id
+        description: "The order this review refers to."
+        data_type: text
+        data_tests:
+          - not_null:
+              description: Check that field order_id has no missing values
+              config:
+                meta:
+                  datacontract_cli:
+                    include_in_tests: true
+                    check: reviews__order_id__field_required
+                    contract_versions:
+                      - 1.0.0
+                    generated: false
+      - name: review_score
+        description: "1-5 star rating."
+        data_type: integer
+        data_tests:
+          - not_null:
+              description: Check that field review_score has no missing values
+              config:
+                meta:
+                  datacontract_cli:
+                    include_in_tests: true
+                    check: reviews__review_score__field_required
+                    contract_versions:
+                      - 1.0.0
+                    generated: false
+          - accepted_values:
+              values: ["1", "2", "3", "4", "5"]
+              quote: false
+      - name: has_comment
+        data_type: boolean
+        data_tests:
+          - not_null:
+              config:
+                meta:
+                  datacontract_cli:
+                    check: reviews__has_comment__field_required
+                    include_in_tests: true
+                    contract_versions:
+                      - 1.0.0
+                    generated: true
+              description: Check that field has_comment has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: review_creation_date
+        data_type: timestamp
+        data_tests:
+          - not_null:
+              config:
+                meta:
+                  datacontract_cli:
+                    check: reviews__review_creation_date__field_required
+                    include_in_tests: true
+                    contract_versions:
+                      - 1.0.0
+                    generated: true
+              description: Check that field review_creation_date has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: review_answer_timestamp
+        data_type: timestamp
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+    config:
+      meta:
+        datacontract_cli:
+          contract_id: customer_experience.reviews
+          owner: customer_experience

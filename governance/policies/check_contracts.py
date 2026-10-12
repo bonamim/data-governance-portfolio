@@ -44,7 +44,9 @@ def _landing_datasets() -> list[tuple[str, str]]:
 
 def _contract_path(domain: str, dataset: str) -> Path:
     base = (REPO_ROOT / "reference") if domain == "reference" else REPO_ROOT / "domains" / domain
-    return base / "contracts" / f"{dataset}.odcs.yaml"
+    # Landing (ingress) contracts live under contracts/landing/; output-port
+    # contracts live directly under contracts/.
+    return base / "contracts" / "landing" / f"{dataset}.odcs.yaml"
 
 
 def _lint(path: Path) -> tuple[bool, str]:

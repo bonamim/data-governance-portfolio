@@ -1,5 +1,7 @@
 -- Output port: sales.orders — the published Sales orders data product.
 -- Consumers read this, never staging or raw. Its ODCS contract governs the shape.
+{{ config(access='public') }}
+
 select
     order_id,
     customer_id,

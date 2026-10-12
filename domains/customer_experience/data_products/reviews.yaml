@@ -1,0 +1,14 @@
+# Data product definition for customer_experience.reviews.
+name: reviews
+type: source-aligned
+purpose: "Publish per-order review scores and timing, without free-text comments."
+owner:
+  team: customer_experience
+  accountable: "Customer Experience data product owner"
+consumers:
+  - team: sales
+    use_case: "Relate review scores to order and revenue performance (sales_performance)."
+output_ports:
+  - kind: table
+    contract: domains/customer_experience/contracts/reviews.odcs.yaml
+inputs: []   # source-aligned: built from the reviews landing data in customer_experience_raw

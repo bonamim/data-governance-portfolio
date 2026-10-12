@@ -1,31 +1,26 @@
-# ODCS contract for the Customer Experience reviews landing file.
-# The single source of truth for this landing dataset: schema, quality, SLAs
-# (timeliness, freshness, completeness) and operational properties (partitioning,
-# retention). Checked by the landing-zone quality gate before load (proof P2);
-# the time-based SLAs are monitored at M4 (DataHub) where there is somewhere to alert.
-version: 1.1.0
+# ODCS contract for the customer_experience.reviews OUTPUT PORT (a published table).
+# Free-text comments are not exposed; only the score, timing and a has_comment flag.
+version: 1.0.0
 kind: DataContract
 apiVersion: v3.2.0
-id: customer_experience.reviews.landing
-name: Customer Experience - Reviews (landing)
-status: draft
+id: customer_experience.reviews
+name: Customer Experience - Reviews (output port)
+status: active
 description:
-  purpose: Customer review events, landing daily from the source system as partitioned CSV files.
+  purpose: Published review scores and timing per order, without free-text comments.
 domain: customer_experience
 schema:
   - name: reviews
-    physicalType: file
+    physicalType: table
     properties:
       - name: review_id
         logicalType: string
-        physicalType: string
+        physicalType: text
         required: true
-        # Not unique: in the Olist source a review_id can map to several orders
-        # (a real characteristic of the dataset, confirmed by the quality gate).
         classification: internal
       - name: order_id
         logicalType: string
-        physicalType: string
+        physicalType: text
         required: true
         classification: internal
       - name: review_score
@@ -36,54 +31,24 @@ schema:
         logicalTypeOptions:
           minimum: 1
           maximum: 5
-      - name: review_comment_title
-        logicalType: string
-        physicalType: string
-        required: false
-        classification: internal
-      - name: review_comment_message
-        logicalType: string
-        physicalType: string
-        required: false
-        classification: internal
+      - name: has_comment
+        logicalType: boolean
+        physicalType: boolean
+        required: true
+        classification: public
       - name: review_creation_date
         logicalType: date
-        physicalType: string
+        physicalType: timestamp
         required: true
         classification: public
       - name: review_answer_timestamp
         logicalType: date
-        physicalType: string
+        physicalType: timestamp
         required: false
         classification: public
     quality:
-      # File completeness: a daily partition must carry at least this many rows.
-      # Executed by the quality gate on arrival.
       - type: library
         metric: rowCount
         mustBeGreaterThan: 1000
-# SLAs. The element is the event-time column freshness is measured against.
-slaDefaultElement: reviews.review_creation_date
-slaProperties:
-  # Delivery timeliness: the partition must be available by 04:00 UTC.
-  - property: timeOfAvailability
-    value: "04:00+00:00"
-    element: reviews.review_creation_date
-  # Frequency: a new partition every day.
-  - property: frequency
-    value: 1
-    unit: d
-  # Data freshness: data must include events up to the end of the previous day.
-  - property: latency
-    value: 1
-    unit: d
-    element: reviews.review_creation_date
-customProperties:
-  - property: partitionGranularity
-    value: daily
-  - property: partitionScheme
-    value: dt=YYYY-MM-DD
-  - property: retentionDays
-    value: 365
 team:
   name: customer_experience

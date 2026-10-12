@@ -20,13 +20,18 @@ jobs:
         with:
           enable-cache: true
       - name: Install workspace
-        run: uv sync --all-packages
+        run: uv sync --all-packages --group dbt
       - name: Module boundaries (ADR-0008)
         run: uv run python governance/policies/check_boundaries.py
       - name: Contract governance (every landing dataset has a valid ODCS contract)
         run: uv run python governance/policies/check_contracts.py
       - name: Data product governance (definitions meet the standard)
         run: uv run python governance/policies/check_data_products.py
+      - name: ODCS is source of truth (dbt schema not drifted from contracts)
+        run: |
+          make sync-contracts
+          git diff --exit-code -- domains \
+            || { echo "dbt model YAML drifted from the ODCS contracts — run 'make sync-contracts' and commit."; exit 1; }
       - name: Lint
         run: uv run ruff check .
       - name: Format check

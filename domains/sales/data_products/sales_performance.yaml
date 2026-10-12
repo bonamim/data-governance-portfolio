@@ -1,0 +1,18 @@
+# Data product definition for sales.sales_performance (consumer-aligned).
+name: sales_performance
+type: consumer-aligned
+purpose: "Report order and revenue performance by customer location for campaign targeting."
+owner:
+  team: sales
+  accountable: "Sales data product owner"
+consumers:
+  - team: marketplace
+    use_case: "Prioritise seller recruitment in high-performing states."
+output_ports:
+  - kind: table
+    contract: domains/sales/contracts/sales_performance.odcs.yaml
+# Consumes other domains' output ports only (via dbt-loom, public models).
+inputs:
+  - customer.customers
+  - customer_experience.reviews
+  - sales.orders

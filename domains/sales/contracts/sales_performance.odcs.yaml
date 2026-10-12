@@ -1,0 +1,53 @@
+# ODCS contract for the sales.sales_performance OUTPUT PORT (consumer-aligned).
+# Source of truth for the schema and contractual quality; the dbt model YAML and
+# tests are generated from this file by `datacontract dbt sync`.
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: sales.sales_performance
+name: Sales - Sales Performance (output port)
+status: active
+description:
+  purpose: Order and revenue performance by customer location, with average review score.
+domain: sales
+schema:
+  - name: sales_performance
+    physicalType: table
+    properties:
+      - name: customer_state
+        description: "Two-letter Brazilian state (grain)."
+        logicalType: string
+        physicalType: text
+        required: true
+        unique: true
+        classification: public
+      - name: num_orders
+        description: "Distinct orders placed by customers in the state."
+        logicalType: integer
+        physicalType: integer
+        required: true
+        classification: public
+      - name: num_customers
+        description: "Distinct customers in the state."
+        logicalType: integer
+        physicalType: integer
+        required: true
+        classification: public
+      - name: total_revenue
+        description: "Total payment value of the state's orders."
+        logicalType: number
+        physicalType: numeric
+        required: true
+        classification: public
+      - name: avg_review_score
+        description: "Average review score (1-5) across the state's reviewed orders."
+        logicalType: number
+        physicalType: numeric
+        required: false
+        classification: public
+    quality:
+      - type: library
+        metric: rowCount
+        mustBeGreaterThan: 10
+team:
+  name: sales

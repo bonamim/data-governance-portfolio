@@ -39,9 +39,9 @@ class Contract:
 
 
 def contract_path(repo_root: Path, domain: str, dataset: str) -> Path:
-    """Where a domain's ODCS contract for a dataset lives."""
+    """Where a domain's landing (ingress) ODCS contract for a dataset lives."""
     base = (repo_root / "reference") if domain == "reference" else (repo_root / "domains" / domain)
-    return base / "contracts" / f"{dataset}.odcs.yaml"
+    return base / "contracts" / "landing" / f"{dataset}.odcs.yaml"
 
 
 def _parse_column(prop: dict) -> ColumnRule:

@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: customer_experience_raw
+    description: "Review events as loaded from the landing zone (text columns; internal)."
+    schema: customer_experience_raw
+    tables:
+      - name: reviews

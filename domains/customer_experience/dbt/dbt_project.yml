@@ -1,0 +1,16 @@
+name: dgp_customer_experience
+version: "1.0.0"
+config-version: 2
+profile: dgp_customer_experience
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  dgp_customer_experience:
+    staging:
+      +schema: staging
+      +materialized: view
+    customer_experience:
+      +materialized: table

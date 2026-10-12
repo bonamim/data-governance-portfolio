@@ -57,6 +57,25 @@ psql-analytics: ## Open psql on the analytics warehouse
 verify-infra: ## Check buckets, schemas, roles and the ingestion ledger exist
 	@bash platform/infra/verify.sh
 
+.PHONY: sync-contracts
+sync-contracts: ## Generate dbt schema + tests from the ODCS output-port contracts (ODCS = source of truth)
+	@for d in sales customer customer_experience marketplace; do \
+	  ls domains/$$d/contracts/*.odcs.yaml >/dev/null 2>&1 && \
+	    uv run datacontract dbt sync domains/$$d/contracts/*.odcs.yaml --project-dir domains/$$d/dbt || true ; \
+	done
+
+.PHONY: transform
+transform: ## Build all data products (dbt) in dependency order, applying consumer grants
+	uv run --group dbt dbt build --project-dir domains/customer/dbt --profiles-dir platform/transform
+	uv run --group dbt dbt build --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
+	$(MAKE) grants
+	cd domains/sales/dbt && uv run --group dbt dbt build --profiles-dir ../../../platform/transform
+	$(MAKE) grants
+
+.PHONY: grants
+grants: ## Apply consumer grants from data product definitions (output ports only)
+	uv run python platform/access/grant_consumers.py
+
 .PHONY: endpoints
 endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "UIs"

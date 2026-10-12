@@ -1,0 +1,13 @@
+# dbt-loom: cross-project refs to OTHER domains' public output ports only (ADR-0001,
+# ADR-0003). Reads the upstream projects' manifests; sales_performance can then
+# ref('dgp_customer','customers') and ref('dgp_customer_experience','reviews').
+# Those models are access: public — private/internal models are not importable.
+manifests:
+  - name: dgp_customer
+    type: file
+    config:
+      path: ../../customer/dbt/target/manifest.json
+  - name: dgp_customer_experience
+    type: file
+    config:
+      path: ../../customer_experience/dbt/target/manifest.json
