@@ -1,0 +1,14 @@
+# Sales domain — source registration (owned by the Sales team).
+# Declarative only: the platform's ingestion capability reads this file and needs
+# no Sales-specific code (ADR-0008). Operational tables come from shop_oltp.
+domain: sales
+datasets:
+  - name: orders
+    source: {type: oltp, olist_file: olist_orders_dataset.csv, oltp_table: orders}
+    target: {raw_table: orders}
+  - name: order_items
+    source: {type: oltp, olist_file: olist_order_items_dataset.csv, oltp_table: order_items}
+    target: {raw_table: order_items}
+  - name: order_payments
+    source: {type: oltp, olist_file: olist_order_payments_dataset.csv, oltp_table: order_payments}
+    target: {raw_table: order_payments}

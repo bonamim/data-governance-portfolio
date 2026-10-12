@@ -1,0 +1,29 @@
+# Workspace root. This is NOT a package — it only ties the platform capability
+# packages together so each builds, versions and deploys independently (ADR-0008).
+[project]
+name = "data-governance-portfolio"
+version = "0.0.0"
+description = "Data mesh on open source, with governance built in."
+requires-python = ">=3.11"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+# One package per platform capability. Add platform/quality, platform/catalog, etc.
+# as later milestones introduce them.
+members = ["platform/ingestion", "platform/orchestration"]
+
+[dependency-groups]
+dev = ["ruff>=0.6", "pytest>=8"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["platform", "governance"]
+addopts = "-q"

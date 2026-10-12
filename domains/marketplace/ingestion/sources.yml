@@ -1,0 +1,17 @@
+# Marketplace domain — source registration (owned by the Marketplace team).
+# products and the category translation come from shop_oltp; the sellers list
+# arrives as a file in the landing zone (and is quality-gated before load in M2).
+domain: marketplace
+datasets:
+  - name: products
+    source: {type: oltp, olist_file: olist_products_dataset.csv, oltp_table: products}
+    target: {raw_table: products}
+  - name: product_category_name_translation
+    source:
+      type: oltp
+      olist_file: product_category_name_translation.csv
+      oltp_table: product_category_name_translation
+    target: {raw_table: product_category_name_translation}
+  - name: sellers
+    source: {type: landing, olist_file: olist_sellers_dataset.csv}
+    target: {raw_table: sellers}

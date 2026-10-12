@@ -1,0 +1,139 @@
+# Local self-serve platform — milestone M1.
+# MinIO (landing zone + platform state) and two Postgres instances
+# (operational source + analytics warehouse). Airflow is added in the same
+# milestone via docker-compose.airflow.yml.
+#
+# Images are pinned by digest (production-readiness X8). Local defaults here are
+# NOT production-safe; docs/production-readiness.md lists what changes for prod.
+#
+# NOTE ON THE MINIO IMAGE: MinIO's community images moved behind authentication
+# in 2025 (quay.io) and Bitnami froze its free Docker Hub tags (Aug 2025), so we
+# pin Bitnami's last free MinIO build — it is the genuine MinIO server. See
+# docs/adr/0007-minio-image-source.md for the supply-chain note and the switch
+# to the official image in production.
+
+name: governance-platform
+
+networks:
+  platform:
+    driver: bridge
+
+volumes:
+  minio_data:
+  oltp_data:
+  analytics_data:
+
+services:
+  # ---------------------------------------------------------------- MinIO ---
+  minio:
+    image: bitnamilegacy/minio@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_API_PORT_NUMBER: "9000"
+      MINIO_CONSOLE_PORT_NUMBER: "9001"
+      MINIO_SCHEME: http
+    ports:
+      - "${MINIO_API_PORT}:9000"       # S3 API
+      - "${MINIO_CONSOLE_PORT}:9001"   # web console
+    volumes:
+      - minio_data:/bitnami/minio/data
+    networks: [platform]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Creates the buckets and turns on versioning (production-readiness: versioning
+  # on every bucket recovers overwritten/deleted files). Runs once and exits.
+  minio-init:
+    image: bitnamilegacy/minio-client@sha256:00dcc4e58ada0df45bb7d9ee435af98295f96c27c3c68292ce78ec700a87b511
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      LANDING_BUCKET: ${LANDING_BUCKET}
+      STATE_BUCKET: ${STATE_BUCKET}
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # The healthcheck can pass a moment before the S3 API accepts connections,
+        # so retry the alias until MinIO is actually reachable.
+        for attempt in $$(seq 1 30); do
+          if mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
+            break
+          fi
+          echo "waiting for MinIO S3 API ($$attempt/30)..."; sleep 2
+        done
+        mc ready local
+        for bucket in "$$LANDING_BUCKET" "$$STATE_BUCKET"; do
+          mc mb --ignore-existing "local/$$bucket"
+          mc version enable "local/$$bucket"
+          echo "bucket ready (versioned): $$bucket"
+        done
+    networks: [platform]
+    restart: "no"
+
+  # ----------------------------------------------- Postgres: shop_oltp -------
+  postgres-oltp:
+    image: postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    command:
+      - "postgres"
+      - "-c"
+      - "password_encryption=scram-sha-256"   # production-readiness: scram, not md5
+    environment:
+      POSTGRES_USER: ${OLTP_SUPERUSER}
+      POSTGRES_PASSWORD: ${OLTP_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${OLTP_DB}
+      # consumed by 00-init.sh to create least-privilege roles
+      OLTP_LOADER_PASSWORD: ${OLTP_LOADER_PASSWORD}
+      OLTP_READER_PASSWORD: ${OLTP_READER_PASSWORD}
+    ports:
+      - "${OLTP_PORT}:5432"
+    volumes:
+      - oltp_data:/var/lib/postgresql/data
+      - ./postgres/oltp:/docker-entrypoint-initdb.d:ro
+    networks: [platform]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${OLTP_SUPERUSER} -d ${OLTP_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ----------------------------------------------- Postgres: analytics -------
+  postgres-analytics:
+    image: postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    command:
+      - "postgres"
+      - "-c"
+      - "password_encryption=scram-sha-256"
+    environment:
+      POSTGRES_USER: ${ANALYTICS_SUPERUSER}
+      POSTGRES_PASSWORD: ${ANALYTICS_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${ANALYTICS_DB}
+      # consumed by 00-init.sh to create platform_loader + per-domain roles
+      PLATFORM_LOADER_PASSWORD: ${PLATFORM_LOADER_PASSWORD}
+      SALES_ROLE_PASSWORD: ${SALES_ROLE_PASSWORD}
+      CUSTOMER_ROLE_PASSWORD: ${CUSTOMER_ROLE_PASSWORD}
+      MARKETPLACE_ROLE_PASSWORD: ${MARKETPLACE_ROLE_PASSWORD}
+      CUSTOMER_EXPERIENCE_ROLE_PASSWORD: ${CUSTOMER_EXPERIENCE_ROLE_PASSWORD}
+      REFERENCE_ROLE_PASSWORD: ${REFERENCE_ROLE_PASSWORD}
+    ports:
+      - "${ANALYTICS_PORT}:5432"
+    volumes:
+      - analytics_data:/var/lib/postgresql/data
+      - ./postgres/analytics:/docker-entrypoint-initdb.d:ro
+    networks: [platform]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_SUPERUSER} -d ${ANALYTICS_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s

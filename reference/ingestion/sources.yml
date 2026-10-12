@@ -1,0 +1,7 @@
+# Reference data — geolocation (owned by the platform team on behalf of the mesh).
+# Shared lookup consumed by Customer and Marketplace; arrives as a landing file.
+domain: reference
+datasets:
+  - name: geolocation
+    source: {type: landing, olist_file: olist_geolocation_dataset.csv}
+    target: {raw_table: geolocation}

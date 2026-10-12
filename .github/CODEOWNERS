@@ -1,0 +1,22 @@
+# Ownership boundaries for the data mesh (ADR-0008).
+# Replace the placeholder teams with real GitHub teams before go-live
+# (production-readiness.md, CI/CD section).
+
+# Default: the platform team is the fallback reviewer.
+*                           @org/platform-team
+
+# Self-serve platform and shared infrastructure.
+/platform/                  @org/platform-team
+/reference/                 @org/platform-team
+
+# Federated governance: owned by the governance guild (one rep per domain + platform).
+/governance/                @org/governance-guild
+
+# Each domain is owned by its own team. A domain cannot approve another domain's changes.
+/domains/sales/             @org/sales-team
+/domains/customer/          @org/customer-team
+/domains/marketplace/       @org/marketplace-team
+/domains/customer_experience/ @org/customer-experience-team
+
+# Architecture decisions change the whole platform: platform + governance sign off.
+/docs/adr/                  @org/platform-team @org/governance-guild

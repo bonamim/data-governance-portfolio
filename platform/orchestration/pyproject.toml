@@ -1,0 +1,19 @@
+[project]
+name = "dgp-platform-orchestration"
+version = "0.1.0"
+description = "Orchestration capability: Airflow DAG factories that wire the platform's ingestion into one DAG bundle per domain. Domains instantiate a factory; they do not write orchestration code."
+requires-python = ">=3.11"
+# Depends on the ingestion capability (platform -> platform is allowed, ADR-0008).
+# Airflow itself is provided by the runtime image, not declared here, so the local
+# dev venv stays light and does not install Airflow.
+dependencies = ["dgp-platform-ingestion"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dgp_platform_orchestration"]
+
+[tool.uv.sources]
+dgp-platform-ingestion = { workspace = true }

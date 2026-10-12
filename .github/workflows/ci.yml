@@ -1,0 +1,31 @@
+name: CI
+
+# Federated computational governance, enforced on every change (ADR-0003, ADR-0008):
+# module boundaries, lint, and tests must pass before merge. The breaking-change
+# contract gate (proof P5) is added in milestone M5.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  governance-checks:
+    runs-on: ubuntu-latest
+    steps:
+      # Third-party actions are pinned to major tags here; pin to a commit SHA
+      # before go-live (docs/production-readiness.md, CI/CD section).
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install workspace
+        run: uv sync --all-packages
+      - name: Module boundaries (ADR-0008)
+        run: uv run python governance/policies/check_boundaries.py
+      - name: Lint
+        run: uv run ruff check .
+      - name: Format check
+        run: uv run ruff format --check .
+      - name: Tests
+        run: uv run pytest

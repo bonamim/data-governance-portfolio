@@ -1,0 +1,7 @@
+# Customer domain — source registration (owned by the Customer team).
+# customers carries PII, so its contract (M2) classifies columns and defines masking.
+domain: customer
+datasets:
+  - name: customers
+    source: {type: oltp, olist_file: olist_customers_dataset.csv, oltp_table: customers}
+    target: {raw_table: customers}
