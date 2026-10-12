@@ -1,0 +1,19 @@
+version: 2
+
+# Hand-authored minimum metadata for INTERNAL (non-port) models — a description and
+# key tests. Not governed by ODCS (these have no consumer contract). Generated
+# output-port metadata lives in _ports.yml and is never mixed in here (ADR-0012,
+# governance/standards/model-metadata.md).
+models:
+  - name: brz_orders
+    description: "Standardized orders (typed from raw). Internal Bronze."
+    columns:
+      - name: order_id
+        description: "Order identifier."
+        data_tests: [not_null]
+  - name: brz_order_payments
+    description: "Standardized order payments (typed from raw). Internal Bronze."
+    columns:
+      - name: order_id
+        description: "Order the payment belongs to."
+        data_tests: [not_null]

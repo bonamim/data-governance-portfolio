@@ -1,0 +1,12 @@
+version: 2
+
+# Hand-authored minimum metadata for INTERNAL (non-port) models (see
+# governance/standards/model-metadata.md). Output-port metadata is generated into
+# _ports.yml from the ODCS contract and never mixed in here.
+models:
+  - name: brz_customers
+    description: "Standardized customers (typed/cased from raw). Internal Bronze; holds raw PII."
+    columns:
+      - name: customer_id
+        description: "Per-order customer key."
+        data_tests: [not_null]

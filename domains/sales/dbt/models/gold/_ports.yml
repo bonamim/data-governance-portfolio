@@ -1,0 +1,100 @@
+version: 2
+models:
+- name: sales_performance
+  config:
+    meta:
+      datacontract_cli:
+        contract_id: sales.sales_performance
+        owner: sales
+    tags:
+    - output_port
+  columns:
+  - name: customer_state
+    data_type: text
+    description: Two-letter Brazilian state (grain).
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: sales_performance__customer_state__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_state has no missing values
+    - unique:
+        config:
+          meta:
+            datacontract_cli:
+              check: sales_performance__customer_state__field_unique
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_state has no duplicate values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: num_orders
+    data_type: integer
+    description: Distinct orders placed by customers in the state.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: sales_performance__num_orders__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field num_orders has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: num_customers
+    data_type: integer
+    description: Distinct customers in the state.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: sales_performance__num_customers__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field num_customers has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: total_revenue
+    data_type: numeric
+    description: Total payment value of the state's orders.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: sales_performance__total_revenue__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field total_revenue has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: avg_review_score
+    data_type: numeric
+    description: Average review score (1-5) across the state's reviewed orders.
+    config:
+      meta:
+        datacontract_cli:
+          generated: true

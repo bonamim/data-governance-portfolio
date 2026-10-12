@@ -58,11 +58,8 @@ verify-infra: ## Check buckets, schemas, roles and the ingestion ledger exist
 	@bash platform/infra/verify.sh
 
 .PHONY: sync-contracts
-sync-contracts: ## Generate dbt schema + tests from the ODCS output-port contracts (ODCS = source of truth)
-	@for d in sales customer customer_experience marketplace; do \
-	  ls domains/$$d/contracts/*.odcs.yaml >/dev/null 2>&1 && \
-	    uv run datacontract dbt sync domains/$$d/contracts/*.odcs.yaml --project-dir domains/$$d/dbt || true ; \
-	done
+sync-contracts: ## Generate each layer's _ports.yml from the ODCS output-port contracts
+	uv run python platform/transform/sync_contracts.py
 
 .PHONY: transform
 transform: ## Build all data products (dbt) in dependency order, applying consumer grants

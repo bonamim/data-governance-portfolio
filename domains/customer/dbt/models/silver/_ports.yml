@@ -1,0 +1,109 @@
+version: 2
+models:
+- name: customers
+  config:
+    meta:
+      datacontract_cli:
+        contract_id: customer.customers
+        owner: customer
+    tags:
+    - output_port
+  columns:
+  - name: customer_id
+    data_type: text
+    description: Per-order customer key; joins to sales.orders.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: customers__customer_id__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_id has no missing values
+    - unique:
+        config:
+          meta:
+            datacontract_cli:
+              check: customers__customer_id__field_unique
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_id has no duplicate values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: customer_pseudonym
+    data_type: text
+    description: Pseudonym of the person identifier. Masked from raw PII (customer_unique_id); real value never published.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: customers__customer_pseudonym__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_pseudonym has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: customer_zip_code_prefix
+    data_type: text
+    description: Location quasi-identifier.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: customers__customer_zip_code_prefix__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_zip_code_prefix has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: customer_city
+    data_type: text
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: customers__customer_city__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_city has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+  - name: customer_state
+    data_type: text
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: customers__customer_state__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field customer_state has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
