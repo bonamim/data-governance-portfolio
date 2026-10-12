@@ -1,54 +1,65 @@
 version: 2
-
 models:
   - name: reviews
-    description: "Output port: published Reviews. Free-text comments excluded (PII)."
+    config:
+      meta:
+        datacontract_cli:
+          contract_id: customer_experience.reviews
+          owner: customer_experience
+      tags:
+        - output_port
     columns:
       - name: review_id
-        description: "Review identifier (not unique in the source — can map to several orders)."
         data_type: text
         data_tests:
           - not_null:
-              description: Check that field review_id has no missing values
               config:
                 meta:
                   datacontract_cli:
-                    include_in_tests: true
                     check: reviews__review_id__field_required
+                    include_in_tests: true
                     contract_versions:
                       - 1.0.0
-                    generated: false
+                    generated: true
+              description: Check that field review_id has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
       - name: order_id
-        description: "The order this review refers to."
         data_type: text
         data_tests:
           - not_null:
-              description: Check that field order_id has no missing values
               config:
                 meta:
                   datacontract_cli:
-                    include_in_tests: true
                     check: reviews__order_id__field_required
+                    include_in_tests: true
                     contract_versions:
                       - 1.0.0
-                    generated: false
+                    generated: true
+              description: Check that field order_id has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
       - name: review_score
-        description: "1-5 star rating."
         data_type: integer
         data_tests:
           - not_null:
-              description: Check that field review_score has no missing values
               config:
                 meta:
                   datacontract_cli:
-                    include_in_tests: true
                     check: reviews__review_score__field_required
+                    include_in_tests: true
                     contract_versions:
                       - 1.0.0
-                    generated: false
-          - accepted_values:
-              values: ["1", "2", "3", "4", "5"]
-              quote: false
+                    generated: true
+              description: Check that field review_score has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
       - name: has_comment
         data_type: boolean
         data_tests:
@@ -89,8 +100,3 @@ models:
           meta:
             datacontract_cli:
               generated: true
-    config:
-      meta:
-        datacontract_cli:
-          contract_id: customer_experience.reviews
-          owner: customer_experience

@@ -13,6 +13,7 @@ domain: sales
 schema:
   - name: sales_performance
     physicalType: table
+    tags: [output_port]
     properties:
       - name: customer_state
         description: "Two-letter Brazilian state (grain)."

@@ -12,6 +12,7 @@ domain: customer_experience
 schema:
   - name: reviews
     physicalType: table
+    tags: [output_port]
     properties:
       - name: review_id
         logicalType: string

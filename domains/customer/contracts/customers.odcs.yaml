@@ -13,6 +13,7 @@ domain: customer
 schema:
   - name: customers
     physicalType: table
+    tags: [output_port]
     properties:
       - name: customer_id
         description: "Per-order customer key; joins to sales.orders."

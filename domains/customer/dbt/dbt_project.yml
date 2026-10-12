@@ -7,10 +7,12 @@ model-paths: ["models"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
+# Medallion internal layers; output ports are tagged per-model (ADR-0012).
 models:
   dgp_customer:
-    staging:
-      +schema: staging
+    bronze:
+      +schema: bronze
       +materialized: view
-    customer:
-      +materialized: table
+    silver:
+      +schema: silver
+      +materialized: view

@@ -136,5 +136,13 @@ check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
 check-data-products: ## Enforce the data product standard on every definition
 	uv run python governance/policies/check_data_products.py
 
+.PHONY: check-output-ports
+check-output-ports: ## Publishing guardrail: output-port contract <-> model <-> definition
+	uv run python governance/policies/check_output_ports.py
+
+.PHONY: marketplace
+marketplace: ## Generate the internal data product marketplace (docs/marketplace.md)
+	uv run python platform/marketplace/generate.py
+
 .PHONY: check
-check: check-boundaries check-contracts check-data-products lint test ## Run all governance + quality checks
+check: check-boundaries check-contracts check-data-products check-output-ports lint test ## Run all governance + quality checks

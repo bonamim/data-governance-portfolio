@@ -136,8 +136,8 @@ There are exactly two such boundaries; the layers in between are internal and ca
 | Layer | Governed? | Contract | Quality | Consumed by |
 |---|---|---|---|---|
 | **Landing zone** (files in object storage) | **Yes — governed boundary** | **ODCS** (file contract) | Gate: a file must match its contract **before load**, or it is quarantined (proof P2) | Every domain that ingests the file — governed so all consume the same standardized shape |
-| `<domain>_raw`, `<domain>_staging` (internal) | No contract | — | Engineering DQ, owned by the domain (dbt tests) | The owning domain only |
-| **Output port** — `<domain>` tables/views | **Yes — governed boundary** | **ODCS** (table/view contract) | Contractual DQ declared in the contract; results visible to consumers | Other domains, BI, AI — output ports only |
+| `<domain>_raw`, `<domain>_bronze/silver/gold` (internal medallion) | No contract | — | Engineering DQ, owned by the domain (dbt tests) | The owning domain only |
+| **Output port** — a model tagged `output_port` in any layer | **Yes — governed boundary** | **ODCS** (table/view contract, carrying the `output_port` tag) | Contractual DQ declared in the contract; results visible to consumers | Other domains, BI, AI — output ports only |
 | **Semantic output port** | **Yes — governed boundary** | **Apache Ossie** (semantic model) | Definitions resolve to governed concepts | BI and the AI agent (one metric definition for both) |
 
 **Landing is not Raw.** Landing is the shared, governed file boundary where data enters the
@@ -161,14 +161,22 @@ to consumers).
 
 ## 5. Warehouse layout and access
 
-Each domain has its own schemas in the `analytics` database and its own Postgres role.
+Each domain has its own medallion schemas in the `analytics` database and its own Postgres
+role. **Output ports are not a separate schema** — they are models tagged `output_port`
+(from their ODCS contract) that live in whichever layer produced them (ADR-0012).
 
 | Schema | Contents | Who can read |
 |---|---|---|
 | `<domain>_raw` | Data as loaded from sources | Domain role only |
-| `<domain>_staging` | dbt staging models | Domain role only |
-| `<domain>` | Data products (output port) | Domain role + declared consumer roles |
+| `<domain>_bronze` | Standardized (typed) | Domain role only |
+| `<domain>_silver` | Conformed (business rules, enrichment) | Domain role only |
+| `<domain>_gold` | Business-ready (aggregates/marts) | Domain role only |
+| *(any layer)* | A model tagged `output_port` is a **published port** | Domain role + declared consumer roles (per-model grant) |
+
+An output port lives where it was produced — e.g. `sales_silver.orders`, `sales_gold.sales_performance` —
+and consumers receive `USAGE` on that layer schema plus `SELECT` on the one port model. The
+logical name (`sales.orders`) maps to the physical location through the marketplace listing
+([docs/marketplace.md](marketplace.md)).
 
 Cross-domain dbt references use [dbt-loom](https://github.com/nicholasyager/dbt-loom),
-which lets one dbt Core project `ref()` another project's **public** models only —
-matching the output-port rule above.
+which lets one dbt Core project `ref()` another project's **public** output ports only.

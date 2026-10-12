@@ -29,20 +29,36 @@ def _definition_files() -> list[Path]:
     )
 
 
+def port_location(owner: str, product: str) -> tuple[str, str] | None:
+    """Physical (schema, table) of an output port, derived from its dbt model file.
+
+    A port is declared by its ODCS contract (tag output_port); its physical home is
+    the medallion layer folder its dbt model lives in, so the schema is
+    <owner>_<layer> (Option B / ADR-0012). No build needed.
+    """
+    models = REPO_ROOT / "domains" / owner / "dbt" / "models"
+    for path in models.rglob(f"{product}.sql"):
+        layer = path.parent.name  # bronze | silver | gold
+        return f"{owner}_{layer}", product
+    return None
+
+
 def _grants() -> list[tuple[str, str, str]]:
-    """Return (consumer_role, owner_schema, product) for every declared consumer."""
+    """Return (consumer_role, physical_schema, table) for every declared consumer."""
     out: list[tuple[str, str, str]] = []
     for path in _definition_files():
         defn = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        owner_schema = (defn.get("owner") or {}).get("team")
+        owner = (defn.get("owner") or {}).get("team")
         product = defn.get("name")
+        location = port_location(owner, product) if owner and product else None
+        if not location:
+            continue
+        schema, table = location
         for consumer in defn.get("consumers") or []:
             team = (consumer or {}).get("team")
-            if not (owner_schema and product and team):
-                continue
-            if team == owner_schema:
+            if not team or team == owner:
                 continue  # a domain already owns its own products
-            out.append((f"{team}_role", owner_schema, product))
+            out.append((f"{team}_role", schema, table))
     return out
 
 

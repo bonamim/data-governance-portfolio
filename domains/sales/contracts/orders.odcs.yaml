@@ -1,6 +1,3 @@
-# ODCS contract for the sales.orders OUTPUT PORT (a published table).
-# This is the consumer-facing promise (the second governed boundary): schema,
-# classification and contractual quality that other domains, BI and AI rely on.
 version: 1.0.0
 kind: DataContract
 apiVersion: v3.2.0
@@ -11,56 +8,65 @@ description:
   purpose: Authoritative record of customer orders and their lifecycle status.
 domain: sales
 schema:
-  - name: orders
-    physicalType: table
-    properties:
-      - name: order_id
-        logicalType: string
-        physicalType: text
-        required: true
-        unique: true
-        classification: internal
-      - name: customer_id
-        logicalType: string
-        physicalType: text
-        required: true
-        classification: internal
-      - name: order_status
-        logicalType: string
-        physicalType: text
-        required: true
-        classification: public
-      - name: order_purchase_timestamp
-        logicalType: date
-        physicalType: timestamp
-        required: true
-        classification: public
-      - name: order_approved_at
-        logicalType: date
-        physicalType: timestamp
-        required: false
-        classification: public
-      - name: order_delivered_customer_date
-        logicalType: date
-        physicalType: timestamp
-        required: false
-        classification: public
-      - name: order_estimated_delivery_date
-        logicalType: date
-        physicalType: timestamp
-        required: false
-        classification: public
-    quality:
-      - type: library
-        metric: rowCount
-        mustBeGreaterThan: 1000
+- name: orders
+  physicalType: table
+  properties:
+  - name: order_id
+    description: Order identifier (primary key).
+    logicalType: string
+    physicalType: text
+    required: true
+    unique: true
+    classification: internal
+  - name: customer_id
+    description: Customer who placed the order (joins to customer.customers).
+    logicalType: string
+    physicalType: text
+    required: true
+    classification: internal
+  - name: order_status
+    description: Lifecycle status of the order.
+    logicalType: string
+    physicalType: text
+    required: true
+    classification: public
+  - name: order_purchase_timestamp
+    description: When the order was placed.
+    logicalType: date
+    physicalType: timestamp
+    required: true
+    classification: public
+  - name: order_approved_at
+    description: When the order was approved.
+    logicalType: date
+    physicalType: timestamp
+    required: false
+    classification: public
+  - name: order_delivered_customer_date
+    description: When the order was delivered to the customer.
+    logicalType: date
+    physicalType: timestamp
+    required: false
+    classification: public
+  - name: order_estimated_delivery_date
+    description: Estimated delivery date given to the customer.
+    logicalType: date
+    physicalType: timestamp
+    required: false
+    classification: public
+  quality:
+  - type: library
+    metric: rowCount
+    mustBeGreaterThan: 1000
+  tags:
+  - output_port
 slaProperties:
-  - property: frequency
-    value: 1
-    unit: d
-  - property: latency
-    value: 1
-    unit: d
-    element: orders.order_purchase_timestamp
+- property: frequency
+  value: 1
+  unit: d
+- property: latency
+  value: 1
+  unit: d
+  element: orders.order_purchase_timestamp
 team:
   name: sales

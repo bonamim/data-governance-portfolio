@@ -1,0 +1,114 @@
+version: 2
+models:
+  - name: orders
+    config:
+      meta:
+        datacontract_cli:
+          contract_id: sales.orders
+          owner: sales
+      tags:
+        - output_port
+    columns:
+      - name: order_id
+        data_type: text
+        description: Order identifier (primary key).
+        data_tests:
+          - not_null:
+              config:
+                meta:
+                  datacontract_cli:
+                    check: orders__order_id__field_required
+                    include_in_tests: true
+                    contract_versions:
+                      - 1.0.0
+                    generated: true
+              description: Check that field order_id has no missing values
+          - unique:
+              config:
+                meta:
+                  datacontract_cli:
+                    check: orders__order_id__field_unique
+                    include_in_tests: true
+                    contract_versions:
+                      - 1.0.0
+                    generated: true
+              description: Check that field order_id has no duplicate values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: customer_id
+        data_type: text
+        description: Customer who placed the order (joins to customer.customers).
+        data_tests:
+          - not_null:
+              config:
+                meta:
+                  datacontract_cli:
+                    check: orders__customer_id__field_required
+                    include_in_tests: true
+                    contract_versions:
+                      - 1.0.0
+                    generated: true
+              description: Check that field customer_id has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: order_status
+        data_type: text
+        description: Lifecycle status of the order.
+        data_tests:
+          - not_null:
+              config:
+                meta:
+                  datacontract_cli:
+                    check: orders__order_status__field_required
+                    include_in_tests: true
+                    contract_versions:
+                      - 1.0.0
+                    generated: true
+              description: Check that field order_status has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: order_purchase_timestamp
+        data_type: timestamp
+        description: When the order was placed.
+        data_tests:
+          - not_null:
+              config:
+                meta:
+                  datacontract_cli:
+                    check: orders__order_purchase_timestamp__field_required
+                    include_in_tests: true
+                    contract_versions:
+                      - 1.0.0
+                    generated: true
+              description: Check that field order_purchase_timestamp has no missing values
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: order_approved_at
+        data_type: timestamp
+        description: When the order was approved.
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: order_delivered_customer_date
+        data_type: timestamp
+        description: When the order was delivered to the customer.
+        config:
+          meta:
+            datacontract_cli:
+              generated: true
+      - name: order_estimated_delivery_date
+        data_type: timestamp
+        description: Estimated delivery date given to the customer.
+        config:
+          meta:
+            datacontract_cli:
+              generated: true

@@ -78,18 +78,23 @@ for domain in $DOMAINS; do
 		CREATE ROLE ${domain}_role LOGIN PASSWORD '${password}';
 		GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO ${domain}_role;
 
-		-- Three layers. raw/staging are private to the domain; <domain> is the output port.
-		CREATE SCHEMA IF NOT EXISTS ${domain}_raw     AUTHORIZATION platform_loader;
-		CREATE SCHEMA IF NOT EXISTS ${domain}_staging AUTHORIZATION ${domain}_role;
-		CREATE SCHEMA IF NOT EXISTS ${domain}         AUTHORIZATION ${domain}_role;
+		-- Medallion layers (internal, engineering DQ). raw is loaded by the platform;
+		-- bronze/silver/gold are the domain's progression. Output ports are models
+		-- deliberately tagged `output_port` that live in one of these layer schemas
+		-- (ADR-0012) — there is no separate output schema; publishing is a tag, not a
+		-- location. Consumer access to a port is granted per-model.
+		CREATE SCHEMA IF NOT EXISTS ${domain}_raw    AUTHORIZATION platform_loader;
+		CREATE SCHEMA IF NOT EXISTS ${domain}_bronze AUTHORIZATION ${domain}_role;
+		CREATE SCHEMA IF NOT EXISTS ${domain}_silver AUTHORIZATION ${domain}_role;
+		CREATE SCHEMA IF NOT EXISTS ${domain}_gold   AUTHORIZATION ${domain}_role;
 
-		-- The domain reads its own raw (loaded by the platform) and owns staging + output.
+		-- The domain reads its own raw (loaded by the platform) and owns the rest.
 		GRANT USAGE ON SCHEMA ${domain}_raw TO ${domain}_role;
 		GRANT SELECT ON ALL TABLES IN SCHEMA ${domain}_raw TO ${domain}_role;
 		ALTER DEFAULT PRIVILEGES FOR ROLE platform_loader IN SCHEMA ${domain}_raw
 		    GRANT SELECT ON TABLES TO ${domain}_role;
 	SQL
-	echo "  domain '${domain}': role + schemas ${domain}_raw / ${domain}_staging / ${domain} created."
+	echo "  domain '${domain}': role + raw/bronze/silver/gold schemas created."
 done
 
 echo "analytics warehouse initialised."
