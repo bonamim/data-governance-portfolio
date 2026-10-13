@@ -46,9 +46,8 @@ def _port_location(owner: str, product: str) -> tuple[str, str] | None:
 
 
 def _dataset(schema: str, table: str):
-    """A DataHub lineage entity for a warehouse port, matching the Postgres/dbt ingestion URN
-    exactly so Airflow lineage joins the dbt/Postgres graph (not a phantom ``airflow`` node).
-    Lazy-imported so the factory still works where the plugin is absent (tests, local)."""
+    """A DataHub lineage entity matching the Postgres/dbt ingestion URN exactly (so the edge
+    lands on the real table). Lazy-imported so the factory still works without the plugin."""
     try:
         from datahub_airflow_plugin.entities import Dataset
     except ImportError:
@@ -57,7 +56,7 @@ def _dataset(schema: str, table: str):
 
 
 def _output_port_datasets(domain: str) -> list:
-    """This domain's output ports as lineage entities — the publish task's outputs."""
+    """This domain's output ports — the publish task's outputs ("which DAG builds this port")."""
     out = []
     for p in (runtime.repo_root() / "domains" / domain / "data_products").glob("*.yaml"):
         defn = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
@@ -102,9 +101,10 @@ def build_transform_dag(
         **(default_args or {}),
     }
     schedule = [raw_asset(domain)] + [published_asset(d) for d in _upstream_domains(domain)]
-    # DataHub lineage (ADR-0018): declare the real output-port tables as the task's outputs and
-    # the upstream ports as its inputs, so Airflow lineage joins the dbt/Postgres graph. The
-    # published/<domain> Asset stays on outlets for scheduling.
+    # DataHub lineage (ADR-0018): the publish task PRODUCES the domain's output-port tables (the
+    # "which DAG builds/publishes this dbt model" link) and CONSUMES the upstream ports it reads.
+    # dbt owns the internal raw -> bronze -> silver -> gold lineage; Airflow sits at the load
+    # boundary (ingestion) and the publish boundary (here). published/<domain> stays for scheduling.
     outlets = [published_asset(domain), *_output_port_datasets(domain)]
     inlets = _input_port_datasets(domain)
 

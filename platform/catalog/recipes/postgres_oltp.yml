@@ -1,0 +1,21 @@
+# DataHub ingestion — the operational source database (shop_oltp), so lineage starts at the
+# real source: shop_oltp.shop.<table> -> load_raw (Airflow) -> <domain>_raw.<table> -> [dbt].
+# Secrets come from the environment (sourced from .env by `make catalog-ingest`).
+source:
+  type: postgres
+  config:
+    host_port: "localhost:${OLTP_PORT}"
+    database: "${OLTP_DB}"
+    username: "${OLTP_SUPERUSER}"
+    password: "${OLTP_SUPERUSER_PASSWORD}"
+    schema_pattern:
+      allow:
+        - "shop"
+    include_tables: true
+    include_views: false
+    profiling:
+      enabled: false
+sink:
+  type: datahub-rest
+  config:
+    server: "${DATAHUB_GMS}"

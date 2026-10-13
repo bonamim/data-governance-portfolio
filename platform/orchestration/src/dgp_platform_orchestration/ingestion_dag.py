@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pendulum
 from airflow.sdk import dag, get_current_context, task
 from dgp_platform_ingestion import pipeline
@@ -20,6 +22,40 @@ from .assets import OLIST_CACHE, raw_asset
 
 _START = pendulum.datetime(2026, 1, 1, tz="UTC")
 _DEFAULT_ARGS = {"retries": 2, "retry_delay": pendulum.duration(minutes=1)}
+_DB = os.environ.get("ANALYTICS_DB", "analytics")
+_LANDING = os.environ.get("LANDING_BUCKET", "olist-landing")
+
+
+def _dataset(platform: str, name: str):
+    """A DataHub lineage entity, matching the ingestion URNs so Airflow lineage joins the
+    dbt/Postgres graph. Lazy-imported so the factory still works without the plugin (tests)."""
+    try:
+        from datahub_airflow_plugin.entities import Dataset
+    except ImportError:
+        return None
+    return Dataset(platform=platform, name=name, env="PROD")
+
+
+def _raw_outlets(datasets) -> list:
+    """The <domain>_raw tables this load produces (matches the warehouse ingestion URN)."""
+    out = []
+    for d in datasets:
+        if ds := _dataset("postgres", f"{_DB}.{d.raw_schema}.{d.raw_table}"):
+            out.append(ds)
+    return out
+
+
+def _source_inlets(datasets) -> list:
+    """The upstream sources: the shop_oltp table (OLTP) or the landing object (file datasets)."""
+    out = []
+    for d in datasets:
+        if d.source_type == "oltp":
+            ds = _dataset("postgres", f"shop_oltp.shop.{d.oltp_table}")
+        else:
+            ds = _dataset("s3", f"{_LANDING}/{d.source_system}/{d.name}")
+        if ds:
+            out.append(ds)
+    return out
 
 
 def build_acquire_dag():
@@ -66,7 +102,11 @@ def build_ingestion_dag(domain: str):
         def land():
             pipeline.land_files(runtime.repo_root(), runtime.settings(), runtime.data_dir(), domain)
 
-        @task(outlets=[raw_asset(domain)])
+        # Airflow lineage lives at the load boundary (ADR-0018): the loader consumes the source
+        # (shop_oltp table / landing object) and produces the <domain>_raw tables, so the catalog
+        # reads "source -> load_raw -> raw tables -> [dbt medallion] -> ports". raw_asset is for
+        # scheduling the transform DAG.
+        @task(outlets=[raw_asset(domain), *_raw_outlets(datasets)], inlets=_source_inlets(datasets))
         def load_raw():
             run_id = get_current_context()["run_id"]
             pipeline.load_raw(

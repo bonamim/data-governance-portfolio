@@ -168,6 +168,7 @@ catalog-docs: $(ENV_FILE) ## Regenerate dbt manifest+catalog artifacts for inges
 catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lineage, tests) into DataHub
 	set -a; . ./$(ENV_FILE); set +a; \
 	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
+	datahub ingest -c platform/catalog/recipes/postgres_oltp.yml; \
 	datahub ingest -c platform/catalog/recipes/postgres_analytics.yml; \
 	for d in customer customer_experience sales; do \
 		DBT_TARGET=$(CURDIR)/domains/$$d/dbt/target datahub ingest -c platform/catalog/recipes/dbt.yml; \
