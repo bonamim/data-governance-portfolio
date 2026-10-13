@@ -73,6 +73,10 @@ transform: ## Build all data products (dbt) in dependency order, applying consum
 grants: ## Apply consumer grants from data product definitions (output ports only)
 	uv run python platform/access/grant_consumers.py
 
+.PHONY: publish
+publish: ## Write-audit-publish: build to a candidate, run contractual DQ, swap on pass
+	uv run --group dbt python platform/transform/publish.py
+
 .PHONY: endpoints
 endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "UIs"
