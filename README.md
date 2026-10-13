@@ -231,7 +231,12 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   contract and quarantined on failure (proof P2), enforced in CI that each landing dataset has
   a valid contract. *Remaining:* output-port (table/view) contracts, authored with the data
   products in M3.
-- [ ] **M3 — Domains:** four dbt projects, cross-domain refs, contract-enforced data products
+- [x] **M3 — Domains:** per-domain dbt projects on a medallion (raw→bronze→silver→gold);
+  output ports are models tagged `output_port` in their ODCS contract (published in place,
+  any layer); cross-domain refs via dbt-loom (public ports only); contractual DQ generated
+  from the contracts; write-audit-publish protects materialized ports (proof P3); consumer
+  grants and a simulated internal marketplace generated from the definitions; per-domain
+  transform DAGs in Airflow (acquire → ingest → transform via assets)
 - [ ] **M4 — Catalog:** DataHub with end-to-end lineage, domains, data products, glossary, quality results
 - [ ] **M5 — Contract gate:** PR blocked on breaking change, consuming domains alerted
 - [ ] **M6 — Reporting & semantics:** Apache Ossie semantic layer over the data products;
