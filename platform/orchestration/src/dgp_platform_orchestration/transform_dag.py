@@ -9,7 +9,6 @@ after their inputs are published. It emits ``published/<domain>``.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 
@@ -21,7 +20,6 @@ from . import runtime
 from .assets import published_asset, raw_asset
 
 _START = pendulum.datetime(2026, 1, 1, tz="UTC")
-_DB = os.environ.get("ANALYTICS_DB", "analytics")
 
 
 def _upstream_domains(domain: str) -> list[str]:
@@ -35,48 +33,6 @@ def _upstream_domains(domain: str) -> list[str]:
             if dom and dom != domain:
                 deps.add(dom)
     return sorted(deps)
-
-
-def _port_location(owner: str, product: str) -> tuple[str, str] | None:
-    """Physical (schema, table) of an output port, from its dbt model's layer folder."""
-    models = runtime.repo_root() / "domains" / owner / "dbt" / "models"
-    for path in models.rglob(f"{product}.sql"):
-        return f"{owner}_{path.parent.name}", product
-    return None
-
-
-def _dataset(schema: str, table: str):
-    """A DataHub lineage entity matching the Postgres/dbt ingestion URN exactly (so the edge
-    lands on the real table). Lazy-imported so the factory still works without the plugin."""
-    try:
-        from datahub_airflow_plugin.entities import Dataset
-    except ImportError:
-        return None
-    return Dataset(platform="postgres", name=f"{_DB}.{schema}.{table}", env="PROD")
-
-
-def _output_port_datasets(domain: str) -> list:
-    """This domain's output ports — the publish task's outputs ("which DAG builds this port")."""
-    out = []
-    for p in (runtime.repo_root() / "domains" / domain / "data_products").glob("*.yaml"):
-        defn = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-        loc = _port_location(domain, defn.get("name", ""))
-        if loc and (ds := _dataset(*loc)):
-            out.append(ds)
-    return out
-
-
-def _input_port_datasets(domain: str) -> list:
-    """Upstream output ports this domain consumes — the publish task's inputs (cross-domain)."""
-    out = []
-    for p in (runtime.repo_root() / "domains" / domain / "data_products").glob("*.yaml"):
-        defn = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-        for ref in defn.get("inputs") or []:
-            parts = str(ref).split(".")
-            if len(parts) == 2 and parts[0] != domain and (loc := _port_location(*parts)):
-                if ds := _dataset(*loc):
-                    out.append(ds)
-    return out
 
 
 def build_transform_dag(
@@ -101,12 +57,6 @@ def build_transform_dag(
         **(default_args or {}),
     }
     schedule = [raw_asset(domain)] + [published_asset(d) for d in _upstream_domains(domain)]
-    # DataHub lineage (ADR-0018): the publish task PRODUCES the domain's output-port tables (the
-    # "which DAG builds/publishes this dbt model" link) and CONSUMES the upstream ports it reads.
-    # dbt owns the internal raw -> bronze -> silver -> gold lineage; Airflow sits at the load
-    # boundary (ingestion) and the publish boundary (here). published/<domain> stays for scheduling.
-    outlets = [published_asset(domain), *_output_port_datasets(domain)]
-    inlets = _input_port_datasets(domain)
 
     @dag(
         dag_id=f"{domain}_transform",
@@ -118,7 +68,14 @@ def build_transform_dag(
         doc_md=f"Build and write-audit-publish the **{domain}** output ports.",
     )
     def _dag():
-        @task(outlets=outlets, inlets=inlets)
+        # No dataset lineage on the transform task (ADR-0018): the transform IS dbt, so dbt owns
+        # the raw -> bronze -> silver -> gold lineage, and Airflow appears only at the LOAD boundary
+        # (the ingestion load_raw task). This keeps every table to a single upstream type — a dbt
+        # edge OR an Airflow edge, never both — matching a standard clean lineage view. A DataJob
+        # (a job) and a dbt model (a dataset) are different entity types and cannot merge into one
+        # node, so putting Airflow here would just add a second upstream on each port. published/<d>
+        # stays on outlets purely for scheduling downstream domains.
+        @task(outlets=[published_asset(domain)])
         def publish():
             script = runtime.repo_root() / "platform" / "transform" / "publish.py"
             result = subprocess.run([sys.executable, str(script), "--domain", domain])
