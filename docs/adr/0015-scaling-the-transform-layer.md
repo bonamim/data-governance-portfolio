@@ -50,6 +50,14 @@ cheap primitive:
 | Snowflake / Databricks / BigQuery | **zero-copy clone** swap (near-free) |
 | Iceberg / Delta | **branch** + cherry-pick / fast-forward |
 
+The promote runs **inside the dbt project** — it is a `dbt run-operation` macro in the `dgp_dbt`
+package (`wap_publish` / `wap_drop_candidates`), not a hand-rolled SQL script. `dbt build` is the
+*write + audit*; a thin orchestrator (`publish.py` / the Airflow task) only sequences
+`dbt build → dbt run-operation`. This is the community-standard shape (dbt's own guidance runs the
+swap as `dbt run-operation`/`dbt clone`, never as external SQL) and keeps the promote portable —
+the same macro name maps to `ALTER SCHEMA … SWAP` / `dbt clone` on a warehouse. *(Implemented
+2026-10-13.)*
+
 Clarifications that resolve the review questions:
 - The candidate schema is **one staging namespace per domain** (e.g. `sales_gold__candidate`),
   not one per output port. A schema is metadata — free to create/drop. **It is not the
