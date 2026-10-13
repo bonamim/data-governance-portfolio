@@ -3,7 +3,7 @@
 
 Technical metadata (datasets, lineage, tests) comes from the dbt/Postgres ingestion recipes.
 This adds the mesh governance on top, generated — not hand-maintained in the UI — from the same
-files that drive grants and the marketplace:
+definitions that drive grants and the data contracts:
 
   * **Domains** — one per mesh domain; every warehouse/dbt dataset is filed under its domain.
   * **Data products** — one per ``domains/*/data_products/*.yaml``: display name, purpose,

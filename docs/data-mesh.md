@@ -175,8 +175,8 @@ role. **Output ports are not a separate schema** — they are models tagged `out
 
 An output port lives where it was produced — e.g. `sales_silver.orders`, `sales_gold.sales_performance` —
 and consumers receive `USAGE` on that layer schema plus `SELECT` on the one port model. The
-logical name (`sales.orders`) maps to the physical location through the marketplace listing
-([docs/marketplace.md](marketplace.md)).
+logical name (`sales.orders`) maps to the physical location through its data-product definition,
+surfaced in the DataHub catalog (M4).
 
 Cross-domain dbt references use [dbt-loom](https://github.com/nicholasyager/dbt-loom),
 which lets one dbt Core project `ref()` another project's **public** output ports only.

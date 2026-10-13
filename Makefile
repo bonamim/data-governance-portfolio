@@ -144,10 +144,6 @@ check-data-products: ## Enforce the data product standard on every definition
 check-output-ports: ## Publishing guardrail: output-port contract <-> model <-> definition
 	uv run python governance/policies/check_output_ports.py
 
-.PHONY: marketplace
-marketplace: ## Generate the internal data product marketplace (docs/marketplace.md)
-	uv run python platform/marketplace/generate.py
-
 # ---------------------------------------------------------------- catalog (M4) ---
 # DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
 # pinned by digest. Ingestion needs the DataHub CLI on PATH:

@@ -19,3 +19,4 @@
 | [0015](0015-scaling-the-transform-layer.md) | Scaling the transform layer (Cosmos, per-model WAP, dbt state, microbatch backfill) | Proposed |
 | [0016](0016-event-driven-ingestion.md) | Event-driven ingestion for partner-pushed files | Proposed |
 | [0017](0017-local-runtime-topology.md) | Local runtime topology (1 VM = 1 environment, capability compose projects) | Accepted |
+| [0018](0018-catalog-deployment-and-catalog-as-code.md) | Catalog deployment (pinned dgp-catalog compose) and catalog-as-code | Accepted |

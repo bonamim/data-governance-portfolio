@@ -39,8 +39,8 @@ recipe files.
 ## Governance generator (`generate_governance.py`)
 
 Technical metadata comes from the recipes above; the *governance* layer is generated from the
-same source-of-truth files that drive grants and the marketplace — never hand-maintained in the
-UI. `make catalog-govern` emits, idempotently:
+same source-of-truth definitions that drive grants and the data contracts — never hand-maintained
+in the UI. `make catalog-govern` emits, idempotently:
 
 - **Domains** — one per mesh domain; every warehouse + dbt dataset is filed under its domain.
 - **Data products** — one per `domains/*/data_products/*.yaml`: display name, purpose, owner

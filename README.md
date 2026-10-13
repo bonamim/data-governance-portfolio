@@ -235,7 +235,7 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   output ports are models tagged `output_port` in their ODCS contract (published in place,
   any layer); cross-domain refs via dbt-loom (public ports only); contractual DQ generated
   from the contracts; write-audit-publish protects materialized ports (proof P3); consumer
-  grants and a simulated internal marketplace generated from the definitions; per-domain
+  grants generated from the definitions (the catalog/marketplace is DataHub at M4); per-domain
   transform DAGs in Airflow (acquire → ingest → transform via assets)
 - [ ] **M4 — Catalog:** DataHub with end-to-end lineage, domains, data products, glossary, quality results
 - [ ] **M5 — Contract gate:** PR blocked on breaking change, consuming domains alerted. Breaking

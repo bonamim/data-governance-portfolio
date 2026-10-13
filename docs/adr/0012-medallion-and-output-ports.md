@@ -1,6 +1,9 @@
 # ADR-0012: Medallion layers, tag-based output ports, and a simulated marketplace
 
 **Status:** Accepted
+**Note:** the *simulated marketplace* (`make marketplace` → `docs/marketplace.md`) was retired at M4
+and replaced by DataHub — see [ADR-0018](0018-catalog-deployment-and-catalog-as-code.md). The
+medallion / tag-based output-port decisions below still stand.
 
 ## Context
 Domains need an internal engineering progression, and a clear, *deliberate* way to publish
