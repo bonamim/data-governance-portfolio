@@ -149,16 +149,18 @@ marketplace: ## Generate the internal data product marketplace (docs/marketplace
 	uv run python platform/marketplace/generate.py
 
 # ---------------------------------------------------------------- catalog (M4) ---
-# DataHub runs as the dgp-catalog capability in the same Colima VM (ADR-0017). Needs the
-# DataHub CLI on PATH: `uv tool install 'acryl-datahub[postgres,dbt]'`.
+# DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
+# pinned by digest. Ingestion needs the DataHub CLI on PATH:
+# `uv tool install 'acryl-datahub[postgres,dbt]'`. GMS is on $(DATAHUB_MAPPED_GMS_PORT).
+CATALOG := docker compose --env-file $(ENV_FILE) -p dgp-catalog --profile quickstart -f platform/catalog/docker-compose.datahub.yml
 
 .PHONY: catalog-up
-catalog-up: ## Start DataHub (quickstart) in the current Colima VM
-	datahub docker quickstart
+catalog-up: $(ENV_FILE) ## Start DataHub (pinned dgp-catalog compose) in the current Colima VM
+	$(CATALOG) up -d
 
 .PHONY: catalog-down
 catalog-down: ## Stop DataHub (keeps its volumes)
-	datahub docker quickstart --stop
+	$(CATALOG) down
 
 .PHONY: catalog-docs
 catalog-docs: $(ENV_FILE) ## Regenerate dbt manifest+catalog artifacts for ingestion
@@ -169,7 +171,7 @@ catalog-docs: $(ENV_FILE) ## Regenerate dbt manifest+catalog artifacts for inges
 .PHONY: catalog-ingest
 catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lineage, tests) into DataHub
 	set -a; . ./$(ENV_FILE); set +a; \
-	export DATAHUB_GMS=$${DATAHUB_GMS:-http://localhost:8080}; \
+	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
 	datahub ingest -c platform/catalog/recipes/postgres_analytics.yml; \
 	for d in customer customer_experience sales; do \
 		DBT_TARGET=$(CURDIR)/domains/$$d/dbt/target datahub ingest -c platform/catalog/recipes/dbt.yml; \
@@ -178,7 +180,7 @@ catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lin
 .PHONY: catalog-govern
 catalog-govern: $(ENV_FILE) ## Push mesh governance (domains, data products, ownership) into DataHub from definitions
 	set -a; . ./$(ENV_FILE); set +a; \
-	export DATAHUB_GMS=$${DATAHUB_GMS:-http://localhost:8080}; \
+	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
 	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml \
 		python platform/catalog/generate_governance.py
 

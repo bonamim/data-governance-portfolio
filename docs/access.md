@@ -19,6 +19,7 @@ in `.env.example`. Run `make endpoints` to print the live values from your `.env
 | Service | Host:Port | DB | User | Password (env var) |
 |---|---|---|---|---|
 | **MinIO S3 API** | http://localhost:9000 | — | `MINIO_ROOT_USER` | `MINIO_ROOT_PASSWORD` |
+| **DataHub GMS API** | http://localhost:8081 | — | — | dev: no token (ingestion/CLI target) |
 | **Postgres — shop_oltp** (operational source) | localhost:5432 | `shop_oltp` | `OLTP_SUPERUSER` (postgres) | `OLTP_SUPERUSER_PASSWORD` |
 | **Postgres — analytics** (warehouse) | localhost:5433 | `analytics` | `ANALYTICS_SUPERUSER` (postgres) | `ANALYTICS_SUPERUSER_PASSWORD` |
 
