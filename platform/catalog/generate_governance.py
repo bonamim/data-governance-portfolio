@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import urllib.request
 from pathlib import Path
 
@@ -40,22 +41,18 @@ from datahub.metadata.schema_classes import (
     GlossaryTermsClass,
 )
 
-# ODCS column classification -> catalog glossary term (what consumers see).
-CLASSIFICATIONS = {
-    "pii": ("Classification.PII", "PII", "Personal data; masked per policy (ADR-0013)."),
-    "internal": ("Classification.Internal", "Internal", "Internal-only; not for external sharing."),
-    "public": ("Classification.Public", "Public", "Shareable with any consumer."),
-}
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+from governance.registry import classification_terms, domains  # noqa: E402
+
 GMS = os.environ.get("DATAHUB_GMS", "http://localhost:8080")
 DB = os.environ.get("ANALYTICS_DB", "analytics")
-# Mesh domains (directories under domains/ plus the top-level reference domain).
-DOMAINS = ["customer", "customer_experience", "marketplace", "sales", "reference"]
-
-
-def _pretty(domain: str) -> str:
-    return domain.replace("_", " ").title()
+# Single source of truth: the domain registry (governance/domains/) and the glossary
+# (governance/glossary/). Nothing here is hardcoded.
+REGISTRY = {d["name"]: d for d in domains()}
+DOMAINS = list(REGISTRY)
+# ODCS classification value -> glossary term dict (id, name, definition).
+CLASSIFICATIONS = classification_terms()
 
 
 def _domain_of(schema: str) -> str | None:
@@ -122,12 +119,15 @@ def _columns_with_classification(contract_path: Path) -> list[tuple[str, str]]:
 def main() -> int:
     emitter = DatahubRestEmitter(gms_server=GMS)
 
-    # 1. Domains
+    # 1. Domains (name + description from the registry)
     for d in DOMAINS:
+        meta = REGISTRY[d]
         emitter.emit(
             MetadataChangeProposalWrapper(
                 entityUrn=make_domain_urn(d),
-                aspect=DomainPropertiesClass(name=_pretty(d), description=f"{_pretty(d)} domain."),
+                aspect=DomainPropertiesClass(
+                    name=meta.get("display_name", d), description=meta.get("description")
+                ),
             )
         )
     print(f"  domains: {', '.join(DOMAINS)}")
@@ -147,17 +147,17 @@ def main() -> int:
         filed += 1
     print(f"  datasets filed under a domain: {filed}")
 
-    # 3. Data-classification glossary terms (consumer-visible classification taxonomy)
-    for term_id, term_name, definition in CLASSIFICATIONS.values():
+    # 3. Data-classification glossary terms (from governance/glossary/)
+    for term in CLASSIFICATIONS.values():
         emitter.emit(
             MetadataChangeProposalWrapper(
-                entityUrn=make_term_urn(term_id),
+                entityUrn=make_term_urn(term["id"]),
                 aspect=GlossaryTermInfoClass(
-                    name=term_name, definition=definition, termSource="INTERNAL"
+                    name=term["name"], definition=term.get("definition"), termSource="INTERNAL"
                 ),
             )
         )
-    print(f"  glossary terms: {', '.join(t[1] for t in CLASSIFICATIONS.values())}")
+    print(f"  glossary terms: {', '.join(t['name'] for t in CLASSIFICATIONS.values())}")
 
     # 4. Data products + per-column classification on their output ports
     audit = AuditStampClass(time=0, actor="urn:li:corpuser:datahub")
@@ -177,7 +177,7 @@ def main() -> int:
         fields = []
         for contract in contracts:
             for col, cls in _columns_with_classification(REPO_ROOT / contract):
-                term = make_term_urn(CLASSIFICATIONS[cls][0])
+                term = make_term_urn(CLASSIFICATIONS[cls]["id"])
                 fields.append(
                     EditableSchemaFieldInfoClass(
                         fieldPath=col,

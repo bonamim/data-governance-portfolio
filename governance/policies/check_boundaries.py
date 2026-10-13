@@ -21,9 +21,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+from governance.registry import domain_names  # noqa: E402
 
-# Keep in sync with governance/domains and docs/data-mesh.md.
-DOMAINS = ["customer_experience", "marketplace", "customer", "sales", "reference"]
+DOMAINS = domain_names()  # single source of truth: governance/domains/
 # Longest first so "customer_experience" matches before "customer".
 DOMAINS_BY_LEN = sorted(DOMAINS, key=len, reverse=True)
 

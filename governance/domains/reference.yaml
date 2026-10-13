@@ -1,0 +1,8 @@
+# Domain registry entry (data-mesh.md). The single source of truth for this mesh domain —
+# the domain list and metadata are read from here, never hardcoded (see governance/registry.py).
+name: reference
+display_name: "Reference"
+description: "Shared reference data (geolocation); source-aligned, consumer-neutral."
+owner:
+  team: reference
+  contact: "#reference-data"

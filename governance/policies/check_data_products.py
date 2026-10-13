@@ -18,7 +18,10 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DOMAINS = {"sales", "customer", "marketplace", "customer_experience", "reference"}
+sys.path.insert(0, str(REPO_ROOT))
+from governance.registry import domain_names  # noqa: E402
+
+DOMAINS = set(domain_names())  # single source of truth: governance/domains/
 TYPES = {"source-aligned", "aggregate", "consumer-aligned"}
 INPUT_RE = re.compile(r"^[a-z_]+\.[a-z_]+$")  # <domain>.<product>
 

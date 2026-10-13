@@ -1,0 +1,17 @@
+# Business glossary — data-classification taxonomy. The per-column `classification` in the ODCS
+# output-port contracts references these terms by their `classification` value; catalog-govern
+# publishes the terms to DataHub and attaches them to columns. One taxonomy, defined once here.
+node: "Data Classification"
+terms:
+  - id: Classification.PII
+    name: PII
+    classification: pii          # the ODCS classification value this term formalizes
+    definition: "Personal data; access-controlled and masked per policy (ADR-0013)."
+  - id: Classification.Internal
+    name: Internal
+    classification: internal
+    definition: "Internal-only; not shared outside the organisation."
+  - id: Classification.Public
+    name: Public
+    classification: public
+    definition: "Shareable with any consumer."
