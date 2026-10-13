@@ -35,16 +35,36 @@ def _upstream_domains(domain: str) -> list[str]:
     return sorted(deps)
 
 
-def build_transform_dag(domain: str):
+def build_transform_dag(
+    domain: str,
+    *,
+    start_date: pendulum.DateTime | None = None,
+    catchup: bool = False,
+    retries: int = 1,
+    retry_delay: pendulum.Duration | None = None,
+    tags: list[str] | None = None,
+    default_args: dict | None = None,
+):
+    """Build one transform DAG for ``domain``.
+
+    The platform ships paved defaults; a domain overrides only what it needs (self-serve
+    platform, federated governance — ADR-0003/0008/0015). Keys in ``default_args`` win over
+    the ``retries`` / ``retry_delay`` shorthands.
+    """
+    args = {
+        "retries": retries,
+        "retry_delay": retry_delay or pendulum.duration(minutes=1),
+        **(default_args or {}),
+    }
     schedule = [raw_asset(domain)] + [published_asset(d) for d in _upstream_domains(domain)]
 
     @dag(
         dag_id=f"{domain}_transform",
         schedule=schedule,
-        start_date=_START,
-        catchup=False,
-        default_args={"retries": 1, "retry_delay": pendulum.duration(minutes=1)},
-        tags=[domain, "transform"],
+        start_date=start_date or _START,
+        catchup=catchup,
+        default_args=args,
+        tags=tags or [domain, "transform"],
         doc_md=f"Build and write-audit-publish the **{domain}** output ports.",
     )
     def _dag():

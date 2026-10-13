@@ -69,6 +69,30 @@ def _candidates(conn: psycopg.Connection, domain: str) -> list[tuple[str, str]]:
     return [(r[0], r[1]) for r in rows]
 
 
+def _dependents(conn: psycopg.Connection, schema: str, table: str) -> list[str]:
+    """Views / materialized views that depend on <schema>.<table>.
+
+    A blind ``DROP TABLE … CASCADE`` on the published port would silently drop these
+    (and their grants) — a cross-domain consumer's view could vanish until its own DAG
+    reruns. We refuse to swap when any exist rather than destroy them; rebuilding
+    dependents is the per-model portable promote's job (ADR-0015).
+    """
+    if conn.execute("SELECT to_regclass(%s)", (f"{schema}.{table}",)).fetchone()[0] is None:
+        return []  # first publish: no port to replace yet
+    rows = conn.execute(
+        """
+        SELECT DISTINCT n.nspname || '.' || c.relname
+        FROM pg_depend d
+        JOIN pg_rewrite rw ON rw.oid = d.objid
+        JOIN pg_class c ON c.oid = rw.ev_class
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE d.refobjid = to_regclass(%s) AND c.oid <> to_regclass(%s)
+        """,
+        (f"{schema}.{table}", f"{schema}.{table}"),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
 def _grant() -> None:
     """Re-apply consumer grants (a swap/rebuild drops table grants)."""
     subprocess.run([sys.executable, str(REPO_ROOT / "platform" / "access" / "grant_consumers.py")])
@@ -105,8 +129,17 @@ def main() -> int:
             if rc == 0:
                 for schema, cand in cands:
                     port = cand[: -len("__candidate")]
+                    deps = _dependents(conn, schema, port)
+                    if deps:
+                        raise RuntimeError(
+                            f"cannot swap {schema}.{port}: dependent object(s) "
+                            f"{', '.join(deps)} would be lost. The full-table swap does not "
+                            f"rebuild dependents — use the per-model portable promote (ADR-0015)."
+                        )
+                    # RESTRICT (not CASCADE): the pre-check above is authoritative, this is a
+                    # defence-in-depth stop that errors rather than silently dropping dependents.
                     conn.execute(
-                        sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
+                        sql.SQL("DROP TABLE IF EXISTS {} RESTRICT").format(
                             sql.Identifier(schema, port)
                         )
                     )

@@ -238,12 +238,33 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   grants and a simulated internal marketplace generated from the definitions; per-domain
   transform DAGs in Airflow (acquire → ingest → transform via assets)
 - [ ] **M4 — Catalog:** DataHub with end-to-end lineage, domains, data products, glossary, quality results
-- [ ] **M5 — Contract gate:** PR blocked on breaking change, consuming domains alerted
+- [ ] **M5 — Contract gate:** PR blocked on breaking change, consuming domains alerted. Breaking
+  changes to an output port are released as **dbt model versions** (`v1`/`v2` side by side) driven
+  by the ODCS contract's deprecation status; M4 lineage identifies affected consumers so the deploy
+  is non-breaking and v1 retires on a scheduled window (proof P5)
 - [ ] **M6 — Reporting & semantics:** Apache Ossie semantic layer over the data products;
   Superset built on it, with lineage into DataHub
 - [ ] **M7 — Governed AI:** agent answering through DataHub MCP, computing metrics from the
   same Apache Ossie semantic definitions as Superset (one definition, BI and AI agree)
 - [ ] **M8 — Production hardening:** TLS, SSO, secrets manager, backups, automated restore drill
+
+### Deferred: transform-layer scale build-out
+
+Decided (ADR-0015 / ADR-0016) but intentionally **not yet built** — these answer *scale* (20–30
+large models per domain, partner-pushed data, backfill) that the static Olist PoC does not exercise.
+They land when a domain grows into them / partners replace the acquire step, and before production —
+tracked here so the deferral stays a roadmap, not silent debt:
+
+- **Orchestrate dbt with Cosmos** (manifest mode) — per-model tasks, retries, parallelism, lineage.
+- **Per-model portable WAP** — table = blue/green swap, incremental/microbatch = audit-batch-then-merge,
+  view = in place; maps to warehouse zero-copy clone / Iceberg branch.
+- **dbt state + Slim CI** — persist `manifest.json` to `platform-state`, `state:modified --defer`
+  (needs dbt-in-CI with a warehouse).
+- **Backfill** — dbt microbatch + runtime DAG `params` (`event_time_start/end`), not a cloned DAG.
+- **Event-driven ingestion** (ADR-0016) — bucket-notification → queue → asset; replaces the
+  PoC pull (`platform_acquire_olist` + `land`) once real partners push files.
+- **Nice-to-have:** once the dbt path is complete, re-run the same contracts/products on **SQLMesh**
+  to validate the portability thesis against a natively stateful engine.
 
 ---
 

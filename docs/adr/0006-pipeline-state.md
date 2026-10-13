@@ -20,9 +20,9 @@ answer, reliably and after a failure or a disaster:
 | **Run state** | Airflow | DAG runs and task instances in the Airflow metadata DB; every run has a data interval |
 | **Data state — files** | Ingestion ledger | `platform_meta.ingestion_ledger` in `analytics`: object key, ETag/checksum, contract version, status (`loaded`, `quarantined`), run id. A file is loaded once; a changed file (new ETag) is detected |
 | **Data state — intervals** | Airflow + dbt | Airflow passes its data interval to dbt; incremental models use the `microbatch` strategy (or `delete+insert` on the interval), so reruns and backfills are idempotent |
-| **Deployment state** | Git + dbt artifacts | Each production deploy stores `manifest.json` in a versioned MinIO bucket (`platform-state`); CI compares against it (`state:modified`) to build and test only what changed |
+| **Deployment state** | Git + dbt artifacts | Each production deploy stores `manifest.json` in a versioned MinIO bucket (`platform-state`); CI compares against it (`state:modified`) to build and test only what changed. *Designed here; the bucket is provisioned but the manifest/`state:modified` wiring lands in the [ADR-0015](0015-scaling-the-transform-layer.md) build-out.* |
 | **Interface changes** | Contract gate | Breaking changes detected on contracts (output ports) in CI — see the contract gate |
-| **Publish state** | Write-audit-publish | Data products build into a `<domain>__audit` schema, quality checks run, then an atomic swap publishes them. A failed check leaves consumers on the last good version |
+| **Publish state** | Write-audit-publish | A table port builds to a `<name>__candidate` relation, the contract DQ runs on it, then an atomic swap publishes it; a failed check leaves consumers on the last good version. (Opt-in and materialization-aware per [ADR-0014](0014-flexible-write-audit-publish.md); reshaped to a per-model portable promote in [ADR-0015](0015-scaling-the-transform-layer.md).) |
 
 ## Comparison with SQLMesh
 
