@@ -23,6 +23,9 @@ x-airflow-common: &airflow-common
     context: ../..
     dockerfile: platform/orchestration/Dockerfile
   image: governance-platform/airflow:3.3.2
+  # Reach the DataHub GMS (dgp-catalog project) on the host gateway for lineage emission.
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -52,6 +55,17 @@ x-airflow-common: &airflow-common
         {"name":"customer_experience","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/domains/customer_experience/pipelines"}},
         {"name":"reference","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/reference/pipelines"}}
       ]
+    # DataHub lineage (ADR-0018): the plugin emits DAG/task + dataset lineage to GMS, which
+    # lives in the dgp-catalog compose project — reach it on the host gateway.
+    AIRFLOW_CONN_DATAHUB_REST_DEFAULT: "datahub-rest://host.docker.internal:${DATAHUB_MAPPED_GMS_PORT}"
+    AIRFLOW__DATAHUB__ENABLED: "true"
+    AIRFLOW__DATAHUB__CONN_ID: datahub_rest_default
+    AIRFLOW__DATAHUB__CAPTURE_EXECUTION: "true"
+    AIRFLOW__DATAHUB__CAPTURE_OWNERSHIP_INFO: "true"
+    AIRFLOW__DATAHUB__CAPTURE_TAGS_INFO: "true"
+    # Don't surface the abstract published/<domain> scheduling Assets as catalog datasets;
+    # lineage flows through the real output-port tables we declare as the task's iolets.
+    AIRFLOW__DATAHUB__CAPTURE_AIRFLOW_ASSETS: "false"
     # Ingestion runtime: the repo is mounted here; the Olist cache is a shared volume.
     DGP_REPO_ROOT: /opt/airflow/repo
     DGP_DATA_DIR: /opt/airflow/data
