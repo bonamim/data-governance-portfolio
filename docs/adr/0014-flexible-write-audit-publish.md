@@ -2,6 +2,9 @@
 
 **Status:** Accepted (opt-in implemented; severity + incremental are scoped build-out)
 **Supersedes** the write-audit-publish part of [ADR-0006](0006-pipeline-state.md).
+**Superseded in part by** [ADR-0015](0015-scaling-the-transform-layer.md): the opt-in / severity
+policy below stands; the *mechanism* (per-domain candidate rename) is reshaped there into a
+per-model, portable, state-aware promote.
 
 ## Context
 Write-audit-publish (WAP) guarantees consumers never see a bad build. But the first cut made it
