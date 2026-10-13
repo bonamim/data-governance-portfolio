@@ -2,6 +2,8 @@
 name: sales_performance
 display_name: "Regional Sales Scorecard"
 type: consumer-aligned
+publish:
+  audit: required   # write-audit-publish: a bad build is quarantined (ADR-0014). Default off.
 purpose: "Report order and revenue performance by customer location for campaign targeting."
 owner:
   team: sales

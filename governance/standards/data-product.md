@@ -26,6 +26,8 @@ output_ports:              # one authoritative definition per concept
 inputs:                    # the data products this one consumes (never raw/staging)
   - customer.customers
   - sales.orders
+publish:                   # optional (ADR-0014). Default: publish in place.
+  audit: required          # required = write-audit-publish (critical products only)
 ```
 
 ## 2. Required (CI-checkable)

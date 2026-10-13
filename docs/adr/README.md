@@ -14,3 +14,5 @@
 | [0010](0010-semantic-layer-ossie.md) | Apache Ossie as the semantic layer standard | Accepted |
 | [0011](0011-landing-zone-slas-and-partitioning.md) | Landing-zone SLAs, partitioning, retention, shared-dataset ownership | Accepted |
 | [0012](0012-medallion-and-output-ports.md) | Medallion layers, tag-based output ports, simulated marketplace | Accepted |
+| [0013](0013-role-based-dynamic-masking.md) | Role-based dynamic data masking (ODCS-declared, per-platform) | Proposed |
+| [0014](0014-flexible-write-audit-publish.md) | Flexible write-audit-publish (opt-in, severity-aware, materialization-aware) | Accepted |

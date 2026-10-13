@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 import psycopg
+import yaml
 from psycopg import sql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,10 +38,22 @@ def _conninfo() -> str:
     return f"host={host} port={port} dbname={db} user={user} password={pw}"
 
 
-def _dbt_build_wap(domain: str) -> int:
+def _wap_products() -> list[str]:
+    """Products that opt in to write-audit-publish (publish.audit == required, ADR-0014)."""
+    out: list[str] = []
+    for p in REPO_ROOT.glob("domains/*/data_products/*.yaml"):
+        defn = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        if (defn.get("publish") or {}).get("audit") == "required":
+            out.append(defn["name"])
+    return out
+
+
+def _dbt_build_wap(domain: str, wap_products: list[str]) -> int:
     dbt = shutil.which("dbt") or "dbt"
+    # Only the opted-in products are built to a __candidate; everything else in place.
+    wap_vars = "{wap: true, wap_products: [" + ", ".join(wap_products) + "]}"
     proc = subprocess.run(
-        [dbt, "build", "--vars", "{wap: true}", "--profiles-dir", str(PROFILES)],
+        [dbt, "build", "--vars", wap_vars, "--profiles-dir", str(PROFILES)],
         cwd=REPO_ROOT / "domains" / domain / "dbt",  # cwd so dbt-loom finds its config
     )
     return proc.returncode
@@ -68,10 +81,11 @@ def main() -> int:
     args = parser.parse_args()
     domains = [args.domain] if args.domain else DOMAINS
 
+    wap_products = _wap_products()
     exit_code = 0
     with psycopg.connect(_conninfo(), autocommit=False) as conn:
         for domain in domains:
-            rc = _dbt_build_wap(domain)
+            rc = _dbt_build_wap(domain, wap_products)
             cands = _candidates(conn, domain)
             if rc == 0:
                 for schema, cand in cands:
