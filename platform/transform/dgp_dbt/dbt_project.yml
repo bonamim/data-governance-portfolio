@@ -1,0 +1,7 @@
+name: dgp_dbt
+version: "1.0.0"
+config-version: 2
+
+# Shared dbt package: macros reused across every domain's dbt project (installed via
+# packages.yml + `dbt deps`). The home for all common dbt logic — the write-audit-
+# publish alias macro now, and the ADR-0013 masking helpers later.

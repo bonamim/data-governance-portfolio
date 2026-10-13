@@ -34,8 +34,7 @@ services:
       MINIO_CONSOLE_PORT_NUMBER: "9001"
       MINIO_SCHEME: http
     ports:
-      - "${MINIO_API_PORT}:9000"       # S3 API
-      - "${MINIO_CONSOLE_PORT}:9001"   # web console
+      - "${MINIO_API_PORT}:9000"       # S3 API (the community console was removed; see s3-browser)
     volumes:
       - minio_data:/bitnami/minio/data
     networks: [platform]
@@ -84,6 +83,24 @@ services:
         done
     networks: [platform]
     restart: "no"
+
+  # Web UI for the object store. MinIO removed its built-in console from the community
+  # server in 2025 (ADR-0007), so this is a lightweight S3 browser pointed at the MinIO
+  # S3 API — reachable on the port the old console used.
+  s3-browser:
+    image: cloudlena/s3manager@sha256:777f443adc9225f111557c89548b52aaf5cff8a474773b7a730e6153b07a13a8
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      ENDPOINT: minio:9000
+      USE_SSL: "false"
+      REGION: us-east-1
+    ports:
+      - "${MINIO_CONSOLE_PORT}:8080"   # browse at http://localhost:9001
+    networks: [platform]
 
   # ----------------------------------------------- Postgres: shop_oltp -------
   postgres-oltp:

@@ -1,0 +1,3 @@
+packages:
+  # Shared platform macros (write-audit-publish alias, future masking helpers).
+  - local: ../../../platform/transform/dgp_dbt

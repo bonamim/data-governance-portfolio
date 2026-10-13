@@ -38,23 +38,24 @@ def _conninfo() -> str:
     return f"host={host} port={port} dbname={db} user={user} password={pw}"
 
 
-def _wap_products() -> list[str]:
-    """Products that opt in to write-audit-publish (publish.audit == required, ADR-0014)."""
-    out: list[str] = []
+def _wap_products() -> list[tuple[str, str]]:
+    """(domain, product) for every product opting in to WAP (publish.audit == required)."""
+    out: list[tuple[str, str]] = []
     for p in REPO_ROOT.glob("domains/*/data_products/*.yaml"):
         defn = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         if (defn.get("publish") or {}).get("audit") == "required":
-            out.append(defn["name"])
+            out.append((p.relative_to(REPO_ROOT).parts[1], defn["name"]))
     return out
 
 
-def _dbt_build_wap(domain: str, wap_products: list[str]) -> int:
+def _dbt_build_wap(domain: str, wap_names: list[str]) -> int:
     dbt = shutil.which("dbt") or "dbt"
+    cwd = REPO_ROOT / "domains" / domain / "dbt"  # cwd so dbt-loom finds its config
+    subprocess.run([dbt, "deps", "--profiles-dir", str(PROFILES)], cwd=cwd)  # shared macros
     # Only the opted-in products are built to a __candidate; everything else in place.
-    wap_vars = "{wap: true, wap_products: [" + ", ".join(wap_products) + "]}"
+    wap_vars = "{wap: true, wap_products: [" + ", ".join(wap_names) + "]}"
     proc = subprocess.run(
-        [dbt, "build", "--vars", wap_vars, "--profiles-dir", str(PROFILES)],
-        cwd=REPO_ROOT / "domains" / domain / "dbt",  # cwd so dbt-loom finds its config
+        [dbt, "build", "--vars", wap_vars, "--profiles-dir", str(PROFILES)], cwd=cwd
     )
     return proc.returncode
 
@@ -81,12 +82,26 @@ def main() -> int:
     args = parser.parse_args()
     domains = [args.domain] if args.domain else DOMAINS
 
-    wap_products = _wap_products()
+    wap_pairs = _wap_products()
+    wap_names = [name for _, name in wap_pairs]
     exit_code = 0
     with psycopg.connect(_conninfo(), autocommit=False) as conn:
         for domain in domains:
-            rc = _dbt_build_wap(domain, wap_products)
+            rc = _dbt_build_wap(domain, wap_names)
             cands = _candidates(conn, domain)
+            cand_tables = {tbl for _, tbl in cands}
+
+            # Guard (ADR-0014): a product that opted into WAP must have produced a
+            # candidate. If not, its materialization is not a supported WAP target
+            # (only full tables today) — fail loudly instead of silently unprotected.
+            for d, product in wap_pairs:
+                if d == domain and f"{product}__candidate" not in cand_tables:
+                    raise RuntimeError(
+                        f"{domain}.{product} sets publish.audit=required but no candidate was "
+                        f"built — only full-table output ports support write-audit-publish "
+                        f"today (ADR-0014). Remove the opt-in or make it a table."
+                    )
+
             if rc == 0:
                 for schema, cand in cands:
                     port = cand[: -len("__candidate")]

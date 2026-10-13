@@ -9,7 +9,7 @@ in `.env.example`. Run `make endpoints` to print the live values from your `.env
 
 | Service | URL | User | Password (env var) | Default |
 |---|---|---|---|---|
-| **MinIO console** (object storage) | http://localhost:9001 | `MINIO_ROOT_USER` | `MINIO_ROOT_PASSWORD` | `minio_admin` / `local_minio_admin` |
+| **S3 browser** (object storage UI) | http://localhost:9001 | — | — | **No login** (reads MinIO with the root creds, server-side) |
 | **Airflow** (orchestration) | http://localhost:8080 | — | — | **No login** (dev SimpleAuthManager, all admins) |
 | **DataHub** (catalog) | http://localhost:9002 | *set at M4* | *set at M4* | *planned — M4* |
 | **Superset** (BI) | http://localhost:8088 | *set at M6* | *set at M6* | *planned — M6* |
@@ -28,3 +28,7 @@ Least-privilege roles on the warehouse (passwords in `.env`): `platform_loader`,
 
 > The Airflow metadata Postgres has no host port (internal only). The `datahub` and
 > `superset` rows are placeholders until those milestones land.
+>
+> MinIO's community server dropped its built-in web console in 2025 ([ADR-0007](adr/0007-minio-image-source.md)),
+> so the **S3 browser** (a separate container pointed at the S3 API) stands in for it on
+> the port the console used to occupy.

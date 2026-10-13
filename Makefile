@@ -28,6 +28,7 @@ $(ENV_FILE):
 up: $(ENV_FILE) ## Start the platform (MinIO + 2 Postgres)
 	$(COMPOSE) up -d --wait minio postgres-oltp postgres-analytics
 	$(COMPOSE) run --rm minio-init   # create/verify buckets, then return
+	$(COMPOSE) up -d s3-browser      # object-storage UI on :9001
 
 .PHONY: down
 down: ## Stop the platform (keep volumes)
@@ -63,10 +64,12 @@ sync-contracts: ## Generate each layer's _ports.yml from the ODCS output-port co
 
 .PHONY: transform
 transform: ## Build all data products (dbt) in dependency order, applying consumer grants
+	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/transform
 	uv run --group dbt dbt build --project-dir domains/customer/dbt --profiles-dir platform/transform
+	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
 	uv run --group dbt dbt build --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
 	$(MAKE) grants
-	cd domains/sales/dbt && uv run --group dbt dbt build --profiles-dir ../../../platform/transform
+	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/transform && uv run --group dbt dbt build --profiles-dir ../../../platform/transform
 	$(MAKE) grants
 
 .PHONY: grants
@@ -80,7 +83,7 @@ publish: ## Write-audit-publish: build to a candidate, run contractual DQ, swap 
 .PHONY: endpoints
 endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "UIs"
-	@echo "  MinIO console   http://localhost:$(MINIO_CONSOLE_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
+	@echo "  S3 browser      http://localhost:$(MINIO_CONSOLE_PORT)   (no login; browses MinIO via the S3 API)"
 	@echo "  Airflow         http://localhost:$(AIRFLOW_API_PORT)       (dev: no login)"
 	@echo "  DataHub         http://localhost:9002                      (planned — M4)"
 	@echo "  Superset        http://localhost:8088                      (planned — M6)"
