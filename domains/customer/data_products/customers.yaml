@@ -1,6 +1,6 @@
 # Data product definition for customer.customers (governance/standards/data-product.md).
 name: customers
-display_name: "Customer Master"
+display_name: "Customer Directory"
 type: source-aligned
 purpose: "Publish the customer master with location and a pseudonymised person identity."
 owner:

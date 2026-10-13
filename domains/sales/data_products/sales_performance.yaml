@@ -1,6 +1,6 @@
 # Data product definition for sales.sales_performance (consumer-aligned).
 name: sales_performance
-display_name: "Sales Performance by State"
+display_name: "Regional Sales Scorecard"
 type: consumer-aligned
 purpose: "Report order and revenue performance by customer location for campaign targeting."
 owner:

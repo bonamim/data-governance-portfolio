@@ -9,12 +9,12 @@
 
 | Data product | ID | Type | Owner | Location | Purpose |
 |---|---|---|---|---|---|
-| **Customer Master** | `customer.customers` | source-aligned | customer | `customer_silver.customers` | Publish the customer master with location and a pseudonymised person identity. |
+| **Customer Directory** | `customer.customers` | source-aligned | customer | `customer_silver.customers` | Publish the customer master with location and a pseudonymised person identity. |
 | **Order Reviews** | `customer_experience.reviews` | source-aligned | customer_experience | `customer_experience_silver.reviews` | Publish per-order review scores and timing, without free-text comments. |
 | **Order Book** | `sales.orders` | source-aligned | sales | `sales_silver.orders` | Publish the authoritative record of customer orders and their lifecycle status. |
-| **Sales Performance by State** | `sales.sales_performance` | consumer-aligned | sales | `sales_gold.sales_performance` | Report order and revenue performance by customer location for campaign targeting. |
+| **Regional Sales Scorecard** | `sales.sales_performance` | consumer-aligned | sales | `sales_gold.sales_performance` | Report order and revenue performance by customer location for campaign targeting. |
 
-## Customer Master
+## Customer Directory
 
 - **ID:** `customer.customers`
 - **Type:** source-aligned
@@ -90,7 +90,7 @@
 - `customer_experience` — Attach each review to the order it refers to.
 - `sales` — Aggregate order and revenue performance (sales_performance).
 
-## Sales Performance by State
+## Regional Sales Scorecard
 
 - **ID:** `sales.sales_performance`
 - **Type:** consumer-aligned
