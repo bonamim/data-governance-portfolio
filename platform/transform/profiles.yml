@@ -12,7 +12,7 @@ dgp_sales: &pg
     dev:
       type: postgres
       host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
-      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
       dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
       user: sales_role
       password: "{{ env_var('SALES_ROLE_PASSWORD') }}"
@@ -25,7 +25,7 @@ dgp_customer:
     dev:
       type: postgres
       host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
-      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
       dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
       user: customer_role
       password: "{{ env_var('CUSTOMER_ROLE_PASSWORD') }}"
@@ -38,7 +38,7 @@ dgp_customer_experience:
     dev:
       type: postgres
       host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
-      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
       dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
       user: customer_experience_role
       password: "{{ env_var('CUSTOMER_EXPERIENCE_ROLE_PASSWORD') }}"
@@ -51,7 +51,7 @@ dgp_marketplace:
     dev:
       type: postgres
       host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
-      port: "{{ env_var('ANALYTICS_PORT', '5433') | int }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
       dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
       user: marketplace_role
       password: "{{ env_var('MARKETPLACE_ROLE_PASSWORD') }}"

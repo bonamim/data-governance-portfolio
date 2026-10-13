@@ -74,8 +74,20 @@ x-airflow-common: &airflow-common
     OLIST_DATASET: ${OLIST_DATASET}
     KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
     KAGGLE_KEY: ${KAGGLE_KEY:-}
+    # Transform (dbt + write-audit-publish + grants): per-domain roles, the analytics
+    # superuser (for the WAP swap and grants), and the dbt profiles.
+    DBT_PROFILES_DIR: /opt/airflow/repo/platform/transform
+    ANALYTICS_SUPERUSER: ${ANALYTICS_SUPERUSER}
+    ANALYTICS_SUPERUSER_PASSWORD: ${ANALYTICS_SUPERUSER_PASSWORD}
+    SALES_ROLE_PASSWORD: ${SALES_ROLE_PASSWORD}
+    CUSTOMER_ROLE_PASSWORD: ${CUSTOMER_ROLE_PASSWORD}
+    MARKETPLACE_ROLE_PASSWORD: ${MARKETPLACE_ROLE_PASSWORD}
+    CUSTOMER_EXPERIENCE_ROLE_PASSWORD: ${CUSTOMER_EXPERIENCE_ROLE_PASSWORD}
+    REFERENCE_ROLE_PASSWORD: ${REFERENCE_ROLE_PASSWORD}
   volumes:
-    - ../..:/opt/airflow/repo:ro        # the monorepo (DAGs + domain source config)
+    # Read-write so the transform DAGs' dbt runs can write target/ (gitignored).
+    - ../..:/opt/airflow/repo
+    # DAG files are discovered read-only from the mounted repo (bundles).
     - airflow_logs:/opt/airflow/logs
     - dgp_data:/opt/airflow/data        # shared Olist cache across tasks
   networks: [platform]

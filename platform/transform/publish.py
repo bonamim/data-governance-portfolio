@@ -32,10 +32,9 @@ def _conninfo() -> str:
     host = os.environ.get("ANALYTICS_HOST", "localhost")
     port = os.environ.get("ANALYTICS_INTERNAL_PORT", os.environ.get("ANALYTICS_PORT", "5433"))
     db = os.environ.get("ANALYTICS_DB", "analytics")
-    return (
-        f"host={host} port={port} dbname={db} "
-        f"user={os.environ['ANALYTICS_SUPERUSER']} password={os.environ['ANALYTICS_SUPERUSER_PASSWORD']}"
-    )
+    user = os.environ["ANALYTICS_SUPERUSER"]
+    pw = os.environ["ANALYTICS_SUPERUSER_PASSWORD"]
+    return f"host={host} port={port} dbname={db} user={user} password={pw}"
 
 
 def _dbt_build_wap(domain: str) -> int:
@@ -62,9 +61,16 @@ def _grant() -> None:
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Write-audit-publish output ports.")
+    parser.add_argument("--domain", help="publish only this domain (default: all, in order)")
+    args = parser.parse_args()
+    domains = [args.domain] if args.domain else DOMAINS
+
     exit_code = 0
     with psycopg.connect(_conninfo(), autocommit=False) as conn:
-        for domain in DOMAINS:
+        for domain in domains:
             rc = _dbt_build_wap(domain)
             cands = _candidates(conn, domain)
             if rc == 0:

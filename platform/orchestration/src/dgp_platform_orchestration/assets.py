@@ -15,3 +15,9 @@ OLIST_CACHE = Asset(name="olist-cache")
 
 def raw_asset(domain: str) -> Asset:
     return Asset(name=f"raw/{domain}")
+
+
+def published_asset(domain: str) -> Asset:
+    """Produced when a domain's output ports are (re)published — downstream domains
+    whose aggregates consume them are scheduled on this."""
+    return Asset(name=f"published/{domain}")
