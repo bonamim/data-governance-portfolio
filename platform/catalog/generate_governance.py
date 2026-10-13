@@ -39,6 +39,8 @@ from datahub.metadata.schema_classes import (
     GlossaryTermAssociationClass,
     GlossaryTermInfoClass,
     GlossaryTermsClass,
+    InstitutionalMemoryClass,
+    InstitutionalMemoryMetadataClass,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +49,9 @@ from governance.registry import classification_terms, domains  # noqa: E402
 
 GMS = os.environ.get("DATAHUB_GMS", "http://localhost:8080")
 DB = os.environ.get("ANALYTICS_DB", "analytics")
+AIRFLOW_URL = os.environ.get(
+    "AIRFLOW_BASE_URL", f"http://localhost:{os.environ.get('AIRFLOW_API_PORT', '8080')}"
+)
 # Single source of truth: the domain registry (governance/domains/) and the glossary
 # (governance/glossary/). Nothing here is hardcoded.
 REGISTRY = {d["name"]: d for d in domains()}
@@ -214,6 +219,37 @@ def main() -> int:
             )
         )
         print(f"  data product: {owner}.{name} -> {schema}.{table}")
+
+    # 5. Link each warehouse dataset to the Airflow DAG that builds it — as node metadata, not a
+    #    lineage edge (a DataJob and a dbt model can't merge into one node, so an edge would add a
+    #    second upstream; a link keeps the "which DAG builds this" on the node itself). ADR-0018.
+    linked = 0
+    for urn in _all_dataset_urns():
+        dataset_name = urn.split(",")[1]
+        if not dataset_name.startswith(f"{DB}."):
+            continue  # warehouse datasets only (skip the shop_oltp / landing sources)
+        schema = dataset_name.split(".")[1]
+        domain = _domain_of(schema)
+        if not domain:
+            continue
+        layer = schema[len(domain) + 1 :]  # raw | bronze | silver | gold
+        dag = f"{domain}_ingestion" if layer == "raw" else f"{domain}_transform"
+        emitter.emit(
+            MetadataChangeProposalWrapper(
+                entityUrn=urn,
+                aspect=InstitutionalMemoryClass(
+                    elements=[
+                        InstitutionalMemoryMetadataClass(
+                            url=f"{AIRFLOW_URL}/dags/{dag}",
+                            description=f"Built by Airflow DAG {dag}",
+                            createStamp=audit,
+                        )
+                    ]
+                ),
+            )
+        )
+        linked += 1
+    print(f"  datasets linked to their building DAG: {linked}")
 
     return 0
 
