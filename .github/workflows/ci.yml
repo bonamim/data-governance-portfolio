@@ -1,8 +1,8 @@
 name: CI
 
 # Federated computational governance, enforced on every change (ADR-0003, ADR-0008):
-# module boundaries, lint, and tests must pass before merge. The breaking-change
-# contract gate (proof P5) is added in milestone M5.
+# module boundaries, lint, tests, and the breaking-change contract gate (proof P5)
+# must pass before merge.
 
 on:
   pull_request:
@@ -16,6 +16,8 @@ jobs:
       # Third-party actions are pinned to major tags here; pin to a commit SHA
       # before go-live (docs/production-readiness.md, CI/CD section).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the breaking-change gate can diff against the base branch
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
@@ -36,6 +38,9 @@ jobs:
           make sync-contracts
           git diff --exit-code -- domains \
             || { echo "dbt model YAML drifted from the ODCS contracts — run 'make sync-contracts' and commit."; exit 1; }
+      - name: Breaking-change contract gate (proof P5)
+        if: github.event_name == 'pull_request'
+        run: BASE_REF=origin/${{ github.base_ref }} make check-breaking
       - name: Lint
         run: uv run ruff check .
       - name: Format check

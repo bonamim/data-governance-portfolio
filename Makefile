@@ -185,5 +185,9 @@ catalog-govern: $(ENV_FILE) ## Push mesh governance (domains, data products, own
 check-domains: ## Domain registry (governance/domains) matches the domain folders
 	uv run python governance/policies/check_domains.py
 
+.PHONY: check-breaking
+check-breaking: ## Breaking-change gate (P5): fail if a changed output-port contract breaks consumers
+	uv run --group dbt python governance/policies/check_breaking_changes.py
+
 .PHONY: check
 check: check-domains check-boundaries check-contracts check-data-products check-output-ports lint test ## Run all governance + quality checks
