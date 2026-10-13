@@ -237,7 +237,11 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   from the contracts; write-audit-publish protects materialized ports (proof P3); consumer
   grants generated from the definitions (the catalog/marketplace is DataHub at M4); per-domain
   transform DAGs in Airflow (acquire → ingest → transform via assets)
-- [ ] **M4 — Catalog:** DataHub with end-to-end lineage, domains, data products, glossary, quality results
+- [x] **M4 — Catalog:** DataHub (pinned `dgp-catalog` compose, ADR-0018) with end-to-end + cross-domain
+  lineage (proof P7), Airflow orchestration lineage at the load boundary, the mesh domains, data
+  products, ownership and a PII/Internal/Public classification glossary — all generated from
+  `governance/` definitions (`make catalog-ingest` / `catalog-govern`) — plus dbt tests as assertions.
+  Each dataset links to the Airflow DAG that builds it. Lineage reads source → load → raw → dbt → port.
 - [ ] **M5 — Contract gate:** PR blocked on breaking change, consuming domains alerted. Breaking
   changes to an output port are released as **dbt model versions** (`v1`/`v2` side by side) driven
   by the ODCS contract's deprecation status; M4 lineage identifies affected consumers so the deploy

@@ -6,6 +6,11 @@
   that seeds / lands / loads only that domain's datasets and publishes the domain's
   raw asset. A domain's DAG file is a single call to this factory, so domains write
   no orchestration code (ADR-0008); isolation between domains is proof P1.
+
+The ``seed`` (populate shop_oltp) and ``land`` (upload files to the landing bucket) tasks are
+local PoC *simulators* of the source systems: in production the operational DB and the landing
+zone are fed by real producers, leaving only ``load_raw`` (source -> <domain>_raw), which is the
+Airflow node that carries lineage into the catalog.
 """
 
 from __future__ import annotations
