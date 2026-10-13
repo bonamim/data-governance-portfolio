@@ -46,3 +46,8 @@ UI. `make catalog-govern` emits, idempotently:
 - **Data products** — one per `domains/*/data_products/*.yaml`: display name, purpose, owner
   (corp group), and the output-port datasets (Postgres + dbt sibling) as assets, placed in the
   owning domain.
+- **Classification glossary** — `PII` / `Internal` / `Public` terms, attached per column on each
+  output port from the ODCS `classification` (e.g. `customer_pseudonym` → PII). Ties to ADR-0013.
+
+dbt test results flow in as **assertions** on the datasets via the dbt recipe, so the contractual
+DQ is visible in the catalog (the DataHub half of proof P2).

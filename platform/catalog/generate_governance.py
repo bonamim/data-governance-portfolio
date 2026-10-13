@@ -21,10 +21,31 @@ from pathlib import Path
 
 import yaml
 from datahub.api.entities.dataproduct.dataproduct import DataProduct
-from datahub.emitter.mce_builder import make_dataset_urn, make_domain_urn, make_group_urn
+from datahub.emitter.mce_builder import (
+    make_dataset_urn,
+    make_domain_urn,
+    make_group_urn,
+    make_term_urn,
+)
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.rest_emitter import DatahubRestEmitter
-from datahub.metadata.schema_classes import DomainPropertiesClass, DomainsClass
+from datahub.metadata.schema_classes import (
+    AuditStampClass,
+    DomainPropertiesClass,
+    DomainsClass,
+    EditableSchemaFieldInfoClass,
+    EditableSchemaMetadataClass,
+    GlossaryTermAssociationClass,
+    GlossaryTermInfoClass,
+    GlossaryTermsClass,
+)
+
+# ODCS column classification -> catalog glossary term (what consumers see).
+CLASSIFICATIONS = {
+    "pii": ("Classification.PII", "PII", "Personal data; masked per policy (ADR-0013)."),
+    "internal": ("Classification.Internal", "Internal", "Internal-only; not for external sharing."),
+    "public": ("Classification.Public", "Public", "Shareable with any consumer."),
+}
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GMS = os.environ.get("DATAHUB_GMS", "http://localhost:8080")
@@ -86,6 +107,18 @@ def _port_location(owner: str, product: str) -> tuple[str, str] | None:
     return None
 
 
+def _columns_with_classification(contract_path: Path) -> list[tuple[str, str]]:
+    """(column, classification) for every classified column in an ODCS output-port contract."""
+    defn = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    out: list[tuple[str, str]] = []
+    for obj in defn.get("schema") or []:
+        for prop in obj.get("properties") or []:
+            cls = prop.get("classification")
+            if prop.get("name") and cls in CLASSIFICATIONS:
+                out.append((prop["name"], cls))
+    return out
+
+
 def main() -> int:
     emitter = DatahubRestEmitter(gms_server=GMS)
 
@@ -114,7 +147,20 @@ def main() -> int:
         filed += 1
     print(f"  datasets filed under a domain: {filed}")
 
-    # 3. Data products from the definitions
+    # 3. Data-classification glossary terms (consumer-visible classification taxonomy)
+    for term_id, term_name, definition in CLASSIFICATIONS.values():
+        emitter.emit(
+            MetadataChangeProposalWrapper(
+                entityUrn=make_term_urn(term_id),
+                aspect=GlossaryTermInfoClass(
+                    name=term_name, definition=definition, termSource="INTERNAL"
+                ),
+            )
+        )
+    print(f"  glossary terms: {', '.join(t[1] for t in CLASSIFICATIONS.values())}")
+
+    # 4. Data products + per-column classification on their output ports
+    audit = AuditStampClass(time=0, actor="urn:li:corpuser:datahub")
     for path in REPO_ROOT.glob("domains/*/data_products/*.yaml"):
         defn = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         owner = (defn.get("owner") or {}).get("team")
@@ -123,10 +169,33 @@ def main() -> int:
         if not loc:
             continue
         schema, table = loc
-        assets = [
-            make_dataset_urn("postgres", f"{DB}.{schema}.{table}", "PROD"),
-            make_dataset_urn("dbt", f"{DB}.{schema}.{table}", "PROD"),
-        ]
+        pg_urn = make_dataset_urn("postgres", f"{DB}.{schema}.{table}", "PROD")
+
+        # Attach the classification term to each classified column of the output port.
+        ports = defn.get("output_ports") or []
+        contracts = [op.get("contract") for op in ports if op.get("contract")]
+        fields = []
+        for contract in contracts:
+            for col, cls in _columns_with_classification(REPO_ROOT / contract):
+                term = make_term_urn(CLASSIFICATIONS[cls][0])
+                fields.append(
+                    EditableSchemaFieldInfoClass(
+                        fieldPath=col,
+                        glossaryTerms=GlossaryTermsClass(
+                            terms=[GlossaryTermAssociationClass(urn=term)], auditStamp=audit
+                        ),
+                    )
+                )
+        if fields:
+            emitter.emit(
+                MetadataChangeProposalWrapper(
+                    entityUrn=pg_urn,
+                    aspect=EditableSchemaMetadataClass(
+                        editableSchemaFieldInfo=fields, created=audit, lastModified=audit
+                    ),
+                )
+            )
+        assets = [pg_urn, make_dataset_urn("dbt", f"{DB}.{schema}.{table}", "PROD")]
         dp = DataProduct(
             id=f"{owner}.{name}",
             display_name=defn.get("display_name", name),
