@@ -1,0 +1,26 @@
+# DataHub ingestion — analytics warehouse (tables/columns/views).
+# Ingestion runs on the host (where the dbt artifacts and the DataHub CLI live) and reaches
+# the warehouse on its host-published port; metadata is pushed to GMS. Secrets come from the
+# environment (sourced from .env by `make catalog-ingest`) — never hard-coded here.
+source:
+  type: postgres
+  config:
+    host_port: "localhost:${ANALYTICS_PORT}"
+    database: "${ANALYTICS_DB}"
+    username: "${ANALYTICS_SUPERUSER}"
+    password: "${ANALYTICS_SUPERUSER_PASSWORD}"
+    # Only the per-domain medallion schemas — skip system and Airflow/meta schemas.
+    schema_pattern:
+      allow:
+        - ".*_raw"
+        - ".*_bronze"
+        - ".*_silver"
+        - ".*_gold"
+    include_tables: true
+    include_views: true
+    profiling:
+      enabled: false # keep the PoC light; turn on for stats/null-counts later
+sink:
+  type: datahub-rest
+  config:
+    server: "${DATAHUB_GMS}"

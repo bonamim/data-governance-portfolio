@@ -1,0 +1,19 @@
+# DataHub ingestion — dbt models, columns, tests and lineage for ONE domain project.
+# Run once per domain with DBT_TARGET pointed at that project's target/ (see `make catalog-ingest`).
+# target_platform=postgres so each dbt model links to the warehouse dataset ingested by
+# postgres_analytics.yml — that join is what produces end-to-end lineage (proof P7).
+source:
+  type: dbt
+  config:
+    manifest_path: "${DBT_TARGET}/manifest.json"
+    catalog_path: "${DBT_TARGET}/catalog.json"
+    run_results_paths:
+      - "${DBT_TARGET}/run_results.json"
+    target_platform: postgres
+    # dbt tests become DataHub assertions on the modelled datasets.
+    entities_enabled:
+      test_results: "YES"
+sink:
+  type: datahub-rest
+  config:
+    server: "${DATAHUB_GMS}"

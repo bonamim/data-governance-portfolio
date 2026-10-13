@@ -85,7 +85,7 @@ endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "UIs"
 	@echo "  S3 browser      http://localhost:$(MINIO_CONSOLE_PORT)   (no login; browses MinIO via the S3 API)"
 	@echo "  Airflow         http://localhost:$(AIRFLOW_API_PORT)       (dev: no login)"
-	@echo "  DataHub         http://localhost:9002                      (planned — M4)"
+	@echo "  DataHub         http://localhost:9002                      user: datahub   pass: datahub"
 	@echo "  Superset        http://localhost:8088                      (planned — M6)"
 	@echo "Databases / APIs"
 	@echo "  MinIO S3 API    http://localhost:$(MINIO_API_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
@@ -147,6 +147,33 @@ check-output-ports: ## Publishing guardrail: output-port contract <-> model <-> 
 .PHONY: marketplace
 marketplace: ## Generate the internal data product marketplace (docs/marketplace.md)
 	uv run python platform/marketplace/generate.py
+
+# ---------------------------------------------------------------- catalog (M4) ---
+# DataHub runs as the dgp-catalog capability in the same Colima VM (ADR-0017). Needs the
+# DataHub CLI on PATH: `uv tool install 'acryl-datahub[postgres,dbt]'`.
+
+.PHONY: catalog-up
+catalog-up: ## Start DataHub (quickstart) in the current Colima VM
+	datahub docker quickstart
+
+.PHONY: catalog-down
+catalog-down: ## Stop DataHub (keeps its volumes)
+	datahub docker quickstart --stop
+
+.PHONY: catalog-docs
+catalog-docs: $(ENV_FILE) ## Regenerate dbt manifest+catalog artifacts for ingestion
+	uv run --group dbt dbt docs generate --project-dir domains/customer/dbt --profiles-dir platform/transform
+	uv run --group dbt dbt docs generate --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
+	cd domains/sales/dbt && uv run --group dbt dbt docs generate --profiles-dir ../../../platform/transform
+
+.PHONY: catalog-ingest
+catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lineage, tests) into DataHub
+	set -a; . ./$(ENV_FILE); set +a; \
+	export DATAHUB_GMS=$${DATAHUB_GMS:-http://localhost:8080}; \
+	datahub ingest -c platform/catalog/recipes/postgres_analytics.yml; \
+	for d in customer customer_experience sales; do \
+		DBT_TARGET=$(CURDIR)/domains/$$d/dbt/target datahub ingest -c platform/catalog/recipes/dbt.yml; \
+	done
 
 .PHONY: check
 check: check-boundaries check-contracts check-data-products check-output-ports lint test ## Run all governance + quality checks

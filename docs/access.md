@@ -11,7 +11,7 @@ in `.env.example`. Run `make endpoints` to print the live values from your `.env
 |---|---|---|---|---|
 | **S3 browser** (object storage UI) | http://localhost:9001 | — | — | **No login** (reads MinIO with the root creds, server-side) |
 | **Airflow** (orchestration) | http://localhost:8080 | — | — | **No login** (dev SimpleAuthManager, all admins) |
-| **DataHub** (catalog) | http://localhost:9002 | *set at M4* | *set at M4* | *planned — M4* |
+| **DataHub** (catalog) | http://localhost:9002 | — | — | **No login hardening yet** (dev `datahub` / `datahub`) |
 | **Superset** (BI) | http://localhost:8088 | *set at M6* | *set at M6* | *planned — M6* |
 
 ## Databases & APIs
