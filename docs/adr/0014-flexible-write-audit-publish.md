@@ -45,6 +45,7 @@ quality rule and carried into the generated dbt test.
 | **view** | No materialized data to protect — published in place; the contract DQ runs live. (Materialize as a table if you need point-in-time protection.) |
 | **table (full refresh)** | Build to `<name>__candidate`, run blocking DQ on it, **atomic swap** into the published name. *(Implemented, proof P3.)* |
 | **incremental (merge / delete+insert)** | **Audit the batch, then merge.** Build the increment to a staging delta, run blocking DQ on the delta (and, where needed, on the post-merge preview in a transaction), and only `merge` / `delete+insert` into the target on pass. On a Postgres target this is a `BEGIN; apply; audit; COMMIT|ROLLBACK` — consumers see the prior data until commit. |
+| **incremental — `microbatch`** | **Per-partition audit.** dbt processes independent time-window batches (`event_time` + `batch_size`, ADR-0006). Each batch's rows are built to a staging relation, the blocking DQ runs on that batch, and only a passing batch replaces its partition in the target. A failing batch is **quarantined** (held/retried) while the rest publish — so one bad day never blocks the others (per-partition accuracy, not all-or-nothing). Needs a custom microbatch materialization that audits before the per-batch insert, or an orchestration-level shadow-then-merge; dbt has no native per-batch data gate. |
 | **snapshot / materialized view** | Build the new version aside, audit, swap/refresh on pass. |
 
 In every case: pass → publish; blocking failure → leave the last good version, drop the
