@@ -175,5 +175,12 @@ catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lin
 		DBT_TARGET=$(CURDIR)/domains/$$d/dbt/target datahub ingest -c platform/catalog/recipes/dbt.yml; \
 	done
 
+.PHONY: catalog-govern
+catalog-govern: $(ENV_FILE) ## Push mesh governance (domains, data products, ownership) into DataHub from definitions
+	set -a; . ./$(ENV_FILE); set +a; \
+	export DATAHUB_GMS=$${DATAHUB_GMS:-http://localhost:8080}; \
+	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml \
+		python platform/catalog/generate_governance.py
+
 .PHONY: check
 check: check-boundaries check-contracts check-data-products check-output-ports lint test ## Run all governance + quality checks

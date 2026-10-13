@@ -18,6 +18,7 @@ uv tool install 'acryl-datahub[postgres,dbt]'   # the DataHub CLI + source plugi
 | `make catalog-up` | Start DataHub in the current Colima VM (quickstart). |
 | `make catalog-down` | Stop DataHub (keeps its volumes). |
 | `make catalog-ingest` | Regenerate dbt artifacts and push warehouse + dbt metadata into DataHub. |
+| `make catalog-govern` | Push the mesh governance (domains, data products, ownership) from our definitions. |
 
 > Quickstart is the *prove-it* deployment. It is replaced by a pinned `dgp-catalog` compose
 > (images by digest, GMS remapped off `8080` so Airflow and DataHub coexist) — see the catalog ADR.
@@ -34,3 +35,14 @@ recipe files.
   `DBT_TARGET` pointing at that project's `target/`. `target_platform: postgres` links each dbt
   model to its warehouse dataset (sibling), so lineage joins across the two — including the
   dbt-loom cross-domain references (proof P7).
+
+## Governance generator (`generate_governance.py`)
+
+Technical metadata comes from the recipes above; the *governance* layer is generated from the
+same source-of-truth files that drive grants and the marketplace — never hand-maintained in the
+UI. `make catalog-govern` emits, idempotently:
+
+- **Domains** — one per mesh domain; every warehouse + dbt dataset is filed under its domain.
+- **Data products** — one per `domains/*/data_products/*.yaml`: display name, purpose, owner
+  (corp group), and the output-port datasets (Postgres + dbt sibling) as assets, placed in the
+  owning domain.
