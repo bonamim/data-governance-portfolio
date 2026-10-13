@@ -43,14 +43,16 @@ def _listings() -> list[dict]:
             break
         defn_path = REPO_ROOT / "domains" / domain / "data_products" / f"{product}.yaml"
         defn = yaml.safe_load(defn_path.read_text(encoding="utf-8")) if defn_path.exists() else {}
+        defn = defn or {}
         listings.append(
             {
                 "product": f"{domain}.{product}",
+                "display": defn.get("display_name", f"{domain}.{product}"),
                 "domain": domain,
                 "location": location,
                 "contract": contract,
                 "schema": schema,
-                "defn": defn or {},
+                "defn": defn,
             }
         )
     return listings
@@ -75,13 +77,13 @@ def _render(listings: list[dict]) -> str:
         "",
         f"**{len(listings)} published data product(s).**",
         "",
-        "| Data product | Type | Owner | Location | Purpose |",
-        "|---|---|---|---|---|",
+        "| Data product | ID | Type | Owner | Location | Purpose |",
+        "|---|---|---|---|---|---|",
     ]
     for ls in listings:
         d = ls["defn"]
         owner = (d.get("owner") or {}).get("team", "—")
-        row = f"| `{ls['product']}` | {d.get('type', '—')} | {owner} "
+        row = f"| **{ls['display']}** | `{ls['product']}` | {d.get('type', '—')} | {owner} "
         row += f"| `{ls['location']}` | {d.get('purpose', '—')} |"
         lines.append(row)
     lines.append("")
@@ -90,8 +92,9 @@ def _render(listings: list[dict]) -> str:
         d = ls["defn"]
         c = ls["contract"]
         lines += [
-            f"## `{ls['product']}`",
+            f"## {ls['display']}",
             "",
+            f"- **ID:** `{ls['product']}`",
             f"- **Type:** {d.get('type', '—')}",
             f"- **Purpose:** {d.get('purpose', '—')}",
             f"- **Owner (provider):** {(d.get('owner') or {}).get('team', '—')}",

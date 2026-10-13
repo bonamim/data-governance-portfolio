@@ -7,15 +7,16 @@
 
 **4 published data product(s).**
 
-| Data product | Type | Owner | Location | Purpose |
-|---|---|---|---|---|
-| `customer.customers` | source-aligned | customer | `customer_silver.customers` | Publish the customer master with location and a pseudonymised person identity. |
-| `customer_experience.reviews` | source-aligned | customer_experience | `customer_experience_silver.reviews` | Publish per-order review scores and timing, without free-text comments. |
-| `sales.orders` | source-aligned | sales | `sales_silver.orders` | Publish the authoritative record of customer orders and their lifecycle status. |
-| `sales.sales_performance` | consumer-aligned | sales | `sales_gold.sales_performance` | Report order and revenue performance by customer location for campaign targeting. |
+| Data product | ID | Type | Owner | Location | Purpose |
+|---|---|---|---|---|---|
+| **Customer Master** | `customer.customers` | source-aligned | customer | `customer_silver.customers` | Publish the customer master with location and a pseudonymised person identity. |
+| **Order Reviews** | `customer_experience.reviews` | source-aligned | customer_experience | `customer_experience_silver.reviews` | Publish per-order review scores and timing, without free-text comments. |
+| **Order Book** | `sales.orders` | source-aligned | sales | `sales_silver.orders` | Publish the authoritative record of customer orders and their lifecycle status. |
+| **Sales Performance by State** | `sales.sales_performance` | consumer-aligned | sales | `sales_gold.sales_performance` | Report order and revenue performance by customer location for campaign targeting. |
 
-## `customer.customers`
+## Customer Master
 
+- **ID:** `customer.customers`
 - **Type:** source-aligned
 - **Purpose:** Publish the customer master with location and a pseudonymised person identity.
 - **Owner (provider):** customer
@@ -37,8 +38,9 @@
 
 - `sales` — Attribute orders and revenue to customers by location (sales_performance).
 
-## `customer_experience.reviews`
+## Order Reviews
 
+- **ID:** `customer_experience.reviews`
 - **Type:** source-aligned
 - **Purpose:** Publish per-order review scores and timing, without free-text comments.
 - **Owner (provider):** customer_experience
@@ -61,8 +63,9 @@
 
 - `sales` — Relate review scores to order and revenue performance (sales_performance).
 
-## `sales.orders`
+## Order Book
 
+- **ID:** `sales.orders`
 - **Type:** source-aligned
 - **Purpose:** Publish the authoritative record of customer orders and their lifecycle status.
 - **Owner (provider):** sales
@@ -87,8 +90,9 @@
 - `customer_experience` — Attach each review to the order it refers to.
 - `sales` — Aggregate order and revenue performance (sales_performance).
 
-## `sales.sales_performance`
+## Sales Performance by State
 
+- **ID:** `sales.sales_performance`
 - **Type:** consumer-aligned
 - **Purpose:** Report order and revenue performance by customer location for campaign targeting.
 - **Owner (provider):** sales

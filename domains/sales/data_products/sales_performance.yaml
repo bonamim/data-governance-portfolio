@@ -1,5 +1,6 @@
 # Data product definition for sales.sales_performance (consumer-aligned).
 name: sales_performance
+display_name: "Sales Performance by State"
 type: consumer-aligned
 purpose: "Report order and revenue performance by customer location for campaign targeting."
 owner:

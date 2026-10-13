@@ -1,5 +1,6 @@
 # Data product definition for sales.orders (governance/standards/data-product.md).
 name: orders
+display_name: "Order Book"
 type: source-aligned
 purpose: "Publish the authoritative record of customer orders and their lifecycle status."
 owner:

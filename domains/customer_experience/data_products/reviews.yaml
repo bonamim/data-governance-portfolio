@@ -1,5 +1,6 @@
 # Data product definition for customer_experience.reviews.
 name: reviews
+display_name: "Order Reviews"
 type: source-aligned
 purpose: "Publish per-order review scores and timing, without free-text comments."
 owner:
