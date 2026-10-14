@@ -189,5 +189,9 @@ check-domains: ## Domain registry (governance/domains) matches the domain folder
 check-breaking: ## Breaking-change gate (P5): fail if a changed output-port contract breaks consumers
 	uv run --group dbt python governance/policies/check_breaking_changes.py
 
+.PHONY: prove-p5
+prove-p5: $(ENV_FILE) ## Proof P5 — breaking change blocked, then passes with a version bump + approval
+	./proofs/p5_breaking_change.sh
+
 .PHONY: check
 check: check-domains check-boundaries check-contracts check-data-products check-output-ports lint test ## Run all governance + quality checks

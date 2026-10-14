@@ -50,6 +50,24 @@ Marketplace joins after the slice is proven.
 
 ## Running the proofs
 
-Each scenario will be runnable with `make prove-<id>` (for example `make prove-p2`), and
-`make prove-all` runs the whole suite. The commands are added with the milestone that
-delivers each capability.
+Each scenario becomes a one-command `make prove-<id>` with the milestone that delivers it.
+Built so far:
+
+| Proof | Command | Status |
+|---|---|---|
+| **P5** — breaking-change gate | `make prove-p5` | ✅ self-contained: simulates the PR, asserts blocked → blocked → passes, reverts |
+
+Until the rest are packaged as `prove-*`, these commands exercise the same mechanisms today
+(the platform must be up — `make up`, and the catalog for P7 — `make catalog-up`):
+
+| Proof | What it checks | Run it today |
+|---|---|---|
+| all governance | boundaries, domain registry, contracts, data products, output ports, breaking-change gate, lint, tests | `make check` + `make check-breaking` |
+| **P2** — landing quality gate | a bad landing file is quarantined, never loaded | land a contract-violating file, then `uv run dgp-ingest load-raw --domain customer_experience`; check `platform_meta.ingestion_ledger` status `quarantined` |
+| **P3** — write-audit-publish | a failing DQ build never reaches consumers | raise a contract's `rowCount` floor above the real count, `make publish`; the port keeps its last-good rows, the candidate is dropped (`QUARANTINED`) |
+| **P5** — breaking-change gate | an interface can't break silently | `make prove-p5` (or `make check-breaking` on a branch that edits an output-port contract) |
+| **P6** — idempotency | reruns/backfills don't duplicate | re-trigger `<domain>_ingestion`; the ledger skips unchanged files by ETag (no new rows) |
+| **P7** — end-to-end lineage | every hop is visible | `make catalog-ingest && make catalog-govern`, then DataHub (`:9002`) or `datahub get --urn <dataset> -a upstreamLineage` |
+
+P1 (domain isolation), P4 (cross-domain asset trigger), P8 (access control), and P9 (DR drill)
+are demonstrated via Airflow and the role grants; they are packaged as `prove-*` in later milestones.
