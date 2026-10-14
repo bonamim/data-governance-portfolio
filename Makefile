@@ -201,5 +201,9 @@ prove-p5: $(ENV_FILE) ## Proof P5 — breaking change blocked, then passes with 
 prove-all: prove-p2 prove-p5 ## Run the self-contained proofs (P2, P5); P3/P6/P7 need the live platform
 	@echo "Self-contained proofs passed. P3/P6/P7 run against the live platform (see docs/proofs.md)."
 
+.PHONY: check-semantics
+check-semantics: ## Ossie semantic models build only on governed output-port columns (ADR-0010)
+	uv run python governance/policies/check_semantics.py
+
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-data-products check-output-ports lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-data-products check-output-ports check-semantics lint test ## Run all governance + quality checks

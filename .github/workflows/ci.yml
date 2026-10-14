@@ -33,6 +33,8 @@ jobs:
         run: uv run python governance/policies/check_data_products.py
       - name: Publishing guardrail (output-port contract <-> model <-> definition)
         run: uv run python governance/policies/check_output_ports.py
+      - name: Semantic governance (Ossie models build on contract columns, ADR-0010)
+        run: uv run python governance/policies/check_semantics.py
       - name: ODCS is source of truth (dbt schema not drifted from contracts)
         run: |
           make sync-contracts

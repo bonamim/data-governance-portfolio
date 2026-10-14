@@ -1,0 +1,60 @@
+# Apache Ossie semantic model for the sales.sales_performance output port (ADR-0010).
+# Owned by the Sales domain. ODCS governs the port's interface + quality; this governs its MEANING
+# — the dimensions and metrics — so Superset (M6) and the AI agent (M7) compute the same numbers.
+# Validated in CI (governance/policies/check_semantics.py): every field/metric must resolve to a
+# column in the port's ODCS contract, so the semantics can't drift from the contract.
+version: "1.0"
+name: sales_performance
+datasets:
+  - name: sales_performance
+    source: analytics.sales_gold.sales_performance
+    description: "Regional sales scorecard — order and revenue performance by customer state."
+    primary_key: [customer_state]
+    fields:
+      - name: customer_state
+        description: "Two-letter Brazilian state — the grain and primary dimension."
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: customer_state
+      - name: num_orders
+        expression:
+          dialects: [{ dialect: ANSI_SQL, expression: num_orders }]
+      - name: num_customers
+        expression:
+          dialects: [{ dialect: ANSI_SQL, expression: num_customers }]
+      - name: total_revenue
+        expression:
+          dialects: [{ dialect: ANSI_SQL, expression: total_revenue }]
+      - name: avg_review_score
+        expression:
+          dialects: [{ dialect: ANSI_SQL, expression: avg_review_score }]
+metrics:
+  - name: total_revenue
+    description: "Total payment value across the selected states."
+    datatype: Decimal
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "SUM(sales_performance.total_revenue)"
+  - name: order_count
+    description: "Total distinct orders across the selected states."
+    datatype: Integer
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "SUM(sales_performance.num_orders)"
+  - name: customer_count
+    description: "Total distinct customers across the selected states."
+    datatype: Integer
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "SUM(sales_performance.num_customers)"
+  - name: avg_review_score
+    description: "Average review score (1-5), mean of the state scores."
+    datatype: Decimal
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "AVG(sales_performance.avg_review_score)"
