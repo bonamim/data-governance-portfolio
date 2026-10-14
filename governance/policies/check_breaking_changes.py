@@ -185,8 +185,9 @@ def main() -> int:
             failed = True
             print(
                 f"  BLOCKED: a breaking change needs a MAJOR version bump (contract is "
-                f"{_version(old)} -> {_version(path)}). Release it as a new dbt model version and "
-                f"keep v{old_major} alive with a deprecation window (ADR-0019)."
+                f"{_version(old)} -> {_version(path)}), then consumer approval. Migrate the "
+                f"consumers with the change; keep v{old_major} as a dbt model version only if a "
+                f"consumer can't cut over atomically (ADR-0019)."
             )
             continue
 
@@ -202,7 +203,8 @@ def main() -> int:
 
         print(
             f"  APPROVED: v{new_major} breaking change signed off by all affected consumers "
-            f"({', '.join(sorted(consumers)) or 'none required'}); ship with v{old_major} kept."
+            f"({', '.join(sorted(consumers)) or 'none required'}); migrate them with the change "
+            f"(version the port only if a consumer can't cut over atomically)."
         )
 
     if failed:

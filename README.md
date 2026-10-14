@@ -246,9 +246,9 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   contract (`datacontract breaking`) and names the affected consumers; it passes only with a major
   version bump **and** approval from every consumer, recorded in `governance/approvals/`. A GitHub
   workflow requests the impacted teams' review and auto-commits the approval that unblocks the PR.
-  Breaking changes ship as **dbt model versions** (`v1`/`v2` side by side) with the old contract
-  deprecated, so the deploy is non-breaking and v1 retires on a window. *Remaining: a worked v2
-  example (the dbt `versions:` release itself).*
+  Internal consumers migrate atomically alongside the approved change; **dbt model versions**
+  (`v1`/`v2`) are an opt-in option only for ports with consumers that can't cut over atomically
+  (external / BI / ad-hoc), built per port when such a consumer appears.
 - [ ] **M6 — Reporting & semantics:** Apache Ossie semantic layer over the data products;
   Superset built on it, with lineage into DataHub
 - [ ] **M7 — Governed AI:** agent answering through DataHub MCP, computing metrics from the

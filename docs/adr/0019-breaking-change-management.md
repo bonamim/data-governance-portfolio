@@ -30,11 +30,21 @@ A breaking change passes only when **both** hold:
 who approved which breaking change, when. (The gate blocks with a clear reason at each missing step:
 "needs a major version bump", then "needs approval from: …".)
 
-### 3. Safe release — keep the old interface alive
-The old version is not deleted on the bump: it stays as a **dbt model version** (`versions: [{v:1},
-{v:2}]`, ADR-0015) and its ODCS contract is marked **deprecated** (`status` + a sunset date).
-`v1` and `v2` coexist until consumers migrate; the deploy is therefore non-breaking. M4 lineage and
-the data-product consumers tell you exactly whom to ask.
+### 3. Migration — coordinated by default, versioned only when a consumer can't cut over atomically
+Approval is *consent*; the consumer still has to migrate. How depends on whether it can cut over at
+the same moment the producer deploys:
+
+- **Coordinated migration (the default).** Mesh consumers are dbt models in the same repo and CI, so
+  the producer updates them in the same (or a fast-follow) PR; approval covers the coordinated change
+  and the cutover is atomic. **No versioning needed — this is the common case**, and it is why most
+  internal output ports never carry versions.
+- **dbt model versions (only when needed).** For consumers that *cannot* cut over atomically —
+  external teams on their own release trains, BI dashboards, or ad-hoc SQL reading the port directly —
+  keep the old interface alive as a **dbt model version** (`versions: [{v:1},{v:2}]`, ADR-0015) with
+  the old ODCS contract **deprecated** (`status` + sunset date). `v1` and `v2` coexist until those
+  consumers migrate. This is opt-in *per port*; build it when such a consumer actually exists.
+
+M4 lineage + the data-product consumers tell you which case you are in and whom to ask.
 
 ### 4. The automation (GitHub — optional convenience layer)
 `.github/workflows/breaking-change-approval.yml` turns the approval into a button:
@@ -49,8 +59,10 @@ This layer requires the repo on GitHub with those teams and a token allowed to p
 until then it is inert, and the portable gate (§1–2) still enforces the policy.
 
 ## Consequences
-- Output-port interfaces can't break silently; a breaking change is deliberate, **versioned**,
-  **approved**, and **auditable**.
+- Output-port interfaces can't break silently; a breaking change is deliberate, **approved**, and
+  **auditable** (and, where needed, **versioned**).
 - The policy is portable (the gate + approval file work anywhere); GitHub is only automation on top.
-- Consumers get a migration window (dbt model versions + deprecation), so no consumer is broken by a
-  deploy — only by the scheduled retirement of the old version.
+- Internal consumers migrate atomically alongside the approved change — no versioning overhead. Only
+  consumers that can't cut over atomically (external / BI / ad-hoc) need the dbt-model-versions
+  migration window, opt-in per port — so the versioned-port machinery is built only when a real
+  decoupled consumer appears, not up front.
