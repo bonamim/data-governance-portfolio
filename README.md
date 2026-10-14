@@ -276,10 +276,13 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   approval gate already handles internal consumers.
 - **SQLMesh portability check** — re-run the same ODCS contracts and data products on **SQLMesh** to
   validate the engine-portability thesis against a natively stateful framework (ADR-0006 comparison).
-- **Superset semantic-layer extension (Ossie)** — when Superset's extensions framework GAs the
-  *Semantic Layers* contribution type (not in the pinned 4.1.1), build an Ossie-backed extension so
-  Superset queries the semantic definitions **live** instead of the generated projection — removing
-  drift (and the need for `bi-check-drift`). The leaner "connect, don't copy" model (not Cube).
+- **Superset native semantic-layer connection (Ossie)** — Superset's external semantic-layer support
+  (SIP-182: a first-class `SemanticLayer` connection — `get_metrics()`/`get_dimensions()`/`get_table()`
+  — packaged as a `.supx` extension) is behind the `SEMANTIC_LAYERS` flag on `master`, **targeted at
+  Superset 7.0** (not the pinned 4.1.1); first integrations are dbt MetricFlow and Snowflake Semantic
+  Views. Apache **Ossie is the standard underpinning it**, so when it ships: upgrade Superset and add
+  an Ossie `.supx` extension → Superset reads the definitions **live** (no projection, no drift,
+  `bi-check-drift` retires). "Connect, don't copy."
 - **Proof packaging** — `make prove-*` for P1 (domain isolation) and P4 (cross-domain asset trigger)
   once the proof harness drives full Airflow; P8/P9 land with M8.
 
