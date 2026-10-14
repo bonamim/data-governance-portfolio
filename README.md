@@ -248,8 +248,12 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   Internal consumers migrate atomically alongside the approved change; **dbt model versions**
   (`v1`/`v2`) are an opt-in option only for ports with consumers that can't cut over atomically
   (external / BI / ad-hoc), built per port when such a consumer appears.
-- [ ] **M6 — Reporting & semantics:** Apache Ossie semantic layer over the data products;
-  Superset built on it, with lineage into DataHub
+- [x] **M6 — Reporting & semantics (ADR-0010):** domains author **Apache Ossie** semantic models
+  (`domains/<d>/semantics/`) over their output ports — dimensions + metrics with one governed
+  definition; CI (`check-semantics`) keeps them on contract columns. `platform/semantics` publishes
+  them to **Superset** (pinned `dgp-bi` compose in `reporting/`) as datasets + metrics, and the
+  Superset charts ingest into DataHub — so lineage reaches the chart (source → port → BI → chart,
+  proof P7). The same Ossie definitions feed the M7 AI agent.
 - [ ] **M7 — Governed AI:** agent answering through DataHub MCP, computing metrics from the
   same Apache Ossie semantic definitions as Superset (one definition, BI and AI agree)
 - [ ] **M8 — Security & production hardening:** TLS, SSO (OIDC), secrets manager, **role-based

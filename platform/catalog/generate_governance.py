@@ -32,6 +32,7 @@ from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.rest_emitter import DatahubRestEmitter
 from datahub.metadata.schema_classes import (
     AuditStampClass,
+    DatasetLineageTypeClass,
     DomainPropertiesClass,
     DomainsClass,
     EditableSchemaFieldInfoClass,
@@ -41,6 +42,8 @@ from datahub.metadata.schema_classes import (
     GlossaryTermsClass,
     InstitutionalMemoryClass,
     InstitutionalMemoryMetadataClass,
+    UpstreamClass,
+    UpstreamLineageClass,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -250,6 +253,32 @@ def main() -> int:
         )
         linked += 1
     print(f"  datasets linked to their building DAG: {linked}")
+
+    # 6. BI lineage: each Superset dataset (generated from an Ossie semantic model) reads the
+    #    warehouse output port of the same name — emit it so lineage reaches the chart
+    #    (output port -> BI dataset -> chart, finishing proof P7). URNs match exactly.
+    bi = 0
+    for sm in REPO_ROOT.glob("domains/*/semantics/*.semantic_model.yaml"):
+        spec = yaml.safe_load(sm.read_text(encoding="utf-8")) or {}
+        for ds in spec.get("datasets") or []:
+            name = str(ds.get("source", ""))  # <db>.<schema>.<table>, shared by both platforms
+            if name.count(".") != 2:
+                continue
+            emitter.emit(
+                MetadataChangeProposalWrapper(
+                    entityUrn=make_dataset_urn("superset", name, "PROD"),
+                    aspect=UpstreamLineageClass(
+                        upstreams=[
+                            UpstreamClass(
+                                dataset=make_dataset_urn("postgres", name, "PROD"),
+                                type=DatasetLineageTypeClass.COPY,
+                            )
+                        ]
+                    ),
+                )
+            )
+            bi += 1
+    print(f"  BI datasets linked to their warehouse port: {bi}")
 
     return 0
 

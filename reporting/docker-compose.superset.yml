@@ -1,0 +1,50 @@
+# Apache Superset — the dgp-bi capability (a consumer app in reporting/, ADR-0017 topology). It reads
+# the analytics warehouse; its datasets + metrics are generated from the Ossie semantic models by the
+# platform/semantics adapter (ADR-0010), so a metric has one governed definition. The image is pinned
+# by digest (ADR-0007). Local dev only — SQLite metadata for a lean single node; production uses a
+# real metadata DB, SSO/OIDC and a secrets manager (docs/production-readiness.md).
+name: dgp-bi
+
+networks:
+  bi:
+    driver: bridge
+
+volumes:
+  superset_home:
+
+services:
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: governance-platform/superset:4.1.1
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_ADMIN: ${SUPERSET_ADMIN}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+      TALISMAN_ENABLED: "False"
+      SUPERSET_LOAD_EXAMPLES: "no"
+    # Reach the analytics Postgres (governance-platform project) on the host-published port.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - superset_home:/app/superset_home
+    ports:
+      - "${SUPERSET_PORT}:8088"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        superset db upgrade
+        superset fab create-admin --username "$${SUPERSET_ADMIN}" --firstname Admin \
+          --lastname User --email admin@dgp.local --password "$${SUPERSET_ADMIN_PASSWORD}" || true
+        superset init
+        exec /usr/bin/run-server.sh
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8088/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks: [bi]

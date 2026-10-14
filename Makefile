@@ -86,7 +86,7 @@ endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "  S3 browser      http://localhost:$(MINIO_CONSOLE_PORT)   (no login; browses MinIO via the S3 API)"
 	@echo "  Airflow         http://localhost:$(AIRFLOW_API_PORT)       (dev: no login)"
 	@echo "  DataHub         http://localhost:9002                      user: datahub   pass: datahub"
-	@echo "  Superset        http://localhost:8088                      (planned — M6)"
+	@echo "  Superset        http://localhost:$(SUPERSET_PORT)                      user: $(SUPERSET_ADMIN)   pass: $(SUPERSET_ADMIN_PASSWORD)"
 	@echo "Databases / APIs"
 	@echo "  MinIO S3 API    http://localhost:$(MINIO_API_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
 	@echo "  Postgres OLTP   localhost:$(OLTP_PORT)   db: $(OLTP_DB)   user: $(OLTP_SUPERUSER)   pass: $(OLTP_SUPERUSER_PASSWORD)"
@@ -143,6 +143,24 @@ check-data-products: ## Enforce the data product standard on every definition
 .PHONY: check-output-ports
 check-output-ports: ## Publishing guardrail: output-port contract <-> model <-> definition
 	uv run python governance/policies/check_output_ports.py
+
+# ---------------------------------------------------------------- reporting (M6) ---
+BI := docker compose --env-file $(ENV_FILE) -p dgp-bi -f reporting/docker-compose.superset.yml
+
+.PHONY: bi-up
+bi-up: $(ENV_FILE) ## Start Superset (dgp-bi) in the current Colima VM
+	$(BI) up -d
+
+.PHONY: bi-down
+bi-down: ## Stop Superset (keeps its volume)
+	$(BI) down
+
+.PHONY: bi-publish
+bi-publish: $(ENV_FILE) ## Publish the Ossie semantic models to Superset (datasets + metrics)
+	set -a; . ./$(ENV_FILE); set +a; \
+	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
+	export SUPERSET_WAREHOUSE_URI="postgresql+psycopg2://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@host.docker.internal:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	uv run --no-project --with requests --with pyyaml python platform/semantics/generate_superset.py
 
 # ---------------------------------------------------------------- catalog (M4) ---
 # DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
