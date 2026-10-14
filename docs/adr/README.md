@@ -20,3 +20,4 @@
 | [0016](0016-event-driven-ingestion.md) | Event-driven ingestion for partner-pushed files | Proposed |
 | [0017](0017-local-runtime-topology.md) | Local runtime topology (1 VM = 1 environment, capability compose projects) | Accepted |
 | [0018](0018-catalog-deployment-and-catalog-as-code.md) | Catalog deployment (pinned dgp-catalog compose) and catalog-as-code | Accepted |
+| [0019](0019-breaking-change-management.md) | Breaking-change management (gate, dbt model versions, consumer approval) | Accepted |

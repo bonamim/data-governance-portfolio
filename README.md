@@ -242,10 +242,13 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   products, ownership and a PII/Internal/Public classification glossary — all generated from
   `governance/` definitions (`make catalog-ingest` / `catalog-govern`) — plus dbt tests as assertions.
   Each dataset links to the Airflow DAG that builds it. Lineage reads source → load → raw → dbt → port.
-- [ ] **M5 — Contract gate:** PR blocked on breaking change, consuming domains alerted. Breaking
-  changes to an output port are released as **dbt model versions** (`v1`/`v2` side by side) driven
-  by the ODCS contract's deprecation status; M4 lineage identifies affected consumers so the deploy
-  is non-breaking and v1 retires on a scheduled window (proof P5)
+- [x] **M5 — Contract gate (proof P5, ADR-0019):** CI blocks a breaking change to an output-port
+  contract (`datacontract breaking`) and names the affected consumers; it passes only with a major
+  version bump **and** approval from every consumer, recorded in `governance/approvals/`. A GitHub
+  workflow requests the impacted teams' review and auto-commits the approval that unblocks the PR.
+  Breaking changes ship as **dbt model versions** (`v1`/`v2` side by side) with the old contract
+  deprecated, so the deploy is non-breaking and v1 retires on a window. *Remaining: a worked v2
+  example (the dbt `versions:` release itself).*
 - [ ] **M6 — Reporting & semantics:** Apache Ossie semantic layer over the data products;
   Superset built on it, with lineage into DataHub
 - [ ] **M7 — Governed AI:** agent answering through DataHub MCP, computing metrics from the

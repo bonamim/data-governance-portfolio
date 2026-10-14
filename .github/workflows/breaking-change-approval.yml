@@ -1,0 +1,115 @@
+name: Breaking-change approval (ADR-0019)
+
+# Automates consumer sign-off for a breaking change to an output port (a major version bump on its
+# ODCS contract). On such a PR it requests review from the impacted consumer domains and comments
+# who must approve; when an impacted consumer approves, it records the approval as a committed file
+# (governance/approvals/<port>-v<N>.yaml) that unblocks the breaking-change gate (proof P5).
+#
+# The approval *file* is the authority; this workflow is only the automation that fills it in — a
+# file can also be committed by hand. Mapping convention: a mesh domain's GitHub team slug == the
+# domain name (domain `sales` -> team @<org>/sales). Requires the repo on GitHub with those teams
+# and a token allowed to push to PR branches; until then it is inert (and no-ops on forked PRs,
+# where GITHUB_TOKEN is read-only).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write # commit the approval file to the PR branch
+  pull-requests: write # request reviewers
+  issues: write # comment
+
+jobs:
+  # ---- On a breaking-change PR: ask the impacted consumers to review -----------------------
+  request-approvals:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-packages --group dbt
+      - name: Compute breaking-change impact
+        id: impact
+        run: |
+          json=$(BASE_REF=origin/${{ github.base_ref }} \
+            uv run --group dbt python governance/policies/check_breaking_changes.py --impact-json)
+          echo "json=$json" >> "$GITHUB_OUTPUT"
+      - name: Request reviews from impacted teams + comment
+        if: steps.impact.outputs.json != '[]' && steps.impact.outputs.json != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const impact = JSON.parse(process.env.IMPACT);
+            const org = context.repo.owner;
+            const teams = [...new Set(impact.flatMap(i => i.teams))];
+            if (teams.length === 0) return;
+            await github.rest.pulls.requestReviewers({
+              ...context.repo, pull_number: context.issue.number, team_reviewers: teams,
+            }).catch(e => core.warning(`requestReviewers: ${e.message}`));
+            const lines = impact
+              .filter(i => i.teams.length)
+              .map(i => `- **${i.port}** v${i.version} — needs ${i.teams.map(t => `@${org}/${t}`).join(', ')}`);
+            await github.rest.issues.createComment({
+              ...context.repo, issue_number: context.issue.number,
+              body: `### Breaking change — consumer approval required\n\n${lines.join('\n')}\n\n`
+                  + `An affected consumer approving this PR records the sign-off and unblocks it.`,
+            });
+        env:
+          IMPACT: ${{ steps.impact.outputs.json }}
+
+  # ---- When an impacted consumer approves: record it and commit the approval file -----------
+  record-approval:
+    if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-packages --group dbt
+      - name: Compute impact
+        id: impact
+        run: |
+          json=$(BASE_REF=origin/${{ github.event.pull_request.base.ref }} \
+            uv run --group dbt python governance/policies/check_breaking_changes.py --impact-json)
+          echo "json=$json" >> "$GITHUB_OUTPUT"
+      - name: Record the reviewer's approvals (only for teams they belong to)
+        if: steps.impact.outputs.json != '[]' && steps.impact.outputs.json != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const impact = JSON.parse(process.env.IMPACT);
+            const org = context.repo.owner;
+            const user = context.payload.review.user.login;
+            const pr = context.issue.number;
+            const { execSync } = require('child_process');
+            for (const item of impact) {
+              for (const team of item.teams) {
+                const member = await github.rest.teams
+                  .getMembershipForUserInOrg({ org, team_slug: team, username: user })
+                  .then(r => r.data.state === 'active').catch(() => false);
+                if (!member) continue;
+                execSync(`uv run --group dbt python governance/policies/record_approval.py `
+                  + `--port ${item.port} --version ${item.version} --team ${team} --user ${user} --pr ${pr}`,
+                  { stdio: 'inherit' });
+              }
+            }
+        env:
+          IMPACT: ${{ steps.impact.outputs.json }}
+      - name: Commit the approval file to the PR
+        run: |
+          if [ -n "$(git status --porcelain governance/approvals)" ]; then
+            git config user.name "dgp-governance-bot"
+            git config user.email "dgp-governance-bot@users.noreply.github.com"
+            git add governance/approvals
+            git commit -m "Record breaking-change approval from ${{ github.event.review.user.login }}"
+            git push
+          else
+            echo "No new approval to record (reviewer is not on an impacted team, or already recorded)."
+          fi

@@ -15,6 +15,8 @@ Run: ``make check-breaking`` (or in CI with ``BASE_REF=origin/<target>``).
 
 from __future__ import annotations
 
+import argparse
+import json
 import os
 import re
 import shutil
@@ -97,10 +99,62 @@ def _breaking_report(old_file: str, new_file: Path) -> str | None:
     return out if (m and int(m.group(1)) > 0) else None
 
 
+def _version(file: str | Path) -> str:
+    defn = yaml.safe_load(Path(file).read_text(encoding="utf-8")) or {}
+    return str(defn.get("version", "0"))
+
+
+def _major(version: str) -> int:
+    head = version.split(".")[0]
+    return int(head) if head.isdigit() else 0
+
+
+def _approved_teams(product: str, major: int) -> set[str]:
+    """Teams recorded as approving this port's v<major> breaking change (governance/approvals/).
+    In production the approval workflow writes this file when consumers approve the PR; it can
+    also be committed by hand. The file is the authority — GitHub is only the automation."""
+    f = REPO_ROOT / "governance" / "approvals" / f"{product}-v{major}.yaml"
+    if not f.exists():
+        return set()
+    defn = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+    return {a["team"] for a in (defn.get("approved_by") or []) if a.get("team")}
+
+
+def _impact(base: str) -> list[dict]:
+    """Breaking changes that still need approval: [{port, version, teams}].
+
+    Consumed by the approval workflow to know whose review to request (ADR-0019)."""
+    out = []
+    for path in _changed_output_port_contracts(base):
+        old = _base_file(base, path)
+        if old is None or _breaking_report(old, path) is None:
+            continue
+        product = path.name[: -len(".odcs.yaml")]
+        new_major = _major(_version(path))
+        teams = sorted(_consumers_of(product) - _approved_teams(product, new_major))
+        out.append({"port": product, "version": new_major, "teams": teams})
+    return out
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Breaking-change contract gate (proof P5).")
+    parser.add_argument(
+        "--impact-json",
+        action="store_true",
+        help="print breaking changes still needing approval as JSON (for the approval workflow)",
+    )
+    args = parser.parse_args()
+
     base = _resolve_base()
     if not base:
+        if args.impact_json:
+            print("[]")
+            return 0
         print(f"Breaking-change gate: base ref '{BASE_REF}' not found — skipping (not a PR).")
+        return 0
+
+    if args.impact_json:
+        print(json.dumps(_impact(base)))
         return 0
 
     contracts = _changed_output_port_contracts(base)
@@ -119,20 +173,42 @@ def main() -> int:
         if report is None:
             print(f"  {product}: contract changed, no breaking changes — OK.")
             continue
-        failed = True
-        consumers = _consumers_of(product) or {"(no declared consumers)"}
+
+        # Breaking change — allowed only with a MAJOR version bump + approval from every consumer.
+        consumers = _consumers_of(product)
+        old_major, new_major = _major(_version(old)), _major(_version(path))
         print(f"\nBREAKING CHANGE in output port '{product}' (vs {base}):\n")
         print(report)
-        print(f"  Affected consumers: {', '.join(sorted(consumers))}")
+        print(f"  Affected consumers: {', '.join(sorted(consumers)) or '(none declared)'}")
+
+        if new_major <= old_major:
+            failed = True
+            print(
+                f"  BLOCKED: a breaking change needs a MAJOR version bump (contract is "
+                f"{_version(old)} -> {_version(path)}). Release it as a new dbt model version and "
+                f"keep v{old_major} alive with a deprecation window (ADR-0019)."
+            )
+            continue
+
+        missing = consumers - _approved_teams(product, new_major)
+        if missing:
+            failed = True
+            print(
+                f"  BLOCKED: v{new_major} still needs approval from: {', '.join(sorted(missing))}. "
+                f"They approve the PR and the workflow records it in "
+                f"governance/approvals/{product}-v{new_major}.yaml (or commit it by hand)."
+            )
+            continue
+
         print(
-            "  To ship this: bump the contract major version and get consumer approval, "
-            "released as a new dbt model version with the old kept (ADR-0015 / M5)."
+            f"  APPROVED: v{new_major} breaking change signed off by all affected consumers "
+            f"({', '.join(sorted(consumers)) or 'none required'}); ship with v{old_major} kept."
         )
 
     if failed:
         print("\nBreaking-change gate FAILED (proof P5): an output-port interface would break.")
         return 1
-    print(f"Breaking-change gate OK: output-port contract(s) changed vs {base}, none breaking.")
+    print(f"Breaking-change gate OK: output-port contract(s) changed vs {base}.")
     return 0
 
 
