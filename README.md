@@ -276,6 +276,10 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   approval gate already handles internal consumers.
 - **SQLMesh portability check** — re-run the same ODCS contracts and data products on **SQLMesh** to
   validate the engine-portability thesis against a natively stateful framework (ADR-0006 comparison).
+- **Superset semantic-layer extension (Ossie)** — when Superset's extensions framework GAs the
+  *Semantic Layers* contribution type (not in the pinned 4.1.1), build an Ossie-backed extension so
+  Superset queries the semantic definitions **live** instead of the generated projection — removing
+  drift (and the need for `bi-check-drift`). The leaner "connect, don't copy" model (not Cube).
 - **Proof packaging** — `make prove-*` for P1 (domain isolation) and P4 (cross-domain asset trigger)
   once the proof harness drives full Airflow; P8/P9 land with M8.
 
