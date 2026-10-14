@@ -50,15 +50,17 @@ Marketplace joins after the slice is proven.
 
 ## Running the proofs
 
-Each scenario becomes a one-command `make prove-<id>` with the milestone that delivers it.
-Built so far:
+Each scenario becomes a one-command `make prove-<id>`. Self-contained proofs (no running platform)
+are built; `make prove-all` runs them:
 
 | Proof | Command | Status |
 |---|---|---|
-| **P5** — breaking-change gate | `make prove-p5` | ✅ self-contained: simulates the PR, asserts blocked → blocked → passes, reverts |
+| **P2** — landing quality gate | `make prove-p2` | ✅ runs the real engine on a clean + a contract-violating file |
+| **P5** — breaking-change gate | `make prove-p5` | ✅ simulates the PR, asserts blocked → blocked → passes, reverts |
+| — | `make prove-all` | runs the self-contained proofs (P2, P5) |
 
-Until the rest are packaged as `prove-*`, these commands exercise the same mechanisms today
-(the platform must be up — `make up`, and the catalog for P7 — `make catalog-up`):
+The platform-dependent proofs (P3/P6/P7) aren't packaged yet — these commands exercise the same
+mechanisms today (platform up — `make up`; catalog for P7 — `make catalog-up`):
 
 | Proof | What it checks | Run it today |
 |---|---|---|
@@ -69,5 +71,6 @@ Until the rest are packaged as `prove-*`, these commands exercise the same mecha
 | **P6** — idempotency | reruns/backfills don't duplicate | re-trigger `<domain>_ingestion`; the ledger skips unchanged files by ETag (no new rows) |
 | **P7** — end-to-end lineage | every hop is visible | `make catalog-ingest && make catalog-govern`, then DataHub (`:9002`) or `datahub get --urn <dataset> -a upstreamLineage` |
 
-P1 (domain isolation), P4 (cross-domain asset trigger), P8 (access control), and P9 (DR drill)
-are demonstrated via Airflow and the role grants; they are packaged as `prove-*` in later milestones.
+The remaining proofs are tracked on the roadmap: **P8** (access control + PII masking) and **P9**
+(restore drill) land with **M8**; **P1** (domain isolation) and **P4** (cross-domain asset trigger)
+are packaged as `prove-*` once the harness drives full Airflow (README backlog).

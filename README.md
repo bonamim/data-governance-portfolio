@@ -226,11 +226,10 @@ Each milestone is done only when its production-readiness and disaster-recovery 
 - [x] **M1 — Platform:** Docker Compose with MinIO, 2× Postgres and Airflow 3 (per-domain DAG
   bundles). The config-driven ingestion downloads the real Olist dataset from Kaggle and loads
   every dataset to `<domain>_raw` with an ingestion ledger (idempotent landing loads by ETag).
-- [~] **M2 — Contracts & quality:** ODCS contracts at the governed boundaries (not internal
-  layers). **Landing-zone gate done** — every landing file is validated against its ODCS
-  contract and quarantined on failure (proof P2), enforced in CI that each landing dataset has
-  a valid contract. *Remaining:* output-port (table/view) contracts, authored with the data
-  products in M3.
+- [x] **M2 — Contracts & quality:** ODCS contracts at the governed boundaries (not internal
+  layers). Landing-zone gate — every landing file is validated against its ODCS contract and
+  quarantined on failure (proof P2), enforced in CI that each landing dataset has a valid
+  contract; output-port (table/view) contracts authored with the data products in M3.
 - [x] **M3 — Domains:** per-domain dbt projects on a medallion (raw→bronze→silver→gold);
   output ports are models tagged `output_port` in their ODCS contract (published in place,
   any layer); cross-domain refs via dbt-loom (public ports only); contractual DQ generated
@@ -253,25 +252,28 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   Superset built on it, with lineage into DataHub
 - [ ] **M7 — Governed AI:** agent answering through DataHub MCP, computing metrics from the
   same Apache Ossie semantic definitions as Superset (one definition, BI and AI agree)
-- [ ] **M8 — Production hardening:** TLS, SSO, secrets manager, backups, automated restore drill
+- [ ] **M8 — Security & production hardening:** TLS, SSO (OIDC), secrets manager, **role-based
+  dynamic PII masking** (ADR-0013 — raw/staging denied and PII masked for consumer roles, proof P8),
+  backups and an automated **restore drill** (proof P9, docs/disaster-recovery.md).
+- [ ] **M9 — Transform-layer scale (ADR-0015):** orchestrate dbt with **Cosmos** (manifest mode —
+  per-model tasks/retries/parallelism); **per-model portable write-audit-publish** (blue/green swap /
+  warehouse zero-copy clone / Iceberg branch; incremental = audit-batch-then-merge); **dbt state +
+  Slim CI** (`state:modified --defer`, `manifest.json` in `platform-state`); **microbatch +
+  runtime-param backfill**. Built when a domain grows past the static-Olist scale.
+- [ ] **M10 — Event-driven ingestion (ADR-0016):** partners push to the landing bucket →
+  bucket-notification → queue → Airflow asset, replacing the PoC pull (`platform_acquire_olist` +
+  `land`); with idempotency/dedup, batch completeness, per-partner write-only scoping, and
+  poison-file quarantine. Built when real producers replace the acquire step.
 
-### Deferred: transform-layer scale build-out
+### Backlog — built when a trigger appears, not on a schedule
 
-Decided (ADR-0015 / ADR-0016) but intentionally **not yet built** — these answer *scale* (20–30
-large models per domain, partner-pushed data, backfill) that the static Olist PoC does not exercise.
-They land when a domain grows into them / partners replace the acquire step, and before production —
-tracked here so the deferral stays a roadmap, not silent debt:
-
-- **Orchestrate dbt with Cosmos** (manifest mode) — per-model tasks, retries, parallelism, lineage.
-- **Per-model portable WAP** — table = blue/green swap, incremental/microbatch = audit-batch-then-merge,
-  view = in place; maps to warehouse zero-copy clone / Iceberg branch.
-- **dbt state + Slim CI** — persist `manifest.json` to `platform-state`, `state:modified --defer`
-  (needs dbt-in-CI with a warehouse).
-- **Backfill** — dbt microbatch + runtime DAG `params` (`event_time_start/end`), not a cloned DAG.
-- **Event-driven ingestion** (ADR-0016) — bucket-notification → queue → asset; replaces the
-  PoC pull (`platform_acquire_olist` + `land`) once real partners push files.
-- **Nice-to-have:** once the dbt path is complete, re-run the same contracts/products on **SQLMesh**
-  to validate the portability thesis against a natively stateful engine.
+- **Versioned output ports** (ADR-0019) — dbt model versions (`v1`/`v2`) for a port that gains a
+  consumer which can't migrate atomically (external team / BI / ad-hoc SQL). Opt-in per port; the
+  approval gate already handles internal consumers.
+- **SQLMesh portability check** — re-run the same ODCS contracts and data products on **SQLMesh** to
+  validate the engine-portability thesis against a natively stateful framework (ADR-0006 comparison).
+- **Proof packaging** — `make prove-*` for P1 (domain isolation) and P4 (cross-domain asset trigger)
+  once the proof harness drives full Airflow; P8/P9 land with M8.
 
 ---
 
