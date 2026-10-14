@@ -162,6 +162,12 @@ bi-publish: $(ENV_FILE) ## Publish the Ossie semantic models to Superset (datase
 	export SUPERSET_WAREHOUSE_URI="postgresql+psycopg2://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@host.docker.internal:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
 	uv run --no-project --with requests --with pyyaml python platform/semantics/generate_superset.py
 
+.PHONY: bi-check-drift
+bi-check-drift: $(ENV_FILE) ## Fail if Superset's metrics drifted from the Ossie models (one definition)
+	set -a; . ./$(ENV_FILE); set +a; \
+	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
+	uv run --no-project --with requests --with pyyaml python platform/semantics/generate_superset.py --check
+
 # ---------------------------------------------------------------- catalog (M4) ---
 # DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
 # pinned by digest. Ingestion needs the DataHub CLI on PATH:

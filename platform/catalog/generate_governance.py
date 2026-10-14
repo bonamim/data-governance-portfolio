@@ -52,6 +52,8 @@ from governance.registry import classification_terms, domains  # noqa: E402
 
 GMS = os.environ.get("DATAHUB_GMS", "http://localhost:8080")
 DB = os.environ.get("ANALYTICS_DB", "analytics")
+# The warehouse's DataHub platform — postgres locally, snowflake/bigquery/etc. in the cloud.
+WAREHOUSE_PLATFORM = os.environ.get("WAREHOUSE_PLATFORM", "postgres")
 AIRFLOW_URL = os.environ.get(
     "AIRFLOW_BASE_URL", f"http://localhost:{os.environ.get('AIRFLOW_API_PORT', '8080')}"
 )
@@ -270,7 +272,7 @@ def main() -> int:
                     aspect=UpstreamLineageClass(
                         upstreams=[
                             UpstreamClass(
-                                dataset=make_dataset_urn("postgres", name, "PROD"),
+                                dataset=make_dataset_urn(WAREHOUSE_PLATFORM, name, "PROD"),
                                 type=DatasetLineageTypeClass.COPY,
                             )
                         ]
