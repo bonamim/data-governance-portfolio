@@ -35,6 +35,8 @@ jobs:
         run: uv run python governance/policies/check_output_ports.py
       - name: Semantic governance (Ossie models build on contract columns, ADR-0010)
         run: uv run python governance/policies/check_semantics.py
+      - name: AI-agent governance (domain-scoped, isolated, owned, no raw PII, ADR-0021)
+        run: uv run python governance/policies/check_ai_agents.py
       - name: ODCS is source of truth (dbt schema not drifted from contracts)
         run: |
           make sync-contracts

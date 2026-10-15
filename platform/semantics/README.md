@@ -9,6 +9,11 @@ The design is **define-once, project-into-each-tool** (not a runtime semantic se
 Ossie is the source of truth, and `generate_superset.py` projects it into Superset's native dataset
 + metrics. The drift check keeps that projection honest.
 
+`ossie.py` is the **shared reader** — the one place a semantic model becomes SQL. Both consumers go
+through it: this Superset adapter and the M7 governed AI (`ai/semantic-mcp`, ADR-0020). Because there
+is no second parser, "one governed definition per metric" holds in code, and proof P10
+(`make prove-p10`) shows BI and AI return the same number.
+
 ## Commands
 
 | Command | What it does |

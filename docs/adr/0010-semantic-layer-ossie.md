@@ -1,6 +1,6 @@
 # ADR-0010: Apache Ossie as the semantic layer standard
 
-**Status:** Accepted (adoption scheduled for M6/M7)
+**Status:** Accepted (adopted — Superset in M6, the AI agent in M7 via ADR-0020)
 
 ## Context
 The platform exposes governed data products, but **business semantics** — what a metric

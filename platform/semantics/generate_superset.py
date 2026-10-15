@@ -16,8 +16,8 @@ import re
 import sys
 from pathlib import Path
 
+import ossie  # shared Ossie->SQL reader; the same one the M7 AI consumer uses (no drift)
 import requests
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUPERSET = os.environ.get("SUPERSET_URL", "http://localhost:8088")
@@ -76,26 +76,17 @@ def _norm(expr: str) -> str:
 
 
 def _metrics(spec: dict, dataset: str) -> list[dict]:
-    out = []
-    for m in spec.get("metrics") or []:
-        expr = next(
-            (
-                d.get("expression", "")
-                for d in (m.get("expression") or {}).get("dialects") or []
-                if d.get("dialect") == "ANSI_SQL"
-            ),
-            "",
-        )
-        expr = re.sub(rf"\b{re.escape(dataset)}\.", "", expr)  # SUM(sales_performance.x) -> SUM(x)
-        out.append(
-            {
-                "metric_name": m["name"],
-                "expression": expr,
-                "verbose_name": m["name"],
-                "description": m.get("description", ""),
-            }
-        )
-    return out
+    # Expression comes from the shared reader (SUM(sales_performance.x) -> SUM(x) for Superset's
+    # dataset-scoped column context) so BI and the AI consumer never compile the same metric twice.
+    return [
+        {
+            "metric_name": m["name"],
+            "expression": ossie.superset_metric_expr(m, dataset),
+            "verbose_name": m["name"],
+            "description": m.get("description", ""),
+        }
+        for m in ossie.metrics(spec)
+    ]
 
 
 def _ensure_dataset(s: requests.Session, db_id: int, schema: str, table: str, metrics: list[dict]):
@@ -108,20 +99,25 @@ def _ensure_dataset(s: requests.Session, db_id: int, schema: str, table: str, me
         )
         r.raise_for_status()
         ds_id = r.json()["id"]
-    put = s.put(f"{SUPERSET}/api/v1/dataset/{ds_id}", json={"metrics": metrics}, timeout=60)
+    # Carry each existing metric's id so the PUT updates it in place. Superset rejects a metric that
+    # matches an existing name but carries no id ("already exist"), so re-publishing would 422.
+    existing = s.get(f"{SUPERSET}/api/v1/dataset/{ds_id}", timeout=30).json()["result"]
+    ids = {m["metric_name"]: m["id"] for m in existing.get("metrics") or []}
+    merged = [{**m, "id": ids[m["metric_name"]]} if m["metric_name"] in ids else m for m in metrics]
+    put = s.put(f"{SUPERSET}/api/v1/dataset/{ds_id}", json={"metrics": merged}, timeout=60)
     put.raise_for_status()
     return ds_id
 
 
 def _models() -> list[Path]:
-    return sorted(REPO_ROOT.glob("domains/*/semantics/*.semantic_model.yaml"))
+    return ossie.models()
 
 
 def _publish(s: requests.Session) -> int:
     db_id = _ensure_database(s)
     for m in _models():
-        spec = yaml.safe_load(m.read_text(encoding="utf-8")) or {}
-        for ds in spec.get("datasets") or []:
+        spec = ossie.load(m)
+        for ds in ossie.datasets(spec):
             parts = str(ds.get("source", "")).split(".")
             if len(parts) != 3:
                 continue
@@ -137,8 +133,8 @@ def _check(s: requests.Session) -> int:
     """Fail if Superset's metrics drifted from the Ossie models (e.g. edited in the UI)."""
     drift: list[str] = []
     for m in _models():
-        spec = yaml.safe_load(m.read_text(encoding="utf-8")) or {}
-        for ds in spec.get("datasets") or []:
+        spec = ossie.load(m)
+        for ds in ossie.datasets(spec):
             parts = str(ds.get("source", "")).split(".")
             if len(parts) != 3:
                 continue

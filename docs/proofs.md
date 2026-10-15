@@ -45,6 +45,8 @@ Marketplace joins after the slice is proven.
 | **P7** | **End-to-end lineage** — every hop is visible | Run the full pipeline, then query DataHub | Lineage path from landing file / OLTP table → raw → staging → data product → Superset chart |
 | **P8** | **Access control** — consumers see output ports only; PII is protected | Query raw/staging schemas and PII columns as a consumer role | Access denied on raw/staging; PII columns masked |
 | **P9** | **Disaster recovery** — restores work within RTO | Run the restore drill | Platform rebuilt from backups and git; all quality checks pass; measured recovery time ≤ RTO |
+| **P10** | **Governed AI — BI and AI agree** — one definition, computed the same way | Ask the governed semantic MCP (the AI's only metric path) and Superset for each metric; also request an ungoverned/PII column | Identical number from the AI path, Superset and a direct-Ossie control; the ungoverned column is refused ("not in the semantic layer") |
+| **P11** | **Agentic mesh** — the AI layer is federated and governable | Scope an agent to one domain and ask for another domain's product; route questions through the orchestrator | A domain agent answers only its own products (isolation); the orchestrator routes each product to its owning domain deterministically; a routed metric equals the direct Ossie number |
 
 ---
 
@@ -57,10 +59,13 @@ are built; `make prove-all` runs them:
 |---|---|---|
 | **P2** — landing quality gate | `make prove-p2` | ✅ runs the real engine on a clean + a contract-violating file |
 | **P5** — breaking-change gate | `make prove-p5` | ✅ simulates the PR, asserts blocked → blocked → passes, reverts |
+| **P10** — governed AI == BI | `make prove-p10` | ✅ packaged (needs the live platform + `make bi-publish`): asserts AI = Superset = direct-Ossie per metric |
+| **P11** — agentic mesh | `make prove-p11` | ✅ packaged: domain isolation + deterministic routing run anywhere; the routed-number check uses the live platform |
 | — | `make prove-all` | runs the self-contained proofs (P2, P5) |
 
-The platform-dependent proofs (P3/P6/P7) aren't packaged yet — these commands exercise the same
-mechanisms today (platform up — `make up`; catalog for P7 — `make catalog-up`):
+The platform-dependent proofs (P3/P6/P7/P10) aren't in `prove-all` (they need a running platform) —
+these commands exercise the mechanisms today (platform up — `make up`; catalog for P7 —
+`make catalog-up`; Superset for P10 — `make bi-up && make bi-publish`):
 
 | Proof | What it checks | Run it today |
 |---|---|---|
@@ -70,6 +75,8 @@ mechanisms today (platform up — `make up`; catalog for P7 — `make catalog-up
 | **P5** — breaking-change gate | an interface can't break silently | `make prove-p5` (or `make check-breaking` on a branch that edits an output-port contract) |
 | **P6** — idempotency | reruns/backfills don't duplicate | re-trigger `<domain>_ingestion`; the ledger skips unchanged files by ETag (no new rows) |
 | **P7** — end-to-end lineage | every hop is visible | `make catalog-ingest && make catalog-govern`, then DataHub (`:9002`) or `datahub get --urn <dataset> -a upstreamLineage` |
+| **P10** — governed AI == BI | AI and BI compute the same number from one Ossie definition | `make bi-publish`, then `make prove-p10` (the AI path, Superset and a direct-Ossie control agree per metric; ungoverned columns refused) |
+| **P11** — agentic mesh | the AI layer is federated, isolated and deterministically routed | `make ai-agents` (the registry), then `make prove-p11` (a domain agent serves only its own products; the orchestrator routes each product to its owner; routed number = direct Ossie) |
 
 The remaining proofs are tracked on the roadmap: **P8** (access control + PII masking) and **P9**
 (restore drill) land with **M8**; **P1** (domain isolation) and **P4** (cross-domain asset trigger)

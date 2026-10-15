@@ -196,6 +196,7 @@ platform/                 Self-serve platform (owned by the platform team)
   ingestion/              Reusable loaders that emit lineage to DataHub
   quality/                Contract test runner, results pushed to DataHub
   catalog/                DataHub ingestion recipes
+  semantics/              Apache Ossie reader + Superset adapter (one metric definition, M6)
 
 governance/               Federated governance (owned by the governance guild)
   standards/              Contract template, naming conventions, required fields
@@ -212,8 +213,10 @@ domains/<domain>/         Owned by each domain team
   pipelines/              The domain's Airflow DAG bundle
 
 reference/                Shared reference data (geolocation)
-reporting/                Superset dashboards as code
-ai/                       Governed AI agent
+reporting/                Superset dashboards as code (BI consumer)
+ai/                       Governed AI (M7)
+  semantic-mcp/           Governed semantic MCP agent (domain-scopable: one per domain)
+  orchestrator/           Agent registry + catalog-routed orchestrator (agentic mesh)
 docs/                     Architecture, ADRs, production readiness, disaster recovery
 ```
 
@@ -254,8 +257,23 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   them to **Superset** (pinned `dgp-bi` compose in `reporting/`) as datasets + metrics, and the
   Superset charts ingest into DataHub — so lineage reaches the chart (source → port → BI → chart,
   proof P7). The same Ossie definitions feed the M7 AI agent.
-- [ ] **M7 — Governed AI:** agent answering through DataHub MCP, computing metrics from the
-  same Apache Ossie semantic definitions as Superset (one definition, BI and AI agree)
+- [x] **M7 — Governed AI** — delivered in two parts:
+  - [x] **M7a — Governed AI boundary (ADR-0020, proof P10):** any MCP client (Claude, ChatGPT,
+    Copilot, Cortex) reaches the mesh through **DataHub MCP** (discovery: port, owner, PII class,
+    lineage) and a **governed semantic MCP** (`ai/semantic-mcp`) whose only metric tool compiles the
+    domain's **Apache Ossie** definition into SQL (shared `platform/semantics/ossie.py` — the same
+    translation Superset uses) as the consumer role. No free-form SQL: ungoverned/PII columns are
+    refused; discovery stays open and `request_semantic_model` routes a "please govern this" request
+    to the owner. Transport is client-agnostic (stdio / streamable-HTTP). Proof **P10**: the AI number
+    equals Superset's and a direct-Ossie control — one definition, BI and AI agree.
+  - [x] **M7b — Agentic mesh / federated domain agents (ADR-0021, proof P11):** the AI layer is itself
+    a mesh — one governed agent **per domain** (same code scoped by `DGP_SEMANTIC_DOMAIN` → domain
+    isolation), a derived **agent registry** (system-of-record), a **catalog-driven orchestrator** that
+    routes each question to the owning domain (a deterministic *router*, not an LLM *supervisor* —
+    LangGraph is kept to an optional NL layer above the governed tools), and an **audit log** of every
+    call. Agents are governed like any mesh concern — a standard (`governance/standards/ai-agent.md`)
+    + a CI check (`check-ai-agents`: domain-scoped, isolated, owned, no raw PII). Proof **P11**:
+    isolation holds, routing is deterministic, federation preserves the number.
 - [ ] **M8 — Security & production hardening:** TLS, SSO (OIDC), secrets manager, **role-based
   dynamic PII masking** (ADR-0013 — raw/staging denied and PII masked for consumer roles, proof P8),
   backups and an automated **restore drill** (proof P9, docs/disaster-recovery.md).

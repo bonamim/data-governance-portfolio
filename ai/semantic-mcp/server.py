@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""The governed semantic layer, exposed as an MCP server (M7, ADR-0020).
+
+Any MCP-capable agent — Claude, ChatGPT, GitHub Copilot, Snowflake Cortex Agents — can obtain a
+business metric **only** through these tools, which compile the domain's governed Apache Ossie
+definition into SQL (the same definition Superset uses). There is no free-form-SQL tool, so the
+agent cannot invent a metric or read an ungoverned (raw/staging/PII) column. The governance is in
+the server, so it holds the same for every client; only each client's wiring differs (see
+``ai/README.md``).
+
+Transport is client-agnostic via ``MCP_TRANSPORT``: ``stdio`` (default — local clients like Claude
+Code and Copilot/VS Code launch the process) or ``streamable-http`` (a remote server for hosted
+clients like ChatGPT connectors and Cortex Agents; set ``MCP_HOST``/``MCP_PORT``). Run via
+``make ai-mcp`` (stdio) or ``make ai-mcp-http`` (remote).
+"""
+
+from __future__ import annotations
+
+import os
+
+import semantic  # pure computation + governance checks (same directory)
+from mcp.server.mcpserver import MCPServer
+
+TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
+HOST = os.environ.get("MCP_HOST", "127.0.0.1")
+PORT = int(os.environ.get("MCP_PORT", "8000"))
+
+# A domain-scoped instance (DGP_SEMANTIC_DOMAIN) is that domain's federated agent (ADR-0021); the
+# name reflects the scope so a client/registry can tell the Sales agent from the platform-wide one.
+_scope = semantic.DOMAIN
+mcp = MCPServer(f"dgp-semantic-{_scope}" if _scope else "dgp-semantic")
+
+
+@mcp.tool()
+def list_data_products() -> list[dict]:
+    """List EVERY data product in the mesh, each flagged ``governed`` (has metrics) or not, with its
+    owning domain. Discovery is open: ungoverned products are visible so a user can explore and ask
+    the owner (``request_semantic_model``) to define metrics. Only governed ones are queryable."""
+    return semantic.list_data_products()
+
+
+@mcp.tool()
+def list_metrics(data_product: str) -> dict:
+    """List the governed metrics and dimensions for a data product (from its Ossie spec). If the
+    product exists but isn't governed yet, this explains who owns it and how to request a model."""
+    return semantic.list_metrics(data_product)
+
+
+@mcp.tool()
+def query_metric(
+    data_product: str, metrics: list[str], dimensions: list[str] | None = None
+) -> dict:
+    """Compute governed metric(s) for a data product, optionally broken down by dimension(s).
+
+    ``metrics`` and ``dimensions`` must be names from ``list_metrics`` — anything else is refused as
+    "not in the semantic layer". Returns the value rows, the exact governed SQL, and the Ossie
+    definitions used, so the answer is fully traceable to the one governed definition.
+    """
+    return semantic.query_metric(data_product, metrics, dimensions or [])
+
+
+@mcp.tool()
+def request_semantic_model(data_product: str, business_need: str, requested_by: str = "") -> dict:
+    """Ask the owning domain to define governed metrics for a product that isn't governed yet.
+
+    Use this when ``list_data_products`` shows a product with ``governed: false`` and the user wants
+    metrics on it. It records an auditable request routed to the owner (not a fabricated number) —
+    the self-serve path from discovery to a governed metric. Returns where it was filed and to whom.
+    """
+    return semantic.request_semantic_model(data_product, business_need, requested_by)
+
+
+if __name__ == "__main__":
+    mcp.run(transport=TRANSPORT)

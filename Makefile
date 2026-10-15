@@ -168,6 +168,39 @@ bi-check-drift: $(ENV_FILE) ## Fail if Superset's metrics drifted from the Ossie
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
 	uv run --no-project --with requests --with pyyaml python platform/semantics/generate_superset.py --check
 
+# -------------------------------------------------------------- governed AI (M7) ---
+# The governed semantic MCP server. Any MCP client (Claude, ChatGPT, Copilot, Cortex) connects to
+# it; only each client's wiring differs (ai/README.md). stdio = local clients; http = remote clients.
+AI_MCP := uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/semantic-mcp/server.py
+AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"
+
+.PHONY: ai-mcp
+ai-mcp: $(ENV_FILE) ## Run the governed semantic MCP server over stdio (local clients: Claude, Copilot)
+	set -a; . ./$(ENV_FILE); set +a; $(AI_MCP_ENV); \
+	$(AI_MCP)
+
+.PHONY: ai-mcp-http
+ai-mcp-http: $(ENV_FILE) ## Run it as a remote MCP server over streamable-HTTP (ChatGPT connectors, Cortex)
+	set -a; . ./$(ENV_FILE); set +a; $(AI_MCP_ENV); \
+	export MCP_TRANSPORT=streamable-http MCP_HOST=$${MCP_HOST:-127.0.0.1} MCP_PORT=$${MCP_PORT:-8900}; \
+	$(AI_MCP)
+
+.PHONY: ai-agent
+ai-agent: $(ENV_FILE) ## Run ONE domain's federated agent: make ai-agent DOMAIN=sales (ADR-0021)
+	@test -n "$(DOMAIN)" || { echo "set DOMAIN=<domain> (see make ai-agents)"; exit 2; }
+	set -a; . ./$(ENV_FILE); set +a; $(AI_MCP_ENV); \
+	export DGP_SEMANTIC_DOMAIN=$(DOMAIN); \
+	$(AI_MCP)
+
+.PHONY: ai-agents
+ai-agents: ## List the federated domain agents (the mesh agent registry, derived from definitions)
+	uv run --no-project --with pyyaml python ai/orchestrator/registry.py
+
+.PHONY: ai-orchestrator
+ai-orchestrator: $(ENV_FILE) ## Run the orchestrator MCP gateway (routes each question to the owning domain)
+	set -a; . ./$(ENV_FILE); set +a; $(AI_MCP_ENV); \
+	uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/orchestrator/server.py
+
 # ---------------------------------------------------------------- catalog (M4) ---
 # DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
 # pinned by digest. Ingestion needs the DataHub CLI on PATH:
@@ -221,13 +254,30 @@ prove-p2: ## Proof P2 — a landing file that violates its contract is rejected 
 prove-p5: $(ENV_FILE) ## Proof P5 — breaking change blocked, then passes with a version bump + approval
 	./proofs/p5_breaking_change.sh
 
+.PHONY: prove-p10
+prove-p10: $(ENV_FILE) ## Proof P10 — BI and AI compute the same number from the one Ossie definition (M7)
+	set -a; . ./$(ENV_FILE); set +a; \
+	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
+	export SEMANTIC_WAREHOUSE_URI="postgresql://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	uv run --no-project --with requests --with 'psycopg[binary]' --with pyyaml python proofs/p10_ai_bi_agreement.py
+
+.PHONY: prove-p11
+prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, deterministic routing, same number (M7)
+	set -a; . ./$(ENV_FILE); set +a; \
+	export SEMANTIC_WAREHOUSE_URI="postgresql://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	uv run --no-project --with 'psycopg[binary]' --with pyyaml python proofs/p11_federated_routing.py
+
 .PHONY: prove-all
-prove-all: prove-p2 prove-p5 ## Run the self-contained proofs (P2, P5); P3/P6/P7 need the live platform
-	@echo "Self-contained proofs passed. P3/P6/P7 run against the live platform (see docs/proofs.md)."
+prove-all: prove-p2 prove-p5 ## Run the self-contained proofs (P2, P5); P3/P6/P7/P10/P11 need the live platform
+	@echo "Self-contained proofs passed. P3/P6/P7/P10/P11 run against the live platform (see docs/proofs.md)."
 
 .PHONY: check-semantics
 check-semantics: ## Ossie semantic models build only on governed output-port columns (ADR-0010)
 	uv run python governance/policies/check_semantics.py
 
+.PHONY: check-ai-agents
+check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, owned, no raw PII (ADR-0021)
+	uv run python governance/policies/check_ai_agents.py
+
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-data-products check-output-ports check-semantics lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-data-products check-output-ports check-semantics check-ai-agents lint test ## Run all governance + quality checks
