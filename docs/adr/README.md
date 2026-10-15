@@ -12,7 +12,7 @@
 | [0008](0008-monorepo-module-boundaries.md) | Monorepo with enforced module boundaries | Accepted |
 | [0009](0009-cloud-portability.md) | Cloud-portable by design | Accepted |
 | [0010](0010-semantic-layer-ossie.md) | Apache Ossie as the semantic layer standard | Accepted |
-| [0011](0011-landing-zone-slas-and-partitioning.md) | Landing-zone SLAs, partitioning, retention, shared-dataset ownership | Accepted |
+| [0011](0011-landing-zone-slas-and-partitioning.md) | Landing-zone SLAs, partitioning, retention, shared-dataset ownership | Accepted (§2–3 amended by 0024) |
 | [0012](0012-medallion-and-output-ports.md) | Medallion layers, tag-based output ports, simulated marketplace | Accepted |
 | [0013](0013-role-based-dynamic-masking.md) | Role-based dynamic data masking (ODCS-declared, per-platform) | Accepted |
 | [0014](0014-flexible-write-audit-publish.md) | Flexible write-audit-publish (opt-in, severity-aware, materialization-aware) | Accepted (mechanism superseded by 0015) |
@@ -25,3 +25,4 @@
 | [0021](0021-federated-domain-agents.md) | Federated domain agents + catalog-routed orchestrator (agentic mesh) | Accepted |
 | [0022](0022-backups-and-restore-drill.md) | Backups and the automated restore drill (proof P9) | Accepted |
 | [0023](0023-local-hardening-stand-ins.md) | Prove hardening locally where possible; specify the rest as desired controls | Accepted |
+| [0024](0024-landing-zone-layout-access-and-lifecycle.md) | Landing-zone layout, access and lifecycle (inbox + archive, contract-derived partitions) | Accepted |

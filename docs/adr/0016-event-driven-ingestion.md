@@ -4,11 +4,17 @@
 **Extends** [ADR-0011](0011-landing-zone-slas-and-partitioning.md) (landing zone),
 [ADR-0005](0005-airflow-orchestration.md) (orchestration).
 
+> **Update (ADR-0024):** the landing layout this ADR plugs into is now built: partners write to
+> `landing-inbox/<source>/<dataset>/` with write-only credentials, the loader drains it into
+> `landing-archive/accepted|quarantine/`, re-delivery is skipped by checksum, and the completeness
+> signal is a contract property (`per_file`, `settle`; `expected_files`/`marker` come with this ADR).
+> What remains here is the trigger: bucket notification → queue → Airflow.
+
 ## Context
 Today ingestion is a **pull**: `platform_acquire_olist` downloads the Olist dataset on a schedule
 and publishes `OLIST_CACHE`, and each domain's `land` step copies files from that cache into the
-landing bucket. That is a faithful **PoC simulator of arrival** — but in production we do not
-fetch partner data. Partners **push** files directly into our landing bucket on their own cadence.
+landing inbox (`landing-inbox`). That is a faithful **PoC simulator of arrival** — but in production we
+do not fetch partner data. Partners **push** files directly into the inbox on their own cadence.
 
 The good news: the architecture already anticipates this. The **landing zone** and the
 **contracts-at-landing** gate (ADR-0011, M2) exist precisely to validate data we did not produce.
@@ -21,7 +27,7 @@ What is PoC-only is the *trigger* and the *acquire/land* simulators — not the 
 datasets, arrival is an event, not a job we run:
 
 ```
-partner → PUT object → landing bucket
+partner → PUT object → landing-inbox/<source>/<dataset>/
         → bucket notification (MinIO / S3)
         → queue (SQS / SNS / EventBridge)
         → Airflow asset update (triggerer / sensor)
@@ -46,10 +52,24 @@ contract **on arrival** (schema-on-arrival): conforming files proceed; non-confo
 | **Event fan-in at scale** | Do **not** launch a DAG per file. **Window / batch** events (micro-batch interval or queue drain) so a burst of thousands of objects is a bounded number of runs. |
 | **Poison files** | A malformed or oversized drop is routed to **quarantine** and alerted; it must never block the pipeline for other files or partners. |
 
-### 4. Replay and audit come from the versioned landing bucket
-The landing bucket is already **versioned with retention** (ADR-0011). That gives replay (reprocess
+### 4. Replay and audit come from the landing archive
+Accepted files sit in the **object-locked** `landing-archive/accepted/` with retention per contract
+(ADR-0024), and `dgp-ingest replay` rebuilds raw from them. That gives replay (reprocess
 what a partner sent) and an audit trail of exactly what arrived and when — the ingestion-side
 complement to the transform-side backfill in [ADR-0015](0015-scaling-the-transform-layer.md).
+
+### 5. Build checklist (carried from ADR-0024)
+What ADR-0024 left open and this ADR's build must close:
+
+| # | Item | Today | M10 |
+|---|---|---|---|
+| 1 | Arrival trigger | Airflow schedule on the PoC `olist-cache` asset | `landing-inbox` notification → queue → Airflow asset, windowed fan-in (no DAG per file) |
+| 2 | Arrival in the catalog | Gate results published after each run (`publish_quality` task) | Also emit a DataHub *operation* at arrival, so freshness/timeliness are measured from landing time |
+| 3 | Completion signals | `per_file`, `settle` | `expected_files`, `marker` (only where the partner already sends one); all bounded by `timeOfAvailability` |
+| 4 | Alerting | Visible in the ledger, `_reason.json`, DataHub | Quarantine / incomplete delivery / SLA miss → owning domain's alert route |
+| 5 | Dedup checksum | ETag (differs between single-part and multipart uploads of the same bytes, so a re-upload by another method reloads once) | Content checksum (`x-amz-checksum-sha256`) recorded in the ledger |
+| 6 | Bucket controls | SSE default, object lock, generated policies | Deny non-TLS + unencrypted uploads; storage-class transitions; per-partner KMS keys |
+| 7 | Partner credentials | One `LANDING_PARTNER_<SOURCE>_SECRET` env var per source in `minio-init` | Provisioned per partner from the secrets manager (or SFTP/Transfer Family users mapped to their prefix) |
 
 ## Consequences
 - No architectural break: the landing-zone + contract gate design was already the right shape for

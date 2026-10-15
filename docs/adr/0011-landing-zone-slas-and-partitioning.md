@@ -1,6 +1,8 @@
 # ADR-0011: Landing-zone SLAs, partitioning, retention, and shared-dataset ownership
 
-**Status:** Accepted
+**Status:** Accepted — §2 (partitioning) and §3 (retention) amended by
+[ADR-0024](0024-landing-zone-layout-access-and-lifecycle.md): two buckets (inbox + object-locked
+archive), partitions derived from the contract by the platform, retention per contract class.
 
 ## Context
 The landing zone is a governed boundary (docs/data-mesh.md). Beyond schema and quality,
@@ -29,15 +31,17 @@ historical Olist snapshot would always fail. The contract is the one place they 
 the gate, and DataHub all read from it.
 
 ### 2. Partitioning: source-aligned, daily
-Landing objects are keyed `landing/<source>/<dataset>/dt=YYYY-MM-DD/<file>` (hourly is a
+*(Superseded by ADR-0024: the partner's path is free-form under `landing-inbox/<source>/<dataset>/`;
+the platform files accepted deliveries to `landing-archive/accepted/<source>/<dataset>/<partition>/`.)*
+Landing objects were keyed `<source>/<dataset>/dt=YYYY-MM-DD/<file>` (hourly is a
 config switch). Daily partitions align with Airflow data intervals (ADR-0006), enable
 incremental processing and backfills, scope freshness/completeness per partition, and let
 retention expire whole partitions.
 
 ### 3. Retention
 Landing and state buckets keep **current** versions and expire **superseded/deleted** versions
-after the retention window (365 days locally). Production adds object-lock on the landing
-bucket so raw files are immutable evidence (production-readiness.md, disaster-recovery.md).
+after the retention window (365 days locally). *(Superseded by ADR-0024: accepted files are
+object-locked per object for the contract's `retentionDays` class; quarantine expires at 90 days.)*
 
 ### 4. Shared datasets: location, ownership and consumption are separated
 A landing dataset is consumed by many domains but must have **one** accountable owner. We
