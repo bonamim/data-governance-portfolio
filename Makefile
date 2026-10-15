@@ -305,6 +305,13 @@ catalog-govern: $(ENV_FILE) ## Push mesh governance (domains, data products, own
 	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml \
 		python platform/catalog/generate_governance.py
 
+.PHONY: catalog-quality
+catalog-quality: $(ENV_FILE) ## Publish landing datasets + contract-gate results (assertions) into DataHub
+	set -a; . ./$(ENV_FILE); set +a; \
+	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
+	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml --with 'psycopg[binary]' \
+		python platform/catalog/publish_landing_quality.py
+
 .PHONY: check-domains
 check-domains: ## Domain registry (governance/domains) matches the domain folders
 	uv run python governance/policies/check_domains.py

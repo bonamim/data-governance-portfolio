@@ -58,6 +58,8 @@ x-airflow-common: &airflow-common
     # DataHub lineage (ADR-0018): the plugin emits DAG/task + dataset lineage to GMS, which
     # lives in the dgp-catalog compose project — reach it on the host gateway.
     AIRFLOW_CONN_DATAHUB_REST_DEFAULT: "datahub-rest://host.docker.internal:${DATAHUB_MAPPED_GMS_PORT}"
+    # The landing-quality publisher (publish_quality task) talks to the same GMS.
+    DATAHUB_GMS: "http://host.docker.internal:${DATAHUB_MAPPED_GMS_PORT}"
     AIRFLOW__DATAHUB__ENABLED: "true"
     AIRFLOW__DATAHUB__CONN_ID: datahub_rest_default
     AIRFLOW__DATAHUB__CAPTURE_EXECUTION: "true"

@@ -16,6 +16,8 @@ Airflow node that carries lineage into the catalog.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
 import pendulum
 from airflow.sdk import dag, get_current_context, task
@@ -119,6 +121,13 @@ def build_ingestion_dag(domain: str):
                 runtime.repo_root(), runtime.settings(), runtime.data_dir(), run_id, domain
             )
 
+        # The landing gate's per-rule results reach DataHub right after every run (ADR-0024): the
+        # landing dataset's Quality tab shows this run's FAILURE/SUCCESS per partition.
+        @task
+        def publish_quality():
+            script = runtime.repo_root() / "platform" / "catalog" / "publish_landing_quality.py"
+            subprocess.run([sys.executable, str(script), "--domain", domain], check=True)
+
         upstream = []
         if has_oltp:
             upstream.append(seed())
@@ -127,5 +136,7 @@ def build_ingestion_dag(domain: str):
         load = load_raw()
         for up in upstream:
             up >> load
+        if has_landing:
+            load >> publish_quality()
 
     return _dag()
