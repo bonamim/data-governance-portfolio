@@ -28,6 +28,8 @@ of those are dev-only stores that production replaces with managed databases.
 | Service | Host:Port | DB | User | Password (env var) |
 |---|---|---|---|---|
 | **MinIO S3 API** | http://localhost:9000 | — | `MINIO_ROOT_USER` | `MINIO_ROOT_PASSWORD` |
+| MinIO — landing loader (what ingestion runs as) | http://localhost:9000 | — | `LANDING_LOADER_USER` (landing-loader) | `LANDING_LOADER_SECRET_KEY` |
+| MinIO — partner `olist` (write-only, PoC simulator) | http://localhost:9000 | — | `partner-olist` | `LANDING_PARTNER_OLIST_SECRET` |
 | **DataHub GMS API** | http://localhost:8081 | — | — | dev: no token (ingestion/CLI target) |
 | **Postgres — shop_oltp** (operational source) | localhost:5432 | `shop_oltp` | `OLTP_SUPERUSER` (postgres) | `OLTP_SUPERUSER_PASSWORD` |
 | **Postgres — analytics** (warehouse) | localhost:5433 | `analytics` | `ANALYTICS_SUPERUSER` (postgres) | `ANALYTICS_SUPERUSER_PASSWORD` |
@@ -37,6 +39,20 @@ Least-privilege roles on the warehouse (passwords in `.env`): `platform_loader`,
 `reference_role`, the read-only consumer `analytics_reader`, the unmask role `compliance`, one
 `agent_<domain>` per AI agent, `access_admin` (applies masking + grants) and `catalog_reader`
 (DataHub ingestion). dbt connects as the per-domain role (see `platform/transform/profiles.yml`).
+
+## Landing zone: where to look (ADR-0024)
+
+| What | Where |
+|---|---|
+| A partner's drop, not yet processed | S3 browser → `landing-inbox/<source>/<dataset>/` (empty once the loader has run) |
+| Accepted files (immutable, loaded) | `landing-archive/accepted/<source>/<dataset>/<partition>/` |
+| Rejected files + why | `landing-archive/quarantine/<source>/<dataset>/<partition>/<run_id>/` — the file and `_reason.json` |
+| Every delivery's outcome + per-rule results | `platform_meta.ingestion_ledger` (pgAdmin → analytics): `status`, `partition`, `archive_key`, `checks` |
+| The same results in the catalog | published automatically after each Airflow ingestion run (`publish_quality` task; by hand: `make catalog-quality`), then DataHub → search `olist/reviews (landing)` → **Quality** tab (one assertion per contract rule, runs per partition) |
+| Who may touch what | `platform/access/landing/` (generated from `sources.yml`; `make landing-access`) |
+
+Try it: `make prove-p14` runs the whole path (bad data, bad file name, good file, resend, access
+checks, DataHub). Policies and principals are applied by `make up`.
 
 > **TLS only.** Postgres refuses plain TCP. A client on the host needs `sslmode=require` at least, or
 > better `sslmode=verify-full sslrootcert=platform/infra/tls/out/ca.crt` (Make exports `PGSSLMODE` /

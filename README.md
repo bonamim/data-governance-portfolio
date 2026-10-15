@@ -134,8 +134,8 @@ docker context use colima-governance
 # 1. Configuration (local defaults; never commit .env)
 cp .env.example .env
 
-# 2. Start the platform: MinIO (landing + state) and two Postgres instances.
-#    Creates the versioned buckets, per-domain schemas/roles and the ingestion ledger.
+# 2. Start the platform: MinIO (landing inbox + archive, state) and two Postgres instances.
+#    Creates the buckets and landing access principals, per-domain schemas/roles and the ledger.
 make up
 make verify-infra
 
@@ -153,8 +153,9 @@ uv run dgp-ingest all
 ```
 
 After step 5, every dataset is in `<domain>_raw` in the `analytics` warehouse and every
-load is recorded in `platform_meta.ingestion_ledger`. Re-running is safe: unchanged landing
-files are skipped by ETag (the idempotency behind proof P6).
+load is recorded in `platform_meta.ingestion_ledger`. Landing files are drained from
+`landing-inbox` into `landing-archive/accepted/` (or `quarantine/`, ADR-0024). Re-running is safe:
+a re-delivered unchanged file is skipped by checksum (the idempotency behind proof P6).
 
 **Governance and quality gates** (run before every commit):
 
@@ -292,6 +293,12 @@ Each milestone is done only when its production-readiness and disaster-recovery 
     in P11); Postgres connection + DDL audit logging; MinIO SSE on every bucket; no default credential
     (X2, `DGP_ENV=prod` refuses to start); images by digest and Actions by commit SHA (X8).
     `make prove-p13`.
+  - [x] **Landing-zone lifecycle (ADR-0024, proof P14):** two buckets keyed by lifecycle stage —
+    a partner-facing `landing-inbox` (write-only per source) and an object-locked `landing-archive`
+    (`accepted/` locked + retention-tagged, `quarantine/` with `_reason.json`, 90d); partitions
+    derived from the contract (filename or arrival; daily/hourly/monthly), never imposed on the
+    partner; access policies generated from `sources.yml`; gate results published to DataHub as
+    assertions per partition (`make catalog-quality`). `make prove-p14`.
   - [x] **Desired production controls specified** with acceptance tests (production-readiness §5,
     D1–D10): TLS reverse proxy, OIDC SSO, secrets manager, network isolation, external KMS, HA,
     central logging, alert routing. They need infrastructure a laptop can't host and are go-live gates.
@@ -300,10 +307,20 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   warehouse zero-copy clone / Iceberg branch; incremental = audit-batch-then-merge); **dbt state +
   Slim CI** (`state:modified --defer`, `manifest.json` in `platform-state`); **microbatch +
   runtime-param backfill**. Built when a domain grows past the static-Olist scale.
-- [ ] **M10 — Event-driven ingestion (ADR-0016):** partners push to the landing bucket →
-  bucket-notification → queue → Airflow asset, replacing the PoC pull (`platform_acquire_olist` +
-  `land`); with idempotency/dedup, batch completeness, per-partner write-only scoping, and
-  poison-file quarantine. Built when real producers replace the acquire step.
+- [ ] **M10 — Event-driven ingestion (ADR-0016):** the inbox, write-only partner scoping, dedup,
+  quarantine and DataHub results it plugs into are built (ADR-0024, P14). M10 adds (checklist in
+  [ADR-0016 §5](docs/adr/0016-event-driven-ingestion.md)):
+  - **arrival trigger** — `landing-inbox` bucket notification → queue → Airflow asset (windowed fan-in),
+    replacing the PoC pull (`platform_acquire_olist` + `land`); an arrival *operation* is also sent
+    to DataHub so freshness/timeliness are measured from the moment a file lands;
+  - **completion signals** `expected_files` and `marker` (today: `per_file`, `settle`), bounded by
+    the contract's `timeOfAvailability` deadline with a missing/incomplete-delivery alert;
+  - **alerting** — quarantine and SLA-miss notifications to the owning domain;
+  - **content checksum** (`x-amz-checksum-sha256`) for dedup instead of the ETag, which differs
+    between single-part and multipart uploads of the same content;
+  - **production bucket controls** — deny non-TLS and unencrypted uploads, storage-class
+    transitions, per-partner KMS keys, and per-partner credentials provisioned from the secrets
+    manager (today one env var per source in `minio-init`).
 
 ### Backlog — built when a trigger appears, not on a schedule
 
