@@ -1,6 +1,7 @@
 # ODCS contract for the customer.customers OUTPUT PORT (a published table).
-# Demonstrates PII governance: the raw person identifier is never published; the
-# output exposes a pseudonym. Classifications below are what consumers see.
+# Demonstrates PII governance as a ROLE-BASED POLICY (ADR-0013): the person identifier is stored
+# and masked AT READ by role — consumers see a pseudonym, an unmask role sees the raw value.
+# The policy is declared on the column here (source of truth) and enforced per platform.
 version: 1.0.0
 kind: DataContract
 apiVersion: v3.2.0
@@ -22,12 +23,17 @@ schema:
         required: true
         unique: true
         classification: internal
-      - name: customer_pseudonym
-        description: "Pseudonym of the person identifier. Masked from raw PII (customer_unique_id); real value never published."
+      - name: customer_unique_id
+        description: "The person identifier (links a person's orders). PII — masked at read by role: consumers see a hash pseudonym, the compliance role sees the raw value."
         logicalType: string
         physicalType: text
         required: true
         classification: pii
+        customProperties:
+          - property: maskingPolicy
+            value:
+              method: hash              # hash | partial | full | null
+              unmask_roles: [compliance]  # roles that see the raw value; all others see the mask
       - name: customer_zip_code_prefix
         description: "Location quasi-identifier."
         logicalType: string
@@ -49,7 +55,7 @@ schema:
         metric: rowCount
         mustBeGreaterThan: 1000
 customProperties:
-  - property: piiMasking
-    value: "customer_pseudonym = md5(customer_unique_id); production uses keyed HMAC via secrets manager"
+  - property: piiEnforcement
+    value: "Role-based masking view (platform/access/apply_masking.py); md5 is the local demo mask, production uses a keyed HMAC via a secrets manager and a native masking policy (ADR-0013)."
 team:
   name: customer

@@ -49,9 +49,9 @@ Each item is completed in the milestone where the component is introduced.
 |---|---|---|
 | Authentication | `scram-sha-256` | `scram-sha-256`; `pg_hba.conf` restricted to known subnets; `hostssl` only |
 | TLS | Off | `ssl = on`, certificates from your CA |
-| Roles | Per domain, created by init script | Same, plus: no application uses `postgres`; `CONNECT` revoked from `PUBLIC` |
+| Roles | Per domain + a least-privilege `analytics_reader` consumer; `CONNECT` revoked from `PUBLIC` | Same, plus: no application uses `postgres`; per-consumer read-only roles |
 | Domain isolation | Per-domain schemas and grants | Same, generated from data product definitions (see [data-mesh.md](data-mesh.md)) |
-| PII | Classified in contracts | Classified + column masking views or `pgcrypto` for PII; consumers see masked columns unless granted |
+| PII | Classified + **role-based masking** enforced (ADR-0013): consumers read masking views (`<domain>_masked`), raw/staging denied; `compliance` unmasks. Proof P8 | Same policy rendered as a native masking policy (Snowflake) / column mask (Databricks); `pgcrypto`/KMS at rest |
 | Backups | Optional | pgBackRest: full + incremental backups and continuous WAL archiving (see DR plan) |
 | High availability | Single node | Primary + streaming replica (Patroni) or a managed service (RDS, Cloud SQL, Azure Database) |
 | Logging | Default | `log_connections`, `log_disconnections`, `pgaudit` for DDL and role changes |
@@ -106,10 +106,10 @@ Each item is completed in the milestone where the component is introduced.
 
 | Setting | Production |
 |---|---|
-| Data access | Through DataHub MCP and certified data products only — no direct access to raw schemas |
-| Credentials | Dedicated read-only DataHub token and Postgres role |
-| PII | PII-classified columns are excluded from the agent's role |
-| Logging | Every question, tool call and generated query logged for audit |
+| Data access | Through the governed semantic MCP + DataHub MCP only — output ports via the masking views; no raw/staging access (ADR-0020/0021) |
+| Credentials | Dedicated read-only Postgres role (`analytics_reader`) and a scoped DataHub token |
+| PII | The agent's role sees PII masked (role-based masking, ADR-0013); it holds no unmask role |
+| Logging | Every tool call logged `{agent, tool, allowed/refused, sql}` (ADR-0021) |
 
 ---
 

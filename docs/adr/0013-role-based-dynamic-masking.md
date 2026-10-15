@@ -1,6 +1,6 @@
 # ADR-0013: Role-based dynamic data masking (declared in ODCS, enforced per platform)
 
-**Status:** Proposed (spec only — not yet implemented)
+**Status:** Accepted (implemented locally in M8 — `platform/access/apply_masking.py`, proof P8)
 
 ## Context
 PII must be protected, but a single fixed transform (e.g. hashing at ingestion) is a one-way
@@ -64,4 +64,15 @@ marketing and the real value to compliance — without a second data product.
   documented Snowflake/Databricks equivalents) and a small ODCS convention for the policy.
 - The local Postgres mechanism (views) is less ergonomic than native masking policies; it is a
   faithful stand-in, called out like ADR-0007/0011 where local ≠ prod mechanism.
-- Not implemented yet; scheduled around the catalog/governance milestone (M4+).
+
+## Implementation (M8)
+`platform/access/apply_masking.py` reads each output port's ODCS `maskingPolicy` and creates a
+role-aware view `<domain>_masked.<port>`:
+`CASE WHEN pg_has_role(current_user, '<unmask_role>', 'MEMBER') THEN <raw> ELSE md5(<raw>) END`.
+Two consumption planes: **end consumers** (BI/AI) connect as the least-privilege `analytics_reader`
+and are granted the masking **view** (never the raw schema or the base table — denied); **internal
+domain transformations** (cross-domain dbt-loom refs) read the base relation and re-govern any PII in
+their own port. The `compliance` unmask role sees the raw value through the same view. **Proof P8**
+(`make prove-p8`) asserts all three: consumer denied raw/staging, consumer sees `md5(raw)`, compliance
+sees raw. On Snowflake/Databricks the same policy renders as a native masking policy / column mask —
+only the adapter changes (ADR-0009).

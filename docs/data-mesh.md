@@ -89,7 +89,7 @@ infrastructure code:
 | Quality | Quality rules in its contracts | Test runner, quality gate, results in DataHub |
 | Transformation | A dbt project | Airflow integration, write-audit-publish, warehouse roles, CI |
 | Cataloging | Contracts and data product definitions | DataHub ingestion, ownership and domain assignment |
-| Access | List of consumers | Postgres roles and grants, generated from definitions |
+| Access | List of consumers + PII masking policies in contracts | Postgres roles and grants, generated from definitions; role-based masking views for PII (ADR-0013); least-privilege `analytics_reader` for BI/AI |
 
 Adding a fifth domain means adding a folder under `domains/` — no platform change.
 

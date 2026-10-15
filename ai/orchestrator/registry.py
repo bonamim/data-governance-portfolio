@@ -26,10 +26,10 @@ import ossie  # noqa: E402
 
 from governance.registry import domains  # noqa: E402
 
-# The warehouse role each domain agent connects as. Today every consumer uses marketplace_role;
-# per-domain least-privilege roles are an M8 (security) hardening — the registry already carries the
-# field so that change is a config edit, not a redesign.
-DEFAULT_CONSUMER_ROLE = os.environ.get("CONSUMER_ROLE", "marketplace_role")
+# The warehouse role each domain agent connects as: the least-privilege, read-only analytics_reader
+# — output ports only, PII masked by the role-aware views (M8/ADR-0013). It replaced reusing a
+# domain owner role (marketplace_role). Per-domain reader roles are a further tightening.
+DEFAULT_CONSUMER_ROLE = os.environ.get("CONSUMER_ROLE", "analytics_reader")
 
 
 def _domain_meta(name: str) -> dict:

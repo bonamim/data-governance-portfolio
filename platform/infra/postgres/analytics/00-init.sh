@@ -32,8 +32,21 @@ run_sql <<-SQL
 	-- Platform loader: writes raw schemas and the ingestion ledger. Not a superuser.
 	CREATE ROLE platform_loader LOGIN PASSWORD '${PLATFORM_LOADER_PASSWORD}';
 
+	-- Least-privilege CONSUMER role for the AI/BI consumers (output ports only, never raw/staging;
+	-- sees PII masked unless it holds an unmask role). Replaces reusing a domain role as the
+	-- consumer (ADR-0013/M8). Per-domain scoping is enforced in the agent (ADR-0021); this is the
+	-- defence-in-depth warehouse grant.
+	CREATE ROLE analytics_reader LOGIN PASSWORD '${ANALYTICS_READER_PASSWORD}';
+
+	-- Unmask role: a session holding it sees raw PII through the masking views (ADR-0013). LOGIN
+	-- here is a LOCAL convenience so the proof can connect as it; in production compliance is a
+	-- NOLOGIN group GRANTed to the specific users allowed to unmask.
+	CREATE ROLE compliance LOGIN PASSWORD '${COMPLIANCE_PASSWORD}';
+
 	REVOKE CONNECT ON DATABASE ${POSTGRES_DB} FROM PUBLIC;
 	GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO platform_loader;
+	GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO analytics_reader;
+	GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO compliance;
 
 	-- Pipeline state: the ingestion ledger (ADR-0006, data state for files + tables).
 	CREATE SCHEMA IF NOT EXISTS platform_meta AUTHORIZATION platform_loader;

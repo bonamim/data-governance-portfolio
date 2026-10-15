@@ -43,22 +43,60 @@ def port_location(owner: str, product: str) -> tuple[str, str] | None:
     return None
 
 
+# Least-privilege read-only role the AI/BI consumers connect as — output ports only (ADR-0013/M8),
+# replacing the reuse of a domain owner role. It reads every port; PII is masked by the view.
+ANALYTICS_READER = "analytics_reader"
+
+
+def is_masked_port(owner: str, product: str) -> bool:
+    """True if the port's output-port contract declares a maskingPolicy on any column (ADR-0013)."""
+    for c in REPO_ROOT.glob(f"domains/{owner}/contracts/{product}.odcs.yaml"):
+        defn = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
+        for obj in defn.get("schema") or []:
+            if "output_port" not in (obj.get("tags") or []):
+                continue
+            for prop in obj.get("properties") or []:
+                cps = prop.get("customProperties") or []
+                if any(cp.get("property") == "maskingPolicy" for cp in cps):
+                    return True
+    return False
+
+
+def _target(owner: str, product: str) -> tuple[str, str] | None:
+    """Where consumers are granted: the masked view for a masked port, else the base port."""
+    base = port_location(owner, product)
+    if base is None:
+        return None
+    _, table = base
+    return (f"{owner}_masked", table) if is_masked_port(owner, product) else base
+
+
 def _grants() -> list[tuple[str, str, str]]:
-    """Return (consumer_role, physical_schema, table) for every declared consumer."""
+    """Return (consumer_role, physical_schema, table) grants.
+
+    Two consumption planes with different masking:
+      * **End consumers** (BI/AI) connect as the least-privilege ``analytics_reader`` and read every
+        port through the **masking view** where the port carries PII — they never see raw PII or the
+        base table.
+      * **Internal domain transformations** (another domain's dbt model consuming this port via a
+        dbt-loom ref) read the **base** port relation — they are the trusted transformation plane,
+        and any PII they republish must be re-governed by their own output port's contract.
+    """
     out: list[tuple[str, str, str]] = []
     for path in _definition_files():
         defn = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         owner = (defn.get("owner") or {}).get("team")
         product = defn.get("name")
-        location = port_location(owner, product) if owner and product else None
-        if not location:
+        base = port_location(owner, product) if owner and product else None
+        if not base:
             continue
-        schema, table = location
+        reader_target = _target(owner, product) or base  # masked view if the port carries PII
+        out.append((ANALYTICS_READER, *reader_target))  # end-consumer: masked
         for consumer in defn.get("consumers") or []:
             team = (consumer or {}).get("team")
             if not team or team == owner:
                 continue  # a domain already owns its own products
-            out.append((f"{team}_role", schema, table))
+            out.append((f"{team}_role", *base))  # internal transformation: base relation
     return out
 
 

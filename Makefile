@@ -68,12 +68,16 @@ transform: ## Build all data products (dbt) in dependency order, applying consum
 	uv run --group dbt dbt build --project-dir domains/customer/dbt --profiles-dir platform/transform
 	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
 	uv run --group dbt dbt build --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
-	$(MAKE) grants
+	$(MAKE) mask grants
 	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/transform && uv run --group dbt dbt build --profiles-dir ../../../platform/transform
-	$(MAKE) grants
+	$(MAKE) mask grants
+
+.PHONY: mask
+mask: ## Apply role-based PII masking views from the ODCS masking policies (ADR-0013, run before grants)
+	uv run python platform/access/apply_masking.py
 
 .PHONY: grants
-grants: ## Apply consumer grants from data product definitions (output ports only)
+grants: ## Apply consumer grants from data product definitions (output ports only; masked views for PII)
 	uv run python platform/access/grant_consumers.py
 
 .PHONY: publish
@@ -172,7 +176,7 @@ bi-check-drift: $(ENV_FILE) ## Fail if Superset's metrics drifted from the Ossie
 # The governed semantic MCP server. Any MCP client (Claude, ChatGPT, Copilot, Cortex) connects to
 # it; only each client's wiring differs (ai/README.md). stdio = local clients; http = remote clients.
 AI_MCP := uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/semantic-mcp/server.py
-AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"
+AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"
 
 .PHONY: ai-mcp
 ai-mcp: $(ENV_FILE) ## Run the governed semantic MCP server over stdio (local clients: Claude, Copilot)
@@ -254,17 +258,21 @@ prove-p2: ## Proof P2 — a landing file that violates its contract is rejected 
 prove-p5: $(ENV_FILE) ## Proof P5 — breaking change blocked, then passes with a version bump + approval
 	./proofs/p5_breaking_change.sh
 
+.PHONY: prove-p8
+prove-p8: $(ENV_FILE) ## Proof P8 — consumers see PII masked and are denied raw/staging; compliance sees raw (M8)
+	uv run --no-project --with 'psycopg[binary]' python proofs/p8_access_control.py
+
 .PHONY: prove-p10
 prove-p10: $(ENV_FILE) ## Proof P10 — BI and AI compute the same number from the one Ossie definition (M7)
 	set -a; . ./$(ENV_FILE); set +a; \
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
-	export SEMANTIC_WAREHOUSE_URI="postgresql://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
 	uv run --no-project --with requests --with 'psycopg[binary]' --with pyyaml python proofs/p10_ai_bi_agreement.py
 
 .PHONY: prove-p11
 prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, deterministic routing, same number (M7)
 	set -a; . ./$(ENV_FILE); set +a; \
-	export SEMANTIC_WAREHOUSE_URI="postgresql://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
 	uv run --no-project --with 'psycopg[binary]' --with pyyaml python proofs/p11_federated_routing.py
 
 .PHONY: prove-all

@@ -61,6 +61,7 @@ are built; `make prove-all` runs them:
 | **P5** — breaking-change gate | `make prove-p5` | ✅ simulates the PR, asserts blocked → blocked → passes, reverts |
 | **P10** — governed AI == BI | `make prove-p10` | ✅ packaged (needs the live platform + `make bi-publish`): asserts AI = Superset = direct-Ossie per metric |
 | **P11** — agentic mesh | `make prove-p11` | ✅ packaged: domain isolation + deterministic routing run anywhere; the routed-number check uses the live platform |
+| **P8** — access control + PII masking | `make prove-p8` | ✅ packaged (needs the live platform + `make mask`): consumer denied raw/staging + sees masked, compliance sees raw |
 | — | `make prove-all` | runs the self-contained proofs (P2, P5) |
 
 The platform-dependent proofs (P3/P6/P7/P10) aren't in `prove-all` (they need a running platform) —
@@ -78,6 +79,6 @@ these commands exercise the mechanisms today (platform up — `make up`; catalog
 | **P10** — governed AI == BI | AI and BI compute the same number from one Ossie definition | `make bi-publish`, then `make prove-p10` (the AI path, Superset and a direct-Ossie control agree per metric; ungoverned columns refused) |
 | **P11** — agentic mesh | the AI layer is federated, isolated and deterministically routed | `make ai-agents` (the registry), then `make prove-p11` (a domain agent serves only its own products; the orchestrator routes each product to its owner; routed number = direct Ossie) |
 
-The remaining proofs are tracked on the roadmap: **P8** (access control + PII masking) and **P9**
-(restore drill) land with **M8**; **P1** (domain isolation) and **P4** (cross-domain asset trigger)
-are packaged as `prove-*` once the harness drives full Airflow (README backlog).
+**P8** (access control + PII masking) is done (`make prove-p8`, M8); **P9** (restore drill) is the
+next M8 slice. **P1** (domain isolation) and **P4** (cross-domain asset trigger) are packaged as
+`prove-*` once the harness drives full Airflow (README backlog).

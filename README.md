@@ -274,9 +274,15 @@ Each milestone is done only when its production-readiness and disaster-recovery 
     call. Agents are governed like any mesh concern — a standard (`governance/standards/ai-agent.md`)
     + a CI check (`check-ai-agents`: domain-scoped, isolated, owned, no raw PII). Proof **P11**:
     isolation holds, routing is deterministic, federation preserves the number.
-- [ ] **M8 — Security & production hardening:** TLS, SSO (OIDC), secrets manager, **role-based
-  dynamic PII masking** (ADR-0013 — raw/staging denied and PII masked for consumer roles, proof P8),
-  backups and an automated **restore drill** (proof P9, docs/disaster-recovery.md).
+- [ ] **M8 — Security & production hardening** (in progress):
+  - [x] **Role-based dynamic PII masking + least-privilege consumer roles (ADR-0013, proof P8):**
+    the masking policy is declared on the column in ODCS and enforced as a role-aware view
+    (`platform/access/apply_masking.py`); end consumers connect as a least-privilege `analytics_reader`
+    (output ports only — raw/staging denied) and see PII masked, while an unmask role (`compliance`)
+    sees the raw value. The AI agents now use this reader instead of a domain role. `make prove-p8`.
+  - [ ] TLS, SSO (OIDC), secrets manager, network isolation, encryption-at-rest, HA — documented
+    prod configuration in `docs/production-readiness.md` (local uses faithful stand-ins).
+  - [ ] Backups and an automated **restore drill** (proof P9, `docs/disaster-recovery.md`).
 - [ ] **M9 — Transform-layer scale (ADR-0015):** orchestrate dbt with **Cosmos** (manifest mode —
   per-model tasks/retries/parallelism); **per-model portable write-audit-publish** (blue/green swap /
   warehouse zero-copy clone / Iceberg branch; incremental = audit-batch-then-merge); **dbt state +
