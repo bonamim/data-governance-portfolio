@@ -25,6 +25,7 @@ volumes:
   # WAL archive for shop_oltp point-in-time recovery (DR §3, RPO 5 min). Locally a separate volume
   # standing in for the replicated, object-locked archive store pgBackRest/WAL-G push to.
   oltp_wal_archive:
+  pgadmin_data:
 
 services:
   # ---------------------------------------------------------------- MinIO ---
@@ -200,3 +201,57 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+
+  # ------------------------------------------------------------- pgAdmin ---
+  # Database UI for every Postgres in the platform (`make pgadmin`): shop_oltp, analytics (as the
+  # superuser AND as the least-privilege analytics_reader, to see exactly what consumers see) and the
+  # Airflow metadata DB. Desktop mode = no login, like the other local UIs. Servers come from
+  # pgadmin/servers.template.json; the pgpass is generated from .env on every start, so no password is
+  # committed and a rotated .env is picked up on restart. Local dev only: not deployed to production
+  # (preflight X2 flags its password).
+  pgadmin:
+    image: dpage/pgadmin4@sha256:d115bcd737940a6cfb61a54439d50de8b850e0782e2363102c9fa761f4022f49 # 9.8
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        esc() { printf '%s' "$$1" | sed 's/\\/\\\\/g; s/:/\\:/g'; }
+        {
+          echo "postgres-oltp:5432:*:$$OLTP_SUPERUSER:$$(esc "$$OLTP_SUPERUSER_PASSWORD")"
+          echo "postgres-analytics:5432:*:$$ANALYTICS_SUPERUSER:$$(esc "$$ANALYTICS_SUPERUSER_PASSWORD")"
+          echo "postgres-analytics:5432:*:analytics_reader:$$(esc "$$ANALYTICS_READER_PASSWORD")"
+          echo "postgres-airflow:5432:*:airflow:$$(esc "$$AIRFLOW_DB_PASSWORD")"
+        } > /var/lib/pgadmin/.pgpass
+        chmod 600 /var/lib/pgadmin/.pgpass
+        sed -e "s/__OLTP_DB__/$$OLTP_DB/; s/__OLTP_SUPERUSER__/$$OLTP_SUPERUSER/" \
+            -e "s/__ANALYTICS_DB__/$$ANALYTICS_DB/g; s/__ANALYTICS_SUPERUSER__/$$ANALYTICS_SUPERUSER/" \
+            /pgadmin-config/servers.template.json > /tmp/servers.json
+        exec /entrypoint.sh
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_SERVER_JSON_FILE: /tmp/servers.json
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+      OLTP_DB: ${OLTP_DB}
+      OLTP_SUPERUSER: ${OLTP_SUPERUSER}
+      OLTP_SUPERUSER_PASSWORD: ${OLTP_SUPERUSER_PASSWORD}
+      ANALYTICS_DB: ${ANALYTICS_DB}
+      ANALYTICS_SUPERUSER: ${ANALYTICS_SUPERUSER}
+      ANALYTICS_SUPERUSER_PASSWORD: ${ANALYTICS_SUPERUSER_PASSWORD}
+      ANALYTICS_READER_PASSWORD: ${ANALYTICS_READER_PASSWORD}
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin:/pgadmin-config:ro
+      - ./tls/out/ca.crt:/pgtls/ca.crt:ro   # verify-full against the local CA (X3)
+    networks: [platform]
+    depends_on:
+      postgres-oltp:
+        condition: service_healthy
+      postgres-analytics:
+        condition: service_healthy

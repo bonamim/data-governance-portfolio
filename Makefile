@@ -40,6 +40,11 @@ up: $(ENV_FILE) certs ## Start the platform (MinIO + 2 Postgres)
 	$(COMPOSE) run --rm minio-init   # create/verify buckets, then return
 	$(COMPOSE) up -d s3-browser      # object-storage UI on :9001
 
+.PHONY: pgadmin
+pgadmin: $(ENV_FILE) certs ## Start pgAdmin (database UI) wired to shop_oltp, analytics and the Airflow DB
+	$(COMPOSE) up -d pgadmin
+	@echo "pgAdmin: http://localhost:$${PGADMIN_PORT:-5050}  (dev: no login; servers preloaded under governance-platform)"
+
 .PHONY: down
 down: ## Stop the platform (keep volumes)
 	$(COMPOSE) down
@@ -117,6 +122,7 @@ endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "  Airflow         http://localhost:$(AIRFLOW_API_PORT)       (dev: no login)"
 	@echo "  DataHub         http://localhost:9002                      user: datahub   pass: datahub"
 	@echo "  Superset        http://localhost:$(SUPERSET_PORT)                      user: $(SUPERSET_ADMIN)   pass: $(SUPERSET_ADMIN_PASSWORD)"
+	@echo "  pgAdmin         http://localhost:$(PGADMIN_PORT)                      (dev: no login; make pgadmin)"
 	@echo "Databases / APIs"
 	@echo "  MinIO S3 API    http://localhost:$(MINIO_API_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
 	@echo "  Postgres OLTP   localhost:$(OLTP_PORT)   db: $(OLTP_DB)   user: $(OLTP_SUPERUSER)   pass: $(OLTP_SUPERUSER_PASSWORD)"

@@ -1,0 +1,48 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "OLTP — shop_oltp (superuser)",
+      "Group": "governance-platform",
+      "Host": "postgres-oltp",
+      "Port": 5432,
+      "MaintenanceDB": "__OLTP_DB__",
+      "Username": "__OLTP_SUPERUSER__",
+      "PassFile": "/var/lib/pgadmin/.pgpass",
+      "SSLMode": "verify-full",
+      "SSLRootCert": "/pgtls/ca.crt"
+    },
+    "2": {
+      "Name": "Warehouse — analytics (superuser)",
+      "Group": "governance-platform",
+      "Host": "postgres-analytics",
+      "Port": 5432,
+      "MaintenanceDB": "__ANALYTICS_DB__",
+      "Username": "__ANALYTICS_SUPERUSER__",
+      "PassFile": "/var/lib/pgadmin/.pgpass",
+      "SSLMode": "verify-full",
+      "SSLRootCert": "/pgtls/ca.crt"
+    },
+    "3": {
+      "Name": "Warehouse — analytics (as analytics_reader: what consumers see)",
+      "Group": "governance-platform",
+      "Host": "postgres-analytics",
+      "Port": 5432,
+      "MaintenanceDB": "__ANALYTICS_DB__",
+      "Username": "analytics_reader",
+      "PassFile": "/var/lib/pgadmin/.pgpass",
+      "SSLMode": "verify-full",
+      "SSLRootCert": "/pgtls/ca.crt"
+    },
+    "4": {
+      "Name": "Airflow metadata — airflow",
+      "Group": "governance-platform",
+      "Host": "postgres-airflow",
+      "Port": 5432,
+      "MaintenanceDB": "airflow",
+      "Username": "airflow",
+      "PassFile": "/var/lib/pgadmin/.pgpass",
+      "SSLMode": "verify-full",
+      "SSLRootCert": "/pgtls/ca.crt"
+    }
+  }
+}
