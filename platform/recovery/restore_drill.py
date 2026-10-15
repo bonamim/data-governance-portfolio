@@ -180,17 +180,20 @@ def _heartbeat() -> tuple[int, float]:
 
 
 def _latest_partition(client) -> str:
-    """Newest ``dt=YYYY-MM-DD`` landing partition — what the rebuild reloads."""
-    bucket = os.environ.get("LANDING_BUCKET", "landing")
+    """Newest ``dt=YYYY-MM-DD`` partition of accepted landing files — what the rebuild replays.
+
+    Only ``accepted/`` counts: those files passed the contract gate and are object-locked
+    evidence (ADR-0024); quarantine and the inbox are never a rebuild source.
+    """
+    bucket = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
     dates: set[str] = set()
-    for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
+    pages = client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="accepted/")
+    for page in pages:
         for o in page.get("Contents", []):
-            if not o["Key"].startswith("quarantine/") and (
-                m := re.search(r"/dt=(\d{4}-\d{2}-\d{2})/", o["Key"])
-            ):
+            if m := re.search(r"/dt=(\d{4}-\d{2}-\d{2})", o["Key"]):
                 dates.add(m.group(1))
     if not dates:
-        raise SystemExit(f"landing bucket {bucket} has no partitions — nothing to rebuild from")
+        raise SystemExit(f"{bucket}/accepted/ has no partitions — nothing to rebuild from")
     return max(dates)
 
 
@@ -218,12 +221,12 @@ def run(keep: bool) -> int:
             client.download_file(BACKUP_BUCKET, a["key"], str(dest))
             d.check(f"{name}: sha256 matches manifest", sha256(dest) == a["sha256"])
             files[name] = dest
-        landing = os.environ.get("LANDING_BUCKET", "landing")
-        versioning = client.get_bucket_versioning(Bucket=landing).get("Status")
+        archive = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
+        lock = client.get_object_lock_configuration(Bucket=archive)["ObjectLockConfiguration"]
         d.check(
-            "landing zone: versioning enabled (tier-1 protection)",
-            versioning == "Enabled",
-            str(versioning),
+            "landing archive: object lock enabled (tier-1 protection, ADR-0024)",
+            lock.get("ObjectLockEnabled") == "Enabled",
+            str(lock.get("ObjectLockEnabled")),
         )
 
         # 2. fresh isolated sandbox ---------------------------------------------------------
@@ -297,16 +300,16 @@ def run(keep: bool) -> int:
             partition = _latest_partition(client)
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             print(
-                f"  rebuilding analytics: load-raw (landing dt={partition} + restored "
+                f"  rebuilding analytics: replay (archive accepted/ dt={partition} + restored "
                 "shop_oltp) → publish"
             )
             load = subprocess.run(
-                ["uv", "run", "dgp-ingest", "load-raw",
+                ["uv", "run", "dgp-ingest", "replay",
                  "--partition-date", partition, "--run-id", f"drill-{stamp}"],
                 cwd=REPO_ROOT, env=env, capture_output=True, text=True,
             )  # fmt: skip
             d.check(
-                "analytics: raw reloaded through the landing gate",
+                "analytics: raw replayed from accepted (gated) landing files",
                 load.returncode == 0,
                 load.stderr[-400:] if load.returncode else "",
             )

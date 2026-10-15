@@ -32,6 +32,11 @@ class Contract:
     columns: list[ColumnRule] = field(default_factory=list)
     # File-completeness floor from the ODCS `quality` rowCount rule, if declared.
     min_rows: int | None = None
+    # ODCS `customProperties` as {property: value} — the landing operational rules
+    # (partitioning, file naming, retention, completeness signal; ADR-0024).
+    properties: dict = field(default_factory=dict)
+    team: str | None = None
+    purpose: str | None = None
 
     @property
     def column_names(self) -> list[str]:
@@ -70,6 +75,13 @@ def load_contract(path: Path) -> Contract:
         path=path,
         columns=[_parse_column(p) for p in properties],
         min_rows=_min_rows(schema.get("quality") or []),
+        properties={
+            p["property"]: p.get("value")
+            for p in raw.get("customProperties") or []
+            if p.get("property")
+        },
+        team=(raw.get("team") or {}).get("name"),
+        purpose=(raw.get("description") or {}).get("purpose"),
     )
 
 

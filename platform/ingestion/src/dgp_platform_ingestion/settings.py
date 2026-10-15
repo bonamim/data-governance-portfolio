@@ -42,8 +42,18 @@ class ObjectStoreSettings:
     endpoint_url: str | None
     access_key: str | None
     secret_key: str | None
-    landing_bucket: str
+    inbox_bucket: str  # partner-facing drops (ADR-0024)
+    archive_bucket: str  # accepted evidence + quarantine, object-locked
     state_bucket: str
+    # Object-lock mode for accepted files: GOVERNANCE locally (an admin can still clean up),
+    # COMPLIANCE in production (nobody, root included, can delete before retain-until).
+    lock_mode: str = "GOVERNANCE"
+
+    def partner_credentials(self, source: str) -> tuple[str | None, str | None]:
+        """Write-only credentials of a source's partner — used only by the PoC partner simulator
+        (``land``) and proof P14. Real partners hold their own; the platform never does."""
+        secret = os.environ.get(f"LANDING_PARTNER_{source.upper()}_SECRET")
+        return (f"partner-{source}", secret) if secret else (None, None)
 
 
 @dataclass(frozen=True)
@@ -79,11 +89,15 @@ class Settings:
             objectstore=ObjectStoreSettings(
                 # Empty MINIO_ENDPOINT selects real AWS S3; empty keys fall back to
                 # boto3's default credential chain (ADR-0009, cloud portability).
+                # The loader runs as the least-privilege landing-loader principal generated from
+                # sources.yml (ADR-0024), never as the object-store root.
                 endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000") or None,
-                access_key=os.environ.get("MINIO_ROOT_USER") or None,
-                secret_key=os.environ.get("MINIO_ROOT_PASSWORD") or None,
-                landing_bucket=_env("LANDING_BUCKET", "landing"),
+                access_key=os.environ.get("LANDING_LOADER_USER") or None,
+                secret_key=os.environ.get("LANDING_LOADER_SECRET_KEY") or None,
+                inbox_bucket=_env("LANDING_INBOX_BUCKET", "landing-inbox"),
+                archive_bucket=_env("LANDING_ARCHIVE_BUCKET", "landing-archive"),
                 state_bucket=_env("STATE_BUCKET", "platform-state"),
+                lock_mode=os.environ.get("LANDING_LOCK_MODE", "GOVERNANCE"),
             ),
             kaggle_dataset=os.environ.get("OLIST_DATASET", "olistbr/brazilian-ecommerce"),
         )

@@ -54,8 +54,13 @@ run_sql <<-SQL
 	CREATE TABLE IF NOT EXISTS platform_meta.ingestion_ledger (
 	    id                   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	    source_type          text        NOT NULL CHECK (source_type IN ('file', 'table')),
-	    source_identifier    text        NOT NULL,   -- object key (files) or qualified table name
+	    source_identifier    text        NOT NULL,   -- inbox object key (files) or qualified table name
 	    object_etag          text,                   -- MinIO ETag / checksum; NULL for table sources
+	    dataset              text,                   -- <source>/<dataset> for files (ADR-0024)
+	    partition            text,                   -- archive partition, e.g. dt=2026-10-15
+	    object_version       text,                   -- the pinned inbox object version processed
+	    archive_key          text,                   -- accepted/... or quarantine/... key it was filed to
+	    checks               jsonb,                  -- per-rule landing-gate results (published to DataHub)
 	    contract_version     text,
 	    target_schema        text        NOT NULL,
 	    target_table         text        NOT NULL,
@@ -68,11 +73,10 @@ run_sql <<-SQL
 	    loaded_at            timestamptz NOT NULL DEFAULT now()
 	);
 
-	-- Idempotency: the same file (same ETag) is loaded at most once. A changed file
-	-- has a new ETag and is therefore a new row. Enforced in proof P6.
-	CREATE UNIQUE INDEX IF NOT EXISTS ingestion_ledger_file_once
-	    ON platform_meta.ingestion_ledger (source_identifier, object_etag)
-	    WHERE status = 'loaded' AND source_type = 'file';
+	-- Idempotency (proof P6): a delivery whose checksum equals the dataset's latest loaded file
+	-- is skipped by the loader (ADR-0024); this index serves that lookup.
+	CREATE INDEX IF NOT EXISTS ingestion_ledger_dataset
+	    ON platform_meta.ingestion_ledger (dataset, loaded_at DESC);
 
 	CREATE INDEX IF NOT EXISTS ingestion_ledger_target
 	    ON platform_meta.ingestion_ledger (target_schema, target_table, loaded_at DESC);

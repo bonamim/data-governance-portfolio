@@ -7,8 +7,8 @@
   raw asset. A domain's DAG file is a single call to this factory, so domains write
   no orchestration code (ADR-0008); isolation between domains is proof P1.
 
-The ``seed`` (populate shop_oltp) and ``land`` (upload files to the landing bucket) tasks are
-local PoC *simulators* of the source systems: in production the operational DB and the landing
+The ``seed`` (populate shop_oltp) and ``land`` (a partner delivering into the landing inbox) tasks
+are local PoC *simulators* of the source systems: in production the operational DB and the landing
 zone are fed by real producers, leaving only ``load_raw`` (source -> <domain>_raw), which is the
 Airflow node that carries lineage into the catalog.
 """
@@ -19,7 +19,7 @@ import os
 
 import pendulum
 from airflow.sdk import dag, get_current_context, task
-from dgp_platform_ingestion import pipeline
+from dgp_platform_ingestion import layout, pipeline
 from dgp_platform_ingestion.config import load_datasets
 
 from . import runtime
@@ -28,7 +28,7 @@ from .assets import OLIST_CACHE, raw_asset
 _START = pendulum.datetime(2026, 1, 1, tz="UTC")
 _DEFAULT_ARGS = {"retries": 2, "retry_delay": pendulum.duration(minutes=1)}
 _DB = os.environ.get("ANALYTICS_DB", "analytics")
-_LANDING = os.environ.get("LANDING_BUCKET", "olist-landing")
+_ARCHIVE = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
 
 
 def _dataset(platform: str, name: str):
@@ -51,13 +51,14 @@ def _raw_outlets(datasets) -> list:
 
 
 def _source_inlets(datasets) -> list:
-    """The upstream sources: the shop_oltp table (OLTP) or the landing object (file datasets)."""
+    """The upstream sources: the shop_oltp table (OLTP) or the landing dataset (file datasets) —
+    the same S3 entity ``make catalog-quality`` publishes with the gate's assertions (ADR-0024)."""
     out = []
     for d in datasets:
         if d.source_type == "oltp":
             ds = _dataset("postgres", f"shop_oltp.shop.{d.oltp_table}")
         else:
-            ds = _dataset("s3", f"{_LANDING}/{d.source_system}/{d.name}")
+            ds = _dataset("s3", layout.catalog_name(_ARCHIVE, d.source_system, d.name))
         if ds:
             out.append(ds)
     return out

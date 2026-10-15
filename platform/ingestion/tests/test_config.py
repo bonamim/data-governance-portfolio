@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,8 @@ def test_load_datasets_discovers_domains_and_reference(tmp_path: Path):
         "domain: reference\n"
         "datasets:\n"
         "  - name: geolocation\n"
-        "    source: {type: landing, olist_file: olist_geolocation_dataset.csv}\n"
+        "    source: {type: landing, olist_file: olist_geolocation_dataset.csv,\n"
+        "             delivered_as: 'geo_{date:%Y%m%d}.csv'}\n"
         "    target: {raw_table: geolocation}\n",
     )
 
@@ -37,11 +39,10 @@ def test_load_datasets_discovers_domains_and_reference(tmp_path: Path):
     assert by_name["orders"].raw_schema == "sales_raw"
     assert by_name["orders"].oltp_table == "orders"
     assert by_name["geolocation"].raw_schema == "reference_raw"
-    # Source-aligned, partitioned, consumer-neutral landing key (ADR-0011).
-    assert (
-        by_name["geolocation"].landing_key("2026-10-12")
-        == "olist/geolocation/dt=2026-10-12/olist_geolocation_dataset.csv"
-    )
+    # The (simulated) partner's own file name for a business date (ADR-0024).
+    assert by_name["geolocation"].source_system == "olist"
+    assert by_name["geolocation"].delivered_name(datetime(2026, 10, 12)) == "geo_20261012.csv"
+    assert by_name["orders"].delivered_name(datetime(2026, 10, 12)) == "olist_orders_dataset.csv"
     assert olist_files(datasets) == {
         "olist_orders_dataset.csv",
         "olist_geolocation_dataset.csv",

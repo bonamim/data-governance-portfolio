@@ -1,7 +1,7 @@
 # ODCS contract for the Marketplace sellers landing file.
 # Seller registry (reference-style): no event timestamp, so timeliness + frequency +
 # completeness apply, but not content-freshness. Checked by the quality gate (P2).
-version: 1.1.0
+version: 1.2.0
 kind: DataContract
 apiVersion: v3.2.0
 id: marketplace.sellers.landing
@@ -52,5 +52,12 @@ customProperties:
     value: dt=YYYY-MM-DD
   - property: retentionDays
     value: 365
+  # Landing operations (ADR-0024): how the platform files a delivery it did not produce.
+  - property: partitionSource
+    value: filename
+  - property: filenamePattern
+    value: '^sellers_(?P<date>\d{4}-\d{2}-\d{2})\.csv$'
+  - property: completionSignal
+    value: per_file
 team:
   name: marketplace

@@ -4,5 +4,6 @@
 domain: customer_experience
 datasets:
   - name: reviews
-    source: {type: landing, olist_file: olist_order_reviews_dataset.csv}
+    source: {type: landing, olist_file: olist_order_reviews_dataset.csv,
+             delivered_as: 'olist_order_reviews_{date:%Y%m%d}.csv'}
     target: {raw_table: reviews}

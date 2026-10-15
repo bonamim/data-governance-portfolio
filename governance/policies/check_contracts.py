@@ -6,8 +6,10 @@ many data products, so each landing dataset must declare an ODCS contract, and t
 contract must be valid. This fails CI when a landing dataset has no contract, or when
 its contract does not pass `datacontract lint`.
 
-Output-port (table/view) contracts are checked by the same policy once data products
-exist (M3); for now it governs the landing boundary.
+It also checks that each landing contract's operational rules are executable by the loader
+(ADR-0024): partition scheme and source, file-name pattern, retention class, completion signal.
+
+Output-port contracts are governed by check_output_ports.py / check_data_products.py.
 """
 
 from __future__ import annotations
@@ -18,6 +20,8 @@ import sys
 from pathlib import Path
 
 import yaml
+from dgp_platform_ingestion.layout import LandingRules
+from dgp_platform_quality.contract import load_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -70,6 +74,11 @@ def main() -> int:
         if not ok:
             detail = output.splitlines()[-1] if output else ""
             violations.append(f"{rel}: ODCS contract is invalid\n      {detail}")
+        try:
+            problems = LandingRules.from_contract(load_contract(path)).problems()
+        except Exception as exc:  # e.g. an invalid filenamePattern regex
+            problems = [str(exc)]
+        violations += [f"{rel}: landing rule — {p}" for p in problems]
 
     if violations:
         print("Contract governance violations:\n")

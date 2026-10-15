@@ -9,8 +9,10 @@ certain checks are required comes from governance, and this package only *runs* 
 
 A landing file must match its ODCS contract before it is allowed into the warehouse. The
 ingestion loader calls this engine per landing file; on failure it **quarantines** the file
-(copies it to `landing/quarantine/…`), records `status = quarantined` in the ingestion ledger,
-and loads nothing — consumers keep the last good version.
+(files it to `landing-archive/quarantine/<source>/<dataset>/<partition>/<run_id>/` with a
+`_reason.json`), records `status = quarantined` and the per-rule results in the ingestion ledger,
+and loads nothing — consumers keep the last good version. The results appear in DataHub as
+assertions on the landing dataset (`make catalog-quality`, ADR-0024).
 
 ## Checks executed (from the ODCS schema)
 

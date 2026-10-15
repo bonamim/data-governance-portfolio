@@ -13,5 +13,6 @@ datasets:
       oltp_table: product_category_name_translation
     target: {raw_table: product_category_name_translation}
   - name: sellers
-    source: {type: landing, olist_file: olist_sellers_dataset.csv}
+    source: {type: landing, olist_file: olist_sellers_dataset.csv,
+             delivered_as: 'sellers_{date:%Y-%m-%d}.csv'}
     target: {raw_table: sellers}

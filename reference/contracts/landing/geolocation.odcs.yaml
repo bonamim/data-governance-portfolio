@@ -2,7 +2,7 @@
 # Consumed by Customer and Marketplace, so it is governed at the landing boundary
 # to keep consumption standardized. Reference data: timeliness + frequency +
 # completeness apply, not content-freshness. Checked by the quality gate (P2).
-version: 1.1.0
+version: 1.2.0
 kind: DataContract
 apiVersion: v3.2.0
 id: reference.geolocation.landing
@@ -63,5 +63,11 @@ customProperties:
     value: dt=YYYY-MM-DD
   - property: retentionDays
     value: 365
+  # Landing operations (ADR-0024): how the platform files a delivery it did not produce.
+  # No date in the partner's file name: the partition is the arrival time.
+  - property: partitionSource
+    value: arrival
+  - property: completionSignal
+    value: per_file
 team:
   name: reference

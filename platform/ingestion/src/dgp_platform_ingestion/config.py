@@ -12,13 +12,15 @@ Example (domains/sales/ingestion/sources.yml):
         source: {type: oltp, olist_file: olist_orders_dataset.csv, oltp_table: orders}
         target: {raw_table: orders}
       - name: reviews
-        source: {type: landing, olist_file: olist_order_reviews_dataset.csv}
+        source: {type: landing, olist_file: olist_order_reviews_dataset.csv,
+                 delivered_as: 'olist_order_reviews_{date:%Y%m%d}.csv'}
         target: {raw_table: reviews}
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -36,19 +38,20 @@ class Dataset:
     oltp_table: str | None  # required when source_type == "oltp"
     source_system: str  # where the data comes from — drives the landing path
     config_path: Path
+    # PoC partner simulator only: the file name the partner delivers, as a format string over
+    # the business date (e.g. 'reviews_{date:%Y%m%d}.csv'). Real partners name files their way;
+    # the landing contract describes that convention (filenamePattern, ADR-0024).
+    delivered_as: str | None = None
 
     @property
     def raw_schema(self) -> str:
         return f"{self.domain}_raw"
 
-    def landing_key(self, partition_date: str) -> str:
-        """Object key for a file-sourced dataset in the landing bucket.
-
-        Source-aligned and partitioned by day: the path reflects *where the data
-        comes from*, never which domain consumes it (ADR-0011). Ownership is the
-        contract's concern, not the folder's.
-        """
-        return f"{self.source_system}/{self.name}/dt={partition_date}/{self.olist_file}"
+    def delivered_name(self, business_date: datetime) -> str:
+        """The file name the (simulated) partner uses for a delivery on ``business_date``."""
+        if not self.delivered_as:
+            return self.olist_file
+        return self.delivered_as.format(date=business_date)
 
 
 def _find_config_files(repo_root: Path) -> list[Path]:
@@ -85,6 +88,7 @@ def _parse_file(path: Path) -> list[Dataset]:
                 oltp_table=source.get("oltp_table"),
                 source_system=source_system,
                 config_path=path,
+                delivered_as=source.get("delivered_as"),
             )
         )
     return datasets

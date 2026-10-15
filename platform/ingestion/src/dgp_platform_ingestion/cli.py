@@ -2,8 +2,9 @@
 
     dgp-ingest acquire     # download Olist from Kaggle into the local cache
     dgp-ingest seed        # load operational CSVs into shop_oltp
-    dgp-ingest land        # upload file-sourced CSVs to the landing zone
-    dgp-ingest load-raw    # load every dataset into <domain>_raw (+ ledger)
+    dgp-ingest land        # PoC partner simulator: deliver files into the landing inbox
+    dgp-ingest load-raw    # load every dataset into <domain>_raw, draining the inbox (+ ledger)
+    dgp-ingest replay      # rebuild raw from shop_oltp + archive accepted/ (--partition-date)
     dgp-ingest all         # acquire -> seed -> land -> load-raw
 
 The Airflow DAGs call the same functions in pipeline.py; this CLI is for local
@@ -44,11 +45,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--partition-date",
         default=None,
-        help="landing partition date YYYY-MM-DD (default: today UTC)",
+        help="business date YYYY-MM-DD: the date `land` delivers for, the partition `replay` "
+        "reads (default: today UTC)",
     )
     parser.add_argument(
         "command",
-        choices=["acquire", "seed", "land", "load-raw", "all"],
+        choices=["acquire", "seed", "land", "load-raw", "replay", "all"],
         help="pipeline step to run",
     )
     args = parser.parse_args(argv)
@@ -68,8 +70,9 @@ def main(argv: list[str] | None = None) -> int:
         "land": lambda: pipeline.land_files(
             repo_root, settings, data_dir, args.domain, args.partition_date
         ),
-        "load-raw": lambda: pipeline.load_raw(
-            repo_root, settings, data_dir, run_id, args.domain, args.partition_date
+        "load-raw": lambda: pipeline.load_raw(repo_root, settings, data_dir, run_id, args.domain),
+        "replay": lambda: pipeline.replay(
+            repo_root, settings, run_id, args.partition_date or pipeline._today_utc(), args.domain
         ),
     }
     order = ["acquire", "seed", "land", "load-raw"] if args.command == "all" else [args.command]

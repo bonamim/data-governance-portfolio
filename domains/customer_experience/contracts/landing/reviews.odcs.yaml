@@ -3,7 +3,7 @@
 # (timeliness, freshness, completeness) and operational properties (partitioning,
 # retention). Checked by the landing-zone quality gate before load (proof P2);
 # the time-based SLAs are monitored at M4 (DataHub) where there is somewhere to alert.
-version: 1.1.0
+version: 1.2.0
 kind: DataContract
 apiVersion: v3.2.0
 id: customer_experience.reviews.landing
@@ -85,5 +85,13 @@ customProperties:
     value: dt=YYYY-MM-DD
   - property: retentionDays
     value: 365
+  # Landing operations (ADR-0024): how the platform files a delivery it did not produce.
+  # The partner names each daily file with its business date; we read the partition from it.
+  - property: partitionSource
+    value: filename
+  - property: filenamePattern
+    value: '^olist_order_reviews_(?P<date>\d{8})\.csv$'
+  - property: completionSignal
+    value: per_file
 team:
   name: customer_experience
