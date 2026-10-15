@@ -14,6 +14,11 @@ include $(ENV_FILE)
 export
 endif
 
+# Host-side Postgres clients (dbt, ingestion, access scripts, proofs) verify the server certificate
+# against the local CA (X3). Postgres refuses plain TCP outright (platform/infra/postgres/pg_hba.conf).
+export PGSSLMODE ?= verify-full
+export PGSSLROOTCERT ?= $(CURDIR)/platform/infra/tls/out/ca.crt
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -24,8 +29,13 @@ help: ## Show available commands
 $(ENV_FILE):
 	@test -f $(ENV_FILE) || { cp .env.example $(ENV_FILE); echo "created .env from .env.example — review before running in shared settings"; }
 
+.PHONY: certs
+certs: ## Generate the local CA + Postgres server certificate (X3; idempotent, gitignored)
+	@bash platform/infra/tls/gen-certs.sh
+
 .PHONY: up
-up: $(ENV_FILE) ## Start the platform (MinIO + 2 Postgres)
+up: $(ENV_FILE) certs ## Start the platform (MinIO + 2 Postgres)
+	@python3 platform/infra/preflight.py   # X2: warns locally; DGP_ENV=prod refuses default credentials
 	$(COMPOSE) up -d --wait minio postgres-oltp postgres-analytics
 	$(COMPOSE) run --rm minio-init   # create/verify buckets, then return
 	$(COMPOSE) up -d s3-browser      # object-storage UI on :9001
@@ -53,6 +63,22 @@ psql-oltp: ## Open psql on shop_oltp
 .PHONY: psql-analytics
 psql-analytics: ## Open psql on the analytics warehouse
 	$(COMPOSE) exec postgres-analytics psql -U $(ANALYTICS_SUPERUSER) -d $(ANALYTICS_DB)
+
+.PHONY: preflight
+preflight: ## List default/weak credentials (X2); DGP_ENV=prod make preflight fails on any
+	@PREFLIGHT_VERBOSE=1 python3 platform/infra/preflight.py
+
+.PHONY: db-roles
+db-roles: ## Ensure least-privilege roles + the DR heartbeat on a RUNNING platform (fresh volumes get them at init)
+	@for svc in postgres-oltp postgres-analytics; do \
+		$(COMPOSE) exec -T $$(env | grep -E '^(ACCESS_ADMIN|CATALOG_READER|AGENT_[A-Z_]+)_PASSWORD=' | sed 's/^/-e /') \
+			$$svc bash /docker-entrypoint-initdb.d/10-hardening-roles.sh; \
+	done
+	$(COMPOSE) exec -T postgres-oltp bash /docker-entrypoint-initdb.d/20-dr-heartbeat.sh
+
+.PHONY: encrypt-at-rest
+encrypt-at-rest: ## One-time: rewrite objects stored before bucket encryption with SSE (X7; idempotent)
+	uv run --no-project --with boto3 python platform/infra/encrypt_existing.py
 
 .PHONY: verify-infra
 verify-infra: ## Check buckets, schemas, roles and the ingestion ledger exist
@@ -172,11 +198,33 @@ bi-check-drift: $(ENV_FILE) ## Fail if Superset's metrics drifted from the Ossie
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
 	uv run --no-project --with requests --with pyyaml python platform/semantics/generate_superset.py --check
 
+# ---------------------------------------------------------- disaster recovery (M8) ---
+# Backups of every store that can't be regenerated go to s3://$(BACKUP_BUCKET); the restore drill
+# proves them in an isolated dgp-drill sandbox (docs/disaster-recovery.md, proof P9).
+RECOVERY := uv run --no-project --with boto3 --with 'psycopg[binary]' --with pyyaml python
+
+.PHONY: backup
+backup: $(ENV_FILE) ## Back up shop_oltp, the ingestion ledger, Airflow, DataHub and Superset metadata
+	$(RECOVERY) platform/recovery/backup.py
+
+.PHONY: dr-status
+dr-status: $(ENV_FILE) ## Alert check: fail if the latest backup is stale or no drill passed in 7 days (X10)
+	$(RECOVERY) platform/recovery/status.py
+
+.PHONY: restore-drill
+restore-drill: $(ENV_FILE) certs ## Restore the latest backup into a sandbox, rebuild analytics, check, measure RTO
+	$(RECOVERY) platform/recovery/restore_drill.py
+
 # -------------------------------------------------------------- governed AI (M7) ---
 # The governed semantic MCP server. Any MCP client (Claude, ChatGPT, Copilot, Cortex) connects to
 # it; only each client's wiring differs (ai/README.md). stdio = local clients; http = remote clients.
 AI_MCP := uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/semantic-mcp/server.py
-AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"
+# The platform-wide view uses analytics_reader; each domain agent its own agent_<domain> role (M8).
+AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	for d in SALES CUSTOMER MARKETPLACE CUSTOMER_EXPERIENCE REFERENCE; do \
+		pw=AGENT_$${d}_PASSWORD; role=agent_$$(echo $$d | tr '[:upper:]' '[:lower:]'); \
+		export SEMANTIC_WAREHOUSE_URI_$$d="postgresql://$$role:$${!pw}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	done
 
 .PHONY: ai-mcp
 ai-mcp: $(ENV_FILE) ## Run the governed semantic MCP server over stdio (local clients: Claude, Copilot)
@@ -267,6 +315,14 @@ prove-p12: ## Proof P12 — an output port can't be published undocumented (tabl
 prove-p8: $(ENV_FILE) ## Proof P8 — consumers see PII masked and are denied raw/staging; compliance sees raw (M8)
 	uv run --no-project --with 'psycopg[binary]' python proofs/p8_access_control.py
 
+.PHONY: prove-p9
+prove-p9: $(ENV_FILE) certs ## Proof P9 — back up, restore into a sandbox, rebuild, re-check, measure RTO (M8)
+	./proofs/p9_restore_drill.sh
+
+.PHONY: prove-p13
+prove-p13: $(ENV_FILE) certs ## Proof P13 — TLS-only, least privilege, audit logging, encryption at rest, gates (M8)
+	$(RECOVERY) proofs/p13_hardening.py
+
 .PHONY: prove-p10
 prove-p10: $(ENV_FILE) ## Proof P10 — BI and AI compute the same number from the one Ossie definition (M7)
 	set -a; . ./$(ENV_FILE); set +a; \
@@ -277,7 +333,7 @@ prove-p10: $(ENV_FILE) ## Proof P10 — BI and AI compute the same number from t
 .PHONY: prove-p11
 prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, deterministic routing, same number (M7)
 	set -a; . ./$(ENV_FILE); set +a; \
-	export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
+	$(AI_MCP_ENV); \
 	uv run --no-project --with 'psycopg[binary]' --with pyyaml python proofs/p11_federated_routing.py
 
 .PHONY: prove-all
@@ -288,9 +344,13 @@ prove-all: prove-p2 prove-p5 prove-p12 ## Run the self-contained proofs (P2, P5,
 check-semantics: ## Ossie semantic models build only on governed output-port columns (ADR-0010)
 	uv run python governance/policies/check_semantics.py
 
+.PHONY: check-pinned-images
+check-pinned-images: ## Every compose image and Dockerfile base is pinned by digest (X8)
+	uv run python governance/policies/check_pinned_images.py
+
 .PHONY: check-ai-agents
 check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, owned, no raw PII (ADR-0021)
 	uv run python governance/policies/check_ai_agents.py
 
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-data-products check-output-ports check-semantics check-ai-agents lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-data-products check-output-ports check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks

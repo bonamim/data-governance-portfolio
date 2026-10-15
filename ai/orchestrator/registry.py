@@ -15,7 +15,6 @@ semantic server scoped to its domain (``DGP_SEMANTIC_DOMAIN``), reached over MCP
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -26,10 +25,13 @@ import ossie  # noqa: E402
 
 from governance.registry import domains  # noqa: E402
 
-# The warehouse role each domain agent connects as: the least-privilege, read-only analytics_reader
-# — output ports only, PII masked by the role-aware views (M8/ADR-0013). It replaced reusing a
-# domain owner role (marketplace_role). Per-domain reader roles are a further tightening.
-DEFAULT_CONSUMER_ROLE = os.environ.get("CONSUMER_ROLE", "analytics_reader")
+
+# The warehouse role each domain agent connects as: its own read-only agent_<domain> role, granted
+# only that domain's output ports (masked where PII) by platform/access/grant_consumers.py — so
+# isolation holds in the warehouse as well as in the agent code (M8). The platform-wide view (no
+# domain scope) uses the shared least-privilege analytics_reader.
+def consumer_role(domain: str) -> str:
+    return f"agent_{domain}"
 
 
 def _domain_meta(name: str) -> dict:
@@ -61,7 +63,7 @@ def agents() -> list[dict]:
                 "owner_team": owner.get("team", name),
                 "owner_contact": owner.get("contact"),
                 "serves": governed,
-                "consumer_role": DEFAULT_CONSUMER_ROLE,
+                "consumer_role": consumer_role(name),
                 "scope_env": {"DGP_SEMANTIC_DOMAIN": name},
             }
         )

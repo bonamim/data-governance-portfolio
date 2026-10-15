@@ -28,10 +28,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
       - run: uv sync --all-packages --group dbt
       - name: Compute breaking-change impact
         id: impact
@@ -41,7 +41,7 @@ jobs:
           echo "json=$json" >> "$GITHUB_OUTPUT"
       - name: Request reviews from impacted teams + comment
         if: steps.impact.outputs.json != '[]' && steps.impact.outputs.json != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const impact = JSON.parse(process.env.IMPACT);
@@ -67,11 +67,11 @@ jobs:
     if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
       - run: uv sync --all-packages --group dbt
       - name: Compute impact
         id: impact
@@ -81,7 +81,7 @@ jobs:
           echo "json=$json" >> "$GITHUB_OUTPUT"
       - name: Record the reviewer's approvals (only for teams they belong to)
         if: steps.impact.outputs.json != '[]' && steps.impact.outputs.json != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const impact = JSON.parse(process.env.IMPACT);

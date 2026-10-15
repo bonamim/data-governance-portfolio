@@ -11,6 +11,9 @@ question to the owning domain. This proves the three properties that make that g
   3. **Federation preserves the number** — a metric answered *through routing* equals the direct
      governed Ossie computation (so splitting into per-domain agents changes nothing a consumer
      sees; with P10, AI-via-orchestrator == Superset).
+  4. **Isolation in the warehouse** (M8) — each agent's own role (``agent_<domain>``) can read its
+     domain's ports and is DENIED every other domain's port, so isolation does not depend on the
+     agent code alone. Runs when the per-domain URIs (``SEMANTIC_WAREHOUSE_URI_<DOMAIN>``) are set.
 
 Isolation + routing need no warehouse (they run anywhere). The value check runs when
 ``SEMANTIC_WAREHOUSE_URI`` is set (the live platform, as for P10). Run: ``make prove-p11``.
@@ -26,6 +29,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "ai" / "orchestrator"))
 sys.path.insert(0, str(REPO / "ai" / "semantic-mcp"))
 sys.path.insert(0, str(REPO / "platform" / "semantics"))
+sys.path.insert(0, str(REPO / "platform" / "access"))
+import grant_consumers  # noqa: E402  (the grants the warehouse enforces, from the definitions)
 import ossie  # noqa: E402
 import registry  # noqa: E402
 import router  # noqa: E402
@@ -33,6 +38,18 @@ import semantic  # noqa: E402
 
 URI = os.environ.get("SEMANTIC_WAREHOUSE_URI")
 TOL = 1e-6
+
+
+def _can_read(uri: str, relation: str) -> bool:
+    import psycopg
+    from psycopg import errors
+
+    with psycopg.connect(uri) as conn:
+        try:
+            conn.execute(f"SELECT 1 FROM {relation} LIMIT 1")  # noqa: S608 (internal identifiers)
+            return True
+        except errors.InsufficientPrivilege:
+            return False
 
 
 def _warehouse_value(sql: str) -> float:
@@ -101,6 +118,26 @@ def main() -> int:
                         )
                     else:
                         print(f"  OK value: {ds['name']}.{name} via {routed['routed_to']} = {via}")
+
+    # 4. Isolation in the warehouse — each agent's role is denied other domains' ports.
+    grants = grant_consumers._grants()
+    all_ports = {f"{s}.{t}" for _, s, t in grants}
+    for agent in agents:
+        domain = agent["domain"]
+        uri = os.environ.get(semantic.SCOPED_URI_ENV.format(domain.upper()))
+        if not uri:
+            print(f"  SKIP db isolation: {semantic.SCOPED_URI_ENV.format(domain.upper())} not set")
+            continue
+        own = {f"{s}.{t}" for r, s, t in grants if r == agent["consumer_role"]}
+        for port in sorted(all_ports):
+            allowed = _can_read(uri, port)
+            if (port in own) != allowed:
+                verb = "could read" if allowed else "was denied"
+                failures.append(f"{agent['consumer_role']} {verb} {port}")
+        print(
+            f"  OK db isolation: {agent['consumer_role']} reads {sorted(own)}, "
+            f"denied {len(all_ports - own)} other port(s)"
+        )
 
     if failures:
         print("\nP11 FAILED:")

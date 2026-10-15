@@ -47,6 +47,7 @@ Marketplace joins after the slice is proven.
 | **P9** | **Disaster recovery** — restores work within RTO | Run the restore drill | Platform rebuilt from backups and git; all quality checks pass; measured recovery time ≤ RTO |
 | **P10** | **Governed AI — BI and AI agree** — one definition, computed the same way | Ask the governed semantic MCP (the AI's only metric path) and Superset for each metric; also request an ungoverned/PII column | Identical number from the AI path, Superset and a direct-Ossie control; the ungoverned column is refused ("not in the semantic layer") |
 | **P11** | **Agentic mesh** — the AI layer is federated and governable | Scope an agent to one domain and ask for another domain's product; route questions through the orchestrator | A domain agent answers only its own products (isolation); the orchestrator routes each product to its owning domain deterministically; a routed metric equals the direct Ossie number |
+| **P13** | **Production hardening** — controls hold on the running stack | Connect without TLS; inspect roles, logs, objects; run the prod preflight | Plain TCP refused, verify-full over TLS, no superuser/CREATEROLE in automation roles, catalog reader can't write, connections + DDL logged, every object encrypted, dev credentials refused in prod mode, everything pinned, DR fresh |
 | **P12** | **Output-port completeness** — consumers and AI agents never read an undocumented port | Strip a column description, a column classification, the table description, and a semantic field description | Each is blocked in CI (`check-output-ports` / `check-semantics`) naming the missing item; the documented ports pass |
 
 ---
@@ -64,6 +65,8 @@ are built; `make prove-all` runs them:
 | **P11** — agentic mesh | `make prove-p11` | ✅ packaged: domain isolation + deterministic routing run anywhere; the routed-number check uses the live platform |
 | **P12** — output-port completeness | `make prove-p12` | ✅ strips documentation from the real contract + Ossie model, asserts each CI gate blocks, reverts |
 | **P8** — access control + PII masking | `make prove-p8` | ✅ packaged (needs the live platform + `make mask`): consumer denied raw/staging + sees masked, compliance sees raw |
+| **P9** — disaster recovery | `make prove-p9` | ✅ packaged (needs the live platform): RPO measured on a live write → PITR of shop_oltp + restore of metadata stores in an isolated sandbox → rebuild analytics → all contract checks + P8 → every RTO met |
+| **P13** — production hardening | `make prove-p13` | ✅ packaged (needs the live platform): TLS-only Postgres, least-privilege roles, audit logging, encryption at rest, X2/X8/X10 gates |
 | — | `make prove-all` | runs the self-contained proofs (P2, P5, P12) |
 
 The platform-dependent proofs (P3/P6/P7/P10) aren't in `prove-all` (they need a running platform) —
@@ -81,6 +84,7 @@ these commands exercise the mechanisms today (platform up — `make up`; catalog
 | **P10** — governed AI == BI | AI and BI compute the same number from one Ossie definition | `make bi-publish`, then `make prove-p10` (the AI path, Superset and a direct-Ossie control agree per metric; ungoverned columns refused) |
 | **P11** — agentic mesh | the AI layer is federated, isolated and deterministically routed | `make ai-agents` (the registry), then `make prove-p11` (a domain agent serves only its own products; the orchestrator routes each product to its owner; routed number = direct Ossie) |
 
-**P8** (access control + PII masking) is done (`make prove-p8`, M8); **P9** (restore drill) is the
-next M8 slice. **P1** (domain isolation) and **P4** (cross-domain asset trigger) are packaged as
+**P8** (access control + PII masking), **P9** (restore drill with PITR) and **P13** (hardening) are
+done (`make prove-p8`, `make prove-p9`, `make prove-p13`, M8). P11 now also asserts agent isolation in
+the warehouse (each `agent_<domain>` role is denied other domains' ports). **P1** (domain isolation) and **P4** (cross-domain asset trigger) are packaged as
 `prove-*` once the harness drives full Airflow (README backlog).

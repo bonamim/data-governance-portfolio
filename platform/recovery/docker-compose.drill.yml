@@ -1,0 +1,126 @@
+# Restore-drill sandbox (proof P9, docs/disaster-recovery.md §5) — the dgp-drill compose project.
+#
+# Fresh, ISOLATED stand-ins for the platform's stateful stores: their own network and anonymous
+# volumes (nothing shared with the live platform), host ports bound to 127.0.0.1 only. The drill
+# restores the latest backups into them, rebuilds the warehouse from git + the landing zone, runs
+# every contract check, and is torn down with `down -v`. Same pinned images as production-like
+# services (X8), so a backup is proven restorable on the engine version that wrote it.
+#
+#   drill-oltp       shop_oltp POINT-IN-TIME RECOVERED: base backup + replay of the WAL archive
+#   drill-analytics  analytics REBUILT (not restored) — init script from git, then load + dbt
+#   drill-meta       Airflow metadata + ingestion-ledger backups restored and verified
+#   drill-datahub-db DataHub metadata store (MySQL) restored and verified
+
+name: dgp-drill
+
+networks:
+  drill:
+    driver: bridge
+
+volumes:
+  # Data dir the drill seeds with the base backup before starting drill-oltp (removed by down -v).
+  drill_oltp_data:
+  # The live shop_oltp WAL archive, read-only — locally the stand-in for the replicated archive
+  # store that recovery replays from (pgBackRest/WAL-G repository in production).
+  oltp_wal_archive:
+    external: true
+    name: governance-platform_oltp_wal_archive
+
+# Same hardened entrypoint as the platform (TLS-only network access, audit logging): a backup is
+# proven restorable on the exact configuration that runs in production-like environments.
+x-pg: &pg
+  image: postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+  entrypoint: ["bash", "/usr/local/bin/dgp-pg-entrypoint.sh"]
+  command: ["postgres", "-c", "password_encryption=scram-sha-256"]
+  networks: [drill]
+
+x-pg-hardening: &pg-hardening
+  - ../infra/postgres/hardened-entrypoint.sh:/usr/local/bin/dgp-pg-entrypoint.sh:ro
+  - ../infra/postgres/pg_hba.conf:/pgconf/pg_hba.conf:ro
+  - ../infra/tls/out:/pgtls-src:ro
+
+services:
+  drill-oltp:
+    <<: *pg
+    environment:
+      POSTGRES_USER: ${OLTP_SUPERUSER}
+      POSTGRES_PASSWORD: ${OLTP_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${OLTP_DB}
+      OLTP_LOADER_PASSWORD: ${OLTP_LOADER_PASSWORD}
+      OLTP_READER_PASSWORD: ${OLTP_READER_PASSWORD}
+      CATALOG_READER_PASSWORD: ${CATALOG_READER_PASSWORD}
+    ports:
+      - "127.0.0.1:${DRILL_OLTP_PORT:-55432}:5432"
+    volumes:
+      - drill_oltp_data:/var/lib/postgresql/data
+      - oltp_wal_archive:/wal-archive:ro
+      - ../infra/postgres/hardened-entrypoint.sh:/usr/local/bin/dgp-pg-entrypoint.sh:ro
+      - ../infra/postgres/pg_hba.conf:/pgconf/pg_hba.conf:ro
+      - ../infra/tls/out:/pgtls-src:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${OLTP_SUPERUSER} -d ${OLTP_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  drill-analytics:
+    <<: *pg
+    environment:
+      POSTGRES_USER: ${ANALYTICS_SUPERUSER}
+      POSTGRES_PASSWORD: ${ANALYTICS_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${ANALYTICS_DB}
+      PLATFORM_LOADER_PASSWORD: ${PLATFORM_LOADER_PASSWORD}
+      SALES_ROLE_PASSWORD: ${SALES_ROLE_PASSWORD}
+      CUSTOMER_ROLE_PASSWORD: ${CUSTOMER_ROLE_PASSWORD}
+      MARKETPLACE_ROLE_PASSWORD: ${MARKETPLACE_ROLE_PASSWORD}
+      CUSTOMER_EXPERIENCE_ROLE_PASSWORD: ${CUSTOMER_EXPERIENCE_ROLE_PASSWORD}
+      REFERENCE_ROLE_PASSWORD: ${REFERENCE_ROLE_PASSWORD}
+      ANALYTICS_READER_PASSWORD: ${ANALYTICS_READER_PASSWORD}
+      COMPLIANCE_PASSWORD: ${COMPLIANCE_PASSWORD}
+      ACCESS_ADMIN_PASSWORD: ${ACCESS_ADMIN_PASSWORD}
+      CATALOG_READER_PASSWORD: ${CATALOG_READER_PASSWORD}
+      AGENT_SALES_PASSWORD: ${AGENT_SALES_PASSWORD}
+      AGENT_CUSTOMER_PASSWORD: ${AGENT_CUSTOMER_PASSWORD}
+      AGENT_MARKETPLACE_PASSWORD: ${AGENT_MARKETPLACE_PASSWORD}
+      AGENT_CUSTOMER_EXPERIENCE_PASSWORD: ${AGENT_CUSTOMER_EXPERIENCE_PASSWORD}
+      AGENT_REFERENCE_PASSWORD: ${AGENT_REFERENCE_PASSWORD}
+    ports:
+      - "127.0.0.1:${DRILL_ANALYTICS_PORT:-55433}:5432"
+    volumes:
+      - ../infra/postgres/analytics:/docker-entrypoint-initdb.d:ro
+      - ../infra/postgres/hardened-entrypoint.sh:/usr/local/bin/dgp-pg-entrypoint.sh:ro
+      - ../infra/postgres/pg_hba.conf:/pgconf/pg_hba.conf:ro
+      - ../infra/tls/out:/pgtls-src:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_SUPERUSER} -d ${ANALYTICS_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  drill-meta:
+    <<: *pg
+    environment:
+      POSTGRES_USER: drill
+      POSTGRES_PASSWORD: drill_only_local
+      POSTGRES_DB: drill
+    volumes: *pg-hardening
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drill -d drill"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  drill-datahub-db:
+    image: mysql@sha256:212fe73edca5df6ff14826d5eb975c914bfb91f82a2e923f9050568f99525da1
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_bin"]
+    environment:
+      MYSQL_ROOT_PASSWORD: drill_only_local
+      MYSQL_DATABASE: datahub
+    networks: [drill]
+    healthcheck:
+      # A real query over TCP: `mysqladmin ping` also succeeds against the image's temporary
+      # init-time server, before the datahub database is ready.
+      test: ["CMD-SHELL", "mysql -h 127.0.0.1 -uroot -pdrill_only_local -e 'SELECT 1' datahub"]
+      interval: 3s
+      timeout: 3s
+      retries: 60

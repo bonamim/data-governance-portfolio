@@ -88,11 +88,16 @@ x-airflow-common: &airflow-common
     OLIST_DATASET: ${OLIST_DATASET}
     KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
     KAGGLE_KEY: ${KAGGLE_KEY:-}
-    # Transform (dbt + write-audit-publish + grants): per-domain roles, the analytics
-    # superuser (for the WAP swap and grants), and the dbt profiles.
+    # Transform (dbt + write-audit-publish + grants): per-domain roles, the access_admin role
+    # (masking + grants) and the dbt profiles.
     DBT_PROFILES_DIR: /opt/airflow/repo/platform/transform
-    ANALYTICS_SUPERUSER: ${ANALYTICS_SUPERUSER}
-    ANALYTICS_SUPERUSER_PASSWORD: ${ANALYTICS_SUPERUSER_PASSWORD}
+    # Every Postgres client in the tasks verifies the server certificate (X3): libpq reads these.
+    PGSSLMODE: verify-full
+    PGSSLROOTCERT: /opt/airflow/repo/platform/infra/tls/out/ca.crt
+    # Masking + grants after a publish run as access_admin, never the superuser (X5).
+    ACCESS_ADMIN_PASSWORD: ${ACCESS_ADMIN_PASSWORD}
+    ANALYTICS_READER_PASSWORD: ${ANALYTICS_READER_PASSWORD}
+    COMPLIANCE_PASSWORD: ${COMPLIANCE_PASSWORD}
     SALES_ROLE_PASSWORD: ${SALES_ROLE_PASSWORD}
     CUSTOMER_ROLE_PASSWORD: ${CUSTOMER_ROLE_PASSWORD}
     MARKETPLACE_ROLE_PASSWORD: ${MARKETPLACE_ROLE_PASSWORD}
@@ -113,11 +118,16 @@ services:
   # Airflow's own metadata database (run state + data intervals, ADR-0006).
   postgres-airflow:
     image: postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    entrypoint: ["bash", "/usr/local/bin/dgp-pg-entrypoint.sh"]  # TLS-only + audit logging (X3, X9)
+    command: ["postgres", "-c", "password_encryption=scram-sha-256"]
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
       POSTGRES_DB: airflow
     volumes:
+      - ../infra/postgres/hardened-entrypoint.sh:/usr/local/bin/dgp-pg-entrypoint.sh:ro
+      - ../infra/postgres/pg_hba.conf:/pgconf/pg_hba.conf:ro
+      - ../infra/tls/out:/pgtls-src:ro
       - airflow_meta:/var/lib/postgresql/data
     networks: [platform]
     healthcheck:

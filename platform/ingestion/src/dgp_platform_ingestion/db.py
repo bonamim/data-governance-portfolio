@@ -31,11 +31,33 @@ def _read_header(csv_path: Path) -> list[str]:
         return next(reader)
 
 
-def recreate_text_table(
+def _existing_columns(conn: psycopg.Connection, schema: str, table: str) -> list[str] | None:
+    rows = conn.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = %s AND table_name = %s ORDER BY ordinal_position",
+        (schema, table),
+    ).fetchall()
+    return [r[0] for r in rows] or None
+
+
+def prepare_text_table(
     conn: psycopg.Connection, schema: str, table: str, columns: list[str]
 ) -> None:
-    cols = sql.SQL(", ").join(sql.SQL("{} text").format(sql.Identifier(c)) for c in columns)
+    """Make <schema>.<table> an empty text table with exactly ``columns``, ready for a reload.
+
+    Same columns as today → TRUNCATE in place. The table keeps its identity, so everything built on
+    it survives the reload: the dbt views up the medallion (several output ports are views), the
+    masking views and the consumer grants. Inside the caller's transaction, readers keep seeing the
+    previous rows until the new load commits. Only a real schema change (different columns) drops
+    and recreates the table — CASCADE then removes the dependents, and the transform that follows
+    the load rebuilds them against the new shape.
+    """
     ident = sql.Identifier(schema, table)
+    existing = _existing_columns(conn, schema, table)
+    if existing == columns:
+        conn.execute(sql.SQL("TRUNCATE {}").format(ident))
+        return
+    cols = sql.SQL(", ").join(sql.SQL("{} text").format(sql.Identifier(c)) for c in columns)
     conn.execute(sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(ident))
     conn.execute(sql.SQL("CREATE TABLE {} ({})").format(ident, cols))
 
@@ -60,7 +82,7 @@ def copy_csv_into(
 def load_csv_file(conn: psycopg.Connection, schema: str, table: str, csv_path: Path) -> int:
     """Create <schema>.<table> from the CSV header and load it. Returns row count."""
     columns = _read_header(csv_path)
-    recreate_text_table(conn, schema, table, columns)
+    prepare_text_table(conn, schema, table, columns)
     with csv_path.open("rb") as fh:
         return copy_csv_into(conn, schema, table, fh)
 

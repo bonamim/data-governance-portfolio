@@ -40,6 +40,9 @@ from governance.registry import domains  # noqa: E402  (single source of truth f
 
 # libpq URI for the warehouse, as a CONSUMER role (output ports only) — never an admin/owner role.
 WAREHOUSE_URI = os.environ.get("SEMANTIC_WAREHOUSE_URI")
+# A domain agent connects as its own role, granted only its domain's ports (ADR-0021, M8):
+# SEMANTIC_WAREHOUSE_URI_<DOMAIN> (e.g. ..._SALES -> agent_sales). Falls back to the shared reader.
+SCOPED_URI_ENV = "SEMANTIC_WAREHOUSE_URI_{}"
 # Federation (ADR-0021): a domain agent is this same code scoped to one domain via
 # DGP_SEMANTIC_DOMAIN — it then sees/answers ONLY that domain's governed products (isolation).
 # Unset = platform-wide view, used by a single-server deploy and the orchestrator's in-proc router.
@@ -49,6 +52,15 @@ DOMAIN = os.environ.get("DGP_SEMANTIC_DOMAIN") or None
 REQUESTS_DIR = Path(
     os.environ.get("SEMANTIC_REQUESTS_DIR", str(REPO_ROOT / "governance" / "requests"))
 )
+
+
+def warehouse_uri() -> str | None:
+    """The URI for the current scope: the domain agent's own role if configured, else the reader."""
+    if DOMAIN:
+        scoped = os.environ.get(SCOPED_URI_ENV.format(DOMAIN.upper()))
+        if scoped:
+            return scoped
+    return WAREHOUSE_URI
 
 
 def _now() -> str:
@@ -189,12 +201,13 @@ def query_metric(product: str, metrics: list[str], dimensions: list[str] = ()) -
         )
 
     sql = ossie.metric_sql(spec, ds, list(metrics), list(dimensions))
-    if not WAREHOUSE_URI:
+    uri = warehouse_uri()
+    if not uri:
         raise RuntimeError("SEMANTIC_WAREHOUSE_URI is not set (the consumer-role warehouse URI).")
     _audit(
         "query_metric", "allowed", product=product, metrics=metrics, dimensions=dimensions, sql=sql
     )
-    with psycopg.connect(WAREHOUSE_URI) as conn, conn.cursor() as cur:
+    with psycopg.connect(uri) as conn, conn.cursor() as cur:
         cur.execute(sql)
         columns = [d.name for d in cur.description]
         rows = [{c: _coerce(v) for c, v in zip(columns, r, strict=True)} for r in cur.fetchall()]

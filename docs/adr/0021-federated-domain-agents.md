@@ -76,6 +76,9 @@ built, so the portfolio stays vendor-neutral and provable without an API key.
   scopes the shared module per call so the proof exercises the exact governed path without spawning
   N processes. Snowflake expresses the same shape natively: each domain publishes a semantic view +
   Cortex Agent to the marketplace, and the orchestrator routes across them.
-- **Deferred to M8**: per-domain least-privilege warehouse roles (the registry already carries the
-  field; today all agents use `marketplace_role`); authn/TLS on the remote (`streamable-http`)
-  transport; shipping the audit log to a sink.
+- **M8 outcome**: each domain agent connects as its own read-only `agent_<domain>` role, granted
+  only its domain's output ports (masked where PII) via `SEMANTIC_WAREHOUSE_URI_<DOMAIN>`. P11 asserts
+  the warehouse denies it every other domain's port, so isolation no longer rests on the agent code
+  alone. The platform-wide view uses `analytics_reader`. OAuth + TLS on the remote (`streamable-http`)
+  transport and shipping the audit log to a sink are desired production controls (production-readiness
+  §5, D1/D2/D7).

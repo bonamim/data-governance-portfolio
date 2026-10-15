@@ -92,6 +92,9 @@ def _grants() -> list[tuple[str, str, str]]:
             continue
         reader_target = _target(owner, product) or base  # masked view if the port carries PII
         out.append((ANALYTICS_READER, *reader_target))  # end-consumer: masked
+        # The owning domain's AI agent reads its own ports only (ADR-0021) — masked like any
+        # end consumer — so agent isolation is enforced by the warehouse, not just the agent code.
+        out.append((f"agent_{owner}", *reader_target))
         for consumer in defn.get("consumers") or []:
             team = (consumer or {}).get("team")
             if not team or team == owner:
@@ -101,12 +104,16 @@ def _grants() -> list[tuple[str, str, str]]:
 
 
 def _conninfo() -> str:
+    """The admin plane connects as ``access_admin`` — never the superuser (X5).
+
+    access_admin is a member of every domain role, so it can GRANT on the ports the domains own and
+    own the ``<domain>_masked`` schemas; it holds no superuser or role-creation rights.
+    """
     host = os.environ.get("ANALYTICS_HOST", "localhost")
     port = os.environ.get("ANALYTICS_INTERNAL_PORT", os.environ.get("ANALYTICS_PORT", "5433"))
     db = os.environ.get("ANALYTICS_DB", "analytics")
-    user = os.environ["ANALYTICS_SUPERUSER"]
-    pw = os.environ["ANALYTICS_SUPERUSER_PASSWORD"]
-    return f"host={host} port={port} dbname={db} user={user} password={pw}"
+    pw = os.environ["ACCESS_ADMIN_PASSWORD"]
+    return f"host={host} port={port} dbname={db} user=access_admin password={pw}"
 
 
 def main() -> int:
@@ -114,7 +121,7 @@ def main() -> int:
     if not grants:
         print("No consumer grants declared.")
         return 0
-    # Superuser applies grants (only the object owner or a superuser may GRANT).
+    # access_admin applies grants: as a member of each domain role it may GRANT on their objects.
     applied = 0
     with psycopg.connect(_conninfo(), autocommit=False) as conn:
         for role, schema, product in grants:

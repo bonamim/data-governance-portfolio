@@ -22,6 +22,9 @@ volumes:
   minio_data:
   oltp_data:
   analytics_data:
+  # WAL archive for shop_oltp point-in-time recovery (DR §3, RPO 5 min). Locally a separate volume
+  # standing in for the replicated, object-locked archive store pgBackRest/WAL-G push to.
+  oltp_wal_archive:
 
 services:
   # ---------------------------------------------------------------- MinIO ---
@@ -33,6 +36,8 @@ services:
       MINIO_API_PORT_NUMBER: "9000"
       MINIO_CONSOLE_PORT_NUMBER: "9001"
       MINIO_SCHEME: http
+      # Encryption at rest (X7): every bucket defaults to SSE-S3 under this KMS key (minio-init).
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY}
     ports:
       - "${MINIO_API_PORT}:9000"       # S3 API (the community console was removed; see s3-browser)
     volumes:
@@ -57,6 +62,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       LANDING_BUCKET: ${LANDING_BUCKET}
       STATE_BUCKET: ${STATE_BUCKET}
+      BACKUP_BUCKET: ${BACKUP_BUCKET:-platform-backups}
     entrypoint:
       - /bin/bash
       - -c
@@ -77,10 +83,18 @@ services:
           # Retention (ADR-0011): keep current versions; expire superseded/deleted
           # versions after the retention window so storage does not grow forever.
           # Production also sets object-lock on landing (production-readiness.md).
+          mc encrypt set sse-s3 "local/$$bucket" >/dev/null   # encryption at rest (X7)
           mc ilm rule add --noncurrent-expire-days 365 "local/$$bucket" >/dev/null 2>&1 \
             || mc ilm rule add --expire-days 365 --noncurrent-expire-days 365 "local/$$bucket" >/dev/null 2>&1 || true
-          echo "bucket ready (versioned, 365d retention): $$bucket"
+          echo "bucket ready (versioned, SSE-S3, 365d retention): $$bucket"
         done
+        # Backups (DR §3, proof P9): versioned, ~4 weekly cycles kept. Production puts this in a
+        # DIFFERENT location from the landing zone, object-locked and replicated.
+        mc mb --ignore-existing "local/$$BACKUP_BUCKET"
+        mc version enable "local/$$BACKUP_BUCKET"
+        mc encrypt set sse-s3 "local/$$BACKUP_BUCKET" >/dev/null
+        mc ilm rule add --expire-days 35 --noncurrent-expire-days 35 "local/$$BACKUP_BUCKET" >/dev/null 2>&1 || true
+        echo "bucket ready (versioned, SSE-S3, 35d retention): $$BACKUP_BUCKET"
     networks: [platform]
     restart: "no"
 
@@ -105,10 +119,19 @@ services:
   # ----------------------------------------------- Postgres: shop_oltp -------
   postgres-oltp:
     image: postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    entrypoint: ["bash", "/usr/local/bin/dgp-pg-entrypoint.sh"]  # TLS-only + audit logging (X3, X9)
     command:
       - "postgres"
       - "-c"
       - "password_encryption=scram-sha-256"   # production-readiness: scram, not md5
+      # Continuous WAL archiving -> point-in-time recovery (tier 1, RPO 5 min; proof P9). A segment
+      # is shipped at least every archive_timeout while there is activity, bounding data loss.
+      - "-c"
+      - "archive_mode=on"
+      - "-c"
+      - "archive_command=test ! -f /wal-archive/%f && cp %p /wal-archive/%f"
+      - "-c"
+      - "archive_timeout=60"
     environment:
       POSTGRES_USER: ${OLTP_SUPERUSER}
       POSTGRES_PASSWORD: ${OLTP_SUPERUSER_PASSWORD}
@@ -116,10 +139,15 @@ services:
       # consumed by 00-init.sh to create least-privilege roles
       OLTP_LOADER_PASSWORD: ${OLTP_LOADER_PASSWORD}
       OLTP_READER_PASSWORD: ${OLTP_READER_PASSWORD}
+      CATALOG_READER_PASSWORD: ${CATALOG_READER_PASSWORD}
     ports:
       - "${OLTP_PORT}:5432"
     volumes:
+      - ./postgres/hardened-entrypoint.sh:/usr/local/bin/dgp-pg-entrypoint.sh:ro
+      - ./postgres/pg_hba.conf:/pgconf/pg_hba.conf:ro
+      - ./tls/out:/pgtls-src:ro
       - oltp_data:/var/lib/postgresql/data
+      - oltp_wal_archive:/wal-archive
       - ./postgres/oltp:/docker-entrypoint-initdb.d:ro
     networks: [platform]
     healthcheck:
@@ -132,6 +160,7 @@ services:
   # ----------------------------------------------- Postgres: analytics -------
   postgres-analytics:
     image: postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    entrypoint: ["bash", "/usr/local/bin/dgp-pg-entrypoint.sh"]  # TLS-only + audit logging (X3, X9)
     command:
       - "postgres"
       - "-c"
@@ -147,9 +176,21 @@ services:
       MARKETPLACE_ROLE_PASSWORD: ${MARKETPLACE_ROLE_PASSWORD}
       CUSTOMER_EXPERIENCE_ROLE_PASSWORD: ${CUSTOMER_EXPERIENCE_ROLE_PASSWORD}
       REFERENCE_ROLE_PASSWORD: ${REFERENCE_ROLE_PASSWORD}
+      ANALYTICS_READER_PASSWORD: ${ANALYTICS_READER_PASSWORD}
+      COMPLIANCE_PASSWORD: ${COMPLIANCE_PASSWORD}
+      ACCESS_ADMIN_PASSWORD: ${ACCESS_ADMIN_PASSWORD}
+      CATALOG_READER_PASSWORD: ${CATALOG_READER_PASSWORD}
+      AGENT_SALES_PASSWORD: ${AGENT_SALES_PASSWORD}
+      AGENT_CUSTOMER_PASSWORD: ${AGENT_CUSTOMER_PASSWORD}
+      AGENT_MARKETPLACE_PASSWORD: ${AGENT_MARKETPLACE_PASSWORD}
+      AGENT_CUSTOMER_EXPERIENCE_PASSWORD: ${AGENT_CUSTOMER_EXPERIENCE_PASSWORD}
+      AGENT_REFERENCE_PASSWORD: ${AGENT_REFERENCE_PASSWORD}
     ports:
       - "${ANALYTICS_PORT}:5432"
     volumes:
+      - ./postgres/hardened-entrypoint.sh:/usr/local/bin/dgp-pg-entrypoint.sh:ro
+      - ./postgres/pg_hba.conf:/pgconf/pg_hba.conf:ro
+      - ./tls/out:/pgtls-src:ro
       - analytics_data:/var/lib/postgresql/data
       - ./postgres/analytics:/docker-entrypoint-initdb.d:ro
     networks: [platform]

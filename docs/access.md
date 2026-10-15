@@ -25,10 +25,16 @@ in `.env.example`. Run `make endpoints` to print the live values from your `.env
 
 Least-privilege roles on the warehouse (passwords in `.env`): `platform_loader`,
 `sales_role`, `customer_role`, `marketplace_role`, `customer_experience_role`,
-`reference_role`. dbt connects as the per-domain role (see `platform/transform/profiles.yml`).
+`reference_role`, the read-only consumer `analytics_reader`, the unmask role `compliance`, one
+`agent_<domain>` per AI agent, `access_admin` (applies masking + grants) and `catalog_reader`
+(DataHub ingestion). dbt connects as the per-domain role (see `platform/transform/profiles.yml`).
 
-> The Airflow metadata Postgres has no host port (internal only). The `datahub` and
-> `superset` rows are placeholders until those milestones land.
+> **TLS only.** Postgres refuses plain TCP. A client on the host needs `sslmode=require` at least, or
+> better `sslmode=verify-full sslrootcert=platform/infra/tls/out/ca.crt` (Make exports `PGSSLMODE` /
+> `PGSSLROOTCERT` for every target; run `make certs` once). `make psql-oltp` / `make psql-analytics`
+> use the in-container socket and need nothing.
+
+> The Airflow metadata Postgres has no host port (internal only).
 >
 > MinIO's community server dropped its built-in web console in 2025 ([ADR-0007](adr/0007-minio-image-source.md)),
 > so the **S3 browser** (a separate container pointed at the S3 API) stands in for it on

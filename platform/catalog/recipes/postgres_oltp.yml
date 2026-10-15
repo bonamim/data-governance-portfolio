@@ -6,8 +6,8 @@ source:
   config:
     host_port: "localhost:${OLTP_PORT}"
     database: "${OLTP_DB}"
-    username: "${OLTP_SUPERUSER}"
-    password: "${OLTP_SUPERUSER_PASSWORD}"
+    username: catalog_reader  # read-only metadata role (X5), not the superuser
+    password: "${CATALOG_READER_PASSWORD}"
     schema_pattern:
       allow:
         - "shop"

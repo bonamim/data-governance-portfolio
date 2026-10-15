@@ -19,7 +19,7 @@
         "python", "/ABSOLUTE/PATH/TO/REPO/ai/semantic-mcp/server.py"
       ],
       "env": {
-        "SEMANTIC_WAREHOUSE_URI": "postgresql://analytics_reader:REPLACE_WITH_PASSWORD@localhost:5433/analytics"
+        "SEMANTIC_WAREHOUSE_URI": "postgresql://analytics_reader:REPLACE_WITH_PASSWORD@localhost:5433/analytics?sslmode=require"
       }
     }
   }

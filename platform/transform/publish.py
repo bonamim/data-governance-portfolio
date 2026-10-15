@@ -49,8 +49,14 @@ def _dbt(domain: str, *args: str) -> int:
 
 
 def _grant() -> None:
-    """Re-apply consumer grants (a swap/rebuild drops table grants)."""
-    subprocess.run([sys.executable, str(REPO_ROOT / "platform" / "access" / "grant_consumers.py")])
+    """Re-apply masking views, then consumer grants.
+
+    A rebuild/swap drops table grants, and dbt's table swap drops the backup table with CASCADE —
+    taking the role-aware masking views (ADR-0013) with it. So masking is re-applied before grants.
+    """
+    access = REPO_ROOT / "platform" / "access"
+    subprocess.run([sys.executable, str(access / "apply_masking.py")])
+    subprocess.run([sys.executable, str(access / "grant_consumers.py")])
 
 
 def main() -> int:

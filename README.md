@@ -274,15 +274,27 @@ Each milestone is done only when its production-readiness and disaster-recovery 
     call. Agents are governed like any mesh concern — a standard (`governance/standards/ai-agent.md`)
     + a CI check (`check-ai-agents`: domain-scoped, isolated, owned, no raw PII). Proof **P11**:
     isolation holds, routing is deterministic, federation preserves the number.
-- [ ] **M8 — Security & production hardening** (in progress):
+- [x] **M8 — Security & production hardening:**
   - [x] **Role-based dynamic PII masking + least-privilege consumer roles (ADR-0013, proof P8):**
     the masking policy is declared on the column in ODCS and enforced as a role-aware view
     (`platform/access/apply_masking.py`); end consumers connect as a least-privilege `analytics_reader`
     (output ports only — raw/staging denied) and see PII masked, while an unmask role (`compliance`)
     sees the raw value. The AI agents now use this reader instead of a domain role. `make prove-p8`.
-  - [ ] TLS, SSO (OIDC), secrets manager, network isolation, encryption-at-rest, HA — documented
-    prod configuration in `docs/production-readiness.md` (local uses faithful stand-ins).
-  - [ ] Backups and an automated **restore drill** (proof P9, `docs/disaster-recovery.md`).
+  - [x] **Backups + automated restore drill with point-in-time recovery (ADR-0022, proof P9):**
+    shop_oltp archives WAL continuously and takes physical base backups; the metadata stores are
+    dumped, with a checksummed manifest. The drill measures the RPO on a live write. It then
+    point-in-time recovers shop_oltp and restores the rest into an isolated sandbox, **rebuilds** the
+    warehouse, runs every contract check and P8, and measures each RTO. `make prove-p9`,
+    `make dr-status`.
+  - [x] **Hardening proven on the running stack (ADR-0023, proof P13):** TLS-only Postgres
+    (`hostssl`, plain TCP rejected, clients `verify-full`); no automation uses the superuser
+    (`access_admin`, `catalog_reader`, one `agent_<domain>` role per AI agent, isolation also asserted
+    in P11); Postgres connection + DDL audit logging; MinIO SSE on every bucket; no default credential
+    (X2, `DGP_ENV=prod` refuses to start); images by digest and Actions by commit SHA (X8).
+    `make prove-p13`.
+  - [x] **Desired production controls specified** with acceptance tests (production-readiness §5,
+    D1–D10): TLS reverse proxy, OIDC SSO, secrets manager, network isolation, external KMS, HA,
+    central logging, alert routing. They need infrastructure a laptop can't host and are go-live gates.
 - [ ] **M9 — Transform-layer scale (ADR-0015):** orchestrate dbt with **Cosmos** (manifest mode —
   per-model tasks/retries/parallelism); **per-model portable write-audit-publish** (blue/green swap /
   warehouse zero-copy clone / Iceberg branch; incremental = audit-batch-then-merge); **dbt state +
@@ -308,7 +320,7 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   an Ossie `.supx` extension → Superset reads the definitions **live** (no projection, no drift,
   `bi-check-drift` retires). "Connect, don't copy."
 - **Proof packaging** — `make prove-*` for P1 (domain isolation) and P4 (cross-domain asset trigger)
-  once the proof harness drives full Airflow; P8/P9 land with M8.
+  once the proof harness drives full Airflow (P8, P9 and P13 are packaged — M8).
 
 ---
 

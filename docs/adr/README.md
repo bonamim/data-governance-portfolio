@@ -14,7 +14,7 @@
 | [0010](0010-semantic-layer-ossie.md) | Apache Ossie as the semantic layer standard | Accepted |
 | [0011](0011-landing-zone-slas-and-partitioning.md) | Landing-zone SLAs, partitioning, retention, shared-dataset ownership | Accepted |
 | [0012](0012-medallion-and-output-ports.md) | Medallion layers, tag-based output ports, simulated marketplace | Accepted |
-| [0013](0013-role-based-dynamic-masking.md) | Role-based dynamic data masking (ODCS-declared, per-platform) | Proposed |
+| [0013](0013-role-based-dynamic-masking.md) | Role-based dynamic data masking (ODCS-declared, per-platform) | Accepted |
 | [0014](0014-flexible-write-audit-publish.md) | Flexible write-audit-publish (opt-in, severity-aware, materialization-aware) | Accepted (mechanism superseded by 0015) |
 | [0015](0015-scaling-the-transform-layer.md) | Scaling the transform layer (Cosmos, per-model WAP, dbt state, microbatch backfill) | Proposed |
 | [0016](0016-event-driven-ingestion.md) | Event-driven ingestion for partner-pushed files | Proposed |
@@ -23,3 +23,5 @@
 | [0019](0019-breaking-change-management.md) | Breaking-change management (gate, dbt model versions, consumer approval) | Accepted |
 | [0020](0020-governed-ai-mcp.md) | Governed AI through MCP (semantic computation + catalog discovery) | Accepted |
 | [0021](0021-federated-domain-agents.md) | Federated domain agents + catalog-routed orchestrator (agentic mesh) | Accepted |
+| [0022](0022-backups-and-restore-drill.md) | Backups and the automated restore drill (proof P9) | Accepted |
+| [0023](0023-local-hardening-stand-ins.md) | Prove hardening locally where possible; specify the rest as desired controls | Accepted |

@@ -1,7 +1,7 @@
 # Airflow 3 image for local orchestration.
 # Installs the platform's ingestion + orchestration capabilities so the DAGs can
 # import them. Build context is the repo root (see docker-compose.airflow.yml).
-FROM apache/airflow:3.3.2-python3.12
+FROM apache/airflow:3.3.2-python3.12@sha256:9df9c8be4096b9cc626bd7cb1f2b8c712eef66c59c615f8c7e6200871ca10bd1
 
 # Heavy, stable tooling first so iterating on the platform packages (below) stays a fast rebuild.
 # Transform tooling so the transform DAGs can run dbt build + write-audit-publish and generate

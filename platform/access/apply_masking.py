@@ -19,7 +19,6 @@ Run: ``make mask`` (re-run after a transform/publish, which rebuilds the base ta
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -95,32 +94,16 @@ def _view_select(columns: list[str], policies: dict[str, dict]) -> sql.Composabl
 
 
 def _ensure_roles(conn: psycopg.Connection) -> None:
-    """Create the consumer + unmask roles if missing (init runs only on a fresh warehouse).
+    """Fail clearly if the consumer/unmask roles are missing.
 
-    In a fresh environment these come from the init script; here we ensure them idempotently so the
-    policy can be applied to an already-running warehouse. compliance is LOGIN locally only — in
-    production it is a NOLOGIN group GRANTed to the users allowed to unmask.
+    Roles are infrastructure: the init scripts create them (``make db-roles`` on a running
+    warehouse). The admin plane runs as access_admin, which deliberately cannot create roles (X5).
+    compliance is LOGIN locally only — in production it is a NOLOGIN group GRANTed to the users
+    allowed to unmask.
     """
-    db = os.environ.get("ANALYTICS_DB", "analytics")
-    roles = (
-        ("analytics_reader", "ANALYTICS_READER_PASSWORD"),
-        ("compliance", "COMPLIANCE_PASSWORD"),
-    )
-    for role, pw_env in roles:
-        pw = os.environ.get(pw_env)
-        if not pw:
-            raise SystemExit(f"{pw_env} is not set (needed to ensure the {role} role).")
+    for role in ("analytics_reader", "compliance"):
         if not conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone():
-            conn.execute(
-                sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
-                    sql.Identifier(role), sql.Literal(pw)
-                )
-            )
-        conn.execute(
-            sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
-                sql.Identifier(db), sql.Identifier(role)
-            )
-        )
+            raise SystemExit(f"role {role} is missing — run `make db-roles`.")
 
 
 def main() -> int:

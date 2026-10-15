@@ -41,3 +41,30 @@ def test_load_csv_file_creates_and_loads(tmp_path: Path, analytics):
     finally:
         analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
         analytics.commit()
+
+
+def test_reload_keeps_dependent_views(tmp_path: Path, analytics):
+    """A reload with the same columns must not drop what is built on the table (output-port views,
+    masking views, grants) — only a schema change may."""
+    schema, table = os.environ.get("TEST_SCHEMA", "reference_raw"), "pytest_reload"
+    first, second = tmp_path / "a.csv", tmp_path / "b.csv"
+    first.write_text("id,name\n1,alpha\n", encoding="utf-8")
+    second.write_text("id,name\n2,beta\n3,gamma\n", encoding="utf-8")
+    view = f"{schema}.{table}_v"
+    try:
+        db.load_csv_file(analytics, schema, table, first)
+        analytics.execute(f"CREATE VIEW {view} AS SELECT * FROM {schema}.{table}")
+        analytics.commit()
+
+        assert db.load_csv_file(analytics, schema, table, second) == 2
+        analytics.commit()
+        assert analytics.execute(f"SELECT count(*) FROM {view}").fetchone()[0] == 2  # view survived
+
+        changed = tmp_path / "c.csv"
+        changed.write_text("id,name,extra\n4,delta,x\n", encoding="utf-8")
+        db.load_csv_file(analytics, schema, table, changed)
+        analytics.commit()
+        assert analytics.execute("SELECT to_regclass(%s)", (view,)).fetchone()[0] is None
+    finally:
+        analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table} CASCADE")
+        analytics.commit()

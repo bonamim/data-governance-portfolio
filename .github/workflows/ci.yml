@@ -13,12 +13,11 @@ jobs:
   governance-checks:
     runs-on: ubuntu-latest
     steps:
-      # Third-party actions are pinned to major tags here; pin to a commit SHA
-      # before go-live (docs/production-readiness.md, CI/CD section).
-      - uses: actions/checkout@v4
+      # Actions are pinned to a commit SHA (tag in the comment), enforced by check-pinned-images (X8).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # full history so the breaking-change gate can diff against the base branch
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
       - name: Install workspace
@@ -37,6 +36,8 @@ jobs:
         run: uv run python governance/policies/check_semantics.py
       - name: AI-agent governance (domain-scoped, isolated, owned, no raw PII, ADR-0021)
         run: uv run python governance/policies/check_ai_agents.py
+      - name: Pinned images (every compose image + Dockerfile base by digest, X8)
+        run: uv run python governance/policies/check_pinned_images.py
       - name: ODCS is source of truth (dbt schema not drifted from contracts)
         run: |
           make sync-contracts

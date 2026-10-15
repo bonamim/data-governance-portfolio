@@ -58,6 +58,18 @@ regenerated, not restored.** This keeps backups small and restores simple.
 - Backups encrypted (`repo1-cipher-type=aes-256-cbc`) with the key held in the secrets manager.
 - Retention: 4 weekly fulls; WAL kept for the same window.
 
+### Local implementation (ADR-0022)
+- **`shop_oltp`: point-in-time recovery.** Continuous WAL archiving (`archive_mode=on`,
+  `archive_timeout=60s`) to a dedicated archive volume, plus a physical base backup
+  (`pg_basebackup`) taken by `make backup`. After each base backup the archive is pruned to what that
+  base needs. This is the local stand-in for pgBackRest's full + WAL repository.
+- **Metadata stores** (ingestion ledger, Airflow, DataHub, Superset): logical dumps.
+- Everything goes to the versioned, SSE-encrypted `platform-backups` bucket with a `manifest.json`
+  holding each file's sha256, its backup-time row counts and the output-port baseline. The manifest
+  and the drill contract are the same in production.
+- `make dr-status` is the alert check: it fails if the latest backup is older than 26 h or no drill
+  passed in 7 days.
+
 ### Monitoring
 - Alert when a backup fails or when the latest successful backup is older than its schedule.
 - Alert when replication lag exceeds the RPO.
@@ -82,13 +94,29 @@ Detailed step-by-step runbooks are added to `docs/runbooks/` with each component
 
 ## 5. Restore drills
 
-A backup is only trusted once it has been restored. The repository includes an
-automated **restore drill** (milestone M8) that:
+A backup is only trusted once it has been restored. The repository includes an automated
+**restore drill**, proof **P9** (`make prove-p9` = backup + drill, or `make restore-drill` on the
+latest backup, ADR-0022) that:
 
-1. Restores the latest `shop_oltp` and DataHub backups into fresh, isolated containers.
-2. Rebuilds `analytics` from the landing zone and the restored `shop_oltp`.
-3. Runs every contract quality check against the restored data.
-4. Reports the measured recovery time against the RTO.
+1. **Measures the RPO:** commits a heartbeat row on the live `shop_oltp` (after the backup) and
+   times how long until its WAL segment is archived. That is the real data-loss window, and it must
+   be within the 5-minute RPO.
+2. Verifies every backup file's sha256, then recovers into fresh, isolated containers (the
+   `dgp-drill` compose project: own network, own volumes, the same pinned images and TLS-only
+   Postgres config). `shop_oltp` is **point-in-time recovered** (base backup + WAL replay) and must
+   contain the post-backup heartbeat. DataHub, Airflow, the ingestion ledger and Superset metadata
+   are restored from their dumps. Each must hold at least the backup-time rows.
+3. Rebuilds `analytics` from git (init script), the landing zone and the restored `shop_oltp`,
+   through the real ingestion gate and write-audit-publish.
+4. Runs every contract quality check against the recovered data. It also checks the rebuilt output
+   ports match the pre-disaster row counts and re-runs proof P8 (access control + masking) on the
+   sandbox.
+5. Reports each store's measured recovery time against its RTO, and stores the report in
+   `s3://platform-backups/drills/<timestamp>.json`. It fails unless every check passed and every RTO
+   was met.
 
-The drill runs on a schedule, and its result is a go-live requirement in
-[Production readiness](production-readiness.md).
+Last local run: all checks passed. The heartbeat was archived in 58 s (RPO 300 s, bounded by
+`archive_timeout`), PITR brought it back, and the full recovery (restores + warehouse rebuild) took
+about 50 s at Olist scale. Production runs it weekly against the production backups in a
+recovery environment and alerts on failure or on a stale last pass. Its result is a go-live
+requirement in [Production readiness](production-readiness.md).

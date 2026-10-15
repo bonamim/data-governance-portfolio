@@ -122,7 +122,10 @@ Wiring per client (all point at the *same* server and tools):
    in `.mcp.json` as `DATAHUB_GMS_TOKEN`. Quickstart DataHub may need
    `METADATA_SERVICE_AUTH_ENABLED=true`; without it, the `semantic` server and P10 still work.
 3. Edit [`.mcp.json`](.mcp.json): repo path, the PAT, and the **consumer-role** warehouse URI
-   (`SEMANTIC_WAREHOUSE_URI`).
+   (`SEMANTIC_WAREHOUSE_URI`, as `analytics_reader`). A domain-scoped agent connects as its own
+   `agent_<domain>` role through `SEMANTIC_WAREHOUSE_URI_<DOMAIN>` (the Make targets set both).
+   Postgres is TLS-only, so add `?sslmode=verify-full&sslrootcert=<repo>/platform/infra/tls/out/ca.crt`
+   (or at least `sslmode=require`).
 4. Start the semantic server: `make ai-mcp` (stdio) or `make ai-mcp-http` (remote), then wire your
    client from the table above.
 
