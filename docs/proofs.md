@@ -22,7 +22,7 @@ source types (database and landing-zone files), PII, and cross-domain dependenci
 graph LR
     OLTP[("shop_oltp")] --> CUST["customer.customers"]
     OLTP --> ORD["sales.orders"]
-    S3["landing: reviews files"] --> REV["customer_experience.reviews"]
+    S3["landing-inbox: reviews files"] --> REV["customer_experience.reviews"]
     ORD --> REV
     CUST --> PERF["sales.sales_performance"]
     ORD --> PERF
@@ -47,6 +47,7 @@ Marketplace joins after the slice is proven.
 | **P9** | **Disaster recovery** — restores work within RTO | Run the restore drill | Platform rebuilt from backups and git; all quality checks pass; measured recovery time ≤ RTO |
 | **P10** | **Governed AI — BI and AI agree** — one definition, computed the same way | Ask the governed semantic MCP (the AI's only metric path) and Superset for each metric; also request an ungoverned/PII column | Identical number from the AI path, Superset and a direct-Ossie control; the ungoverned column is refused ("not in the semantic layer") |
 | **P11** | **Agentic mesh** — the AI layer is federated and governable | Scope an agent to one domain and ask for another domain's product; route questions through the orchestrator | A domain agent answers only its own products (isolation); the orchestrator routes each product to its owning domain deterministically; a routed metric equals the direct Ossie number |
+| **P14** | **Landing-zone lifecycle** — every partner file is filed, explained and visible | A partner delivers a contract-violating file, a misnamed file, a good file, and the same file twice | Bad files go to `quarantine/` with `_reason.json` and are never loaded; the good file goes to `accepted/` (partition from the file name, object-locked, retention-tagged) and is loaded; the resend is skipped; the inbox is always drained; the partner is write-only to its own prefix; DataHub shows each rule's FAILURE/SUCCESS per partition on the landing dataset |
 | **P13** | **Production hardening** — controls hold on the running stack | Connect without TLS; inspect roles, logs, objects; run the prod preflight | Plain TCP refused, verify-full over TLS, no superuser/CREATEROLE in automation roles, catalog reader can't write, connections + DDL logged, every object encrypted, dev credentials refused in prod mode, everything pinned, DR fresh |
 | **P12** | **Output-port completeness** — consumers and AI agents never read an undocumented port | Strip a column description, a column classification, the table description, and a semantic field description | Each is blocked in CI (`check-output-ports` / `check-semantics`) naming the missing item; the documented ports pass |
 
@@ -76,10 +77,11 @@ these commands exercise the mechanisms today (platform up — `make up`; catalog
 | Proof | What it checks | Run it today |
 |---|---|---|
 | all governance | boundaries, domain registry, contracts, data products, output ports, breaking-change gate, lint, tests | `make check` + `make check-breaking` |
-| **P2** — landing quality gate | a bad landing file is quarantined, never loaded | land a contract-violating file, then `uv run dgp-ingest load-raw --domain customer_experience`; check `platform_meta.ingestion_ledger` status `quarantined` |
+| **P2** — landing quality gate | a bad landing file is quarantined, never loaded | `make prove-p2` (engine), and end to end on the live platform with `make prove-p14` |
+| **P14** — landing lifecycle | inbox → accepted/quarantine → DataHub, least-privilege access | `make up` (buckets + principals), `make catalog-up`, then `make prove-p14`. By hand: drop a file in `landing-inbox/olist/reviews/` (S3 browser `:9001`), run `uv run dgp-ingest load-raw --domain customer_experience`, look in `landing-archive/quarantine/…/_reason.json` or `accepted/…`, then `make catalog-quality` (automatic when the run is the Airflow `<domain>_ingestion` DAG) and open the landing dataset's **Quality** tab in DataHub (`:9002`) |
 | **P3** — write-audit-publish | a failing DQ build never reaches consumers | raise a contract's `rowCount` floor above the real count, `make publish`; the port keeps its last-good rows, the candidate is dropped (`QUARANTINED`) |
 | **P5** — breaking-change gate | an interface can't break silently | `make prove-p5` (or `make check-breaking` on a branch that edits an output-port contract) |
-| **P6** — idempotency | reruns/backfills don't duplicate | re-trigger `<domain>_ingestion`; the ledger skips unchanged files by ETag (no new rows) |
+| **P6** — idempotency | reruns/backfills don't duplicate | re-deliver an unchanged file: the loader records `skipped` (same checksum as the dataset's latest load) and drains the inbox (asserted in `make prove-p14`) |
 | **P7** — end-to-end lineage | every hop is visible | `make catalog-ingest && make catalog-govern`, then DataHub (`:9002`) or `datahub get --urn <dataset> -a upstreamLineage` |
 | **P10** — governed AI == BI | AI and BI compute the same number from one Ossie definition | `make bi-publish`, then `make prove-p10` (the AI path, Superset and a direct-Ossie control agree per metric; ungoverned columns refused) |
 | **P11** — agentic mesh | the AI layer is federated, isolated and deterministically routed | `make ai-agents` (the registry), then `make prove-p11` (a domain agent serves only its own products; the orchestrator routes each product to its owner; routed number = direct Ossie) |

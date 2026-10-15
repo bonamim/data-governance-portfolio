@@ -324,6 +324,10 @@ check-breaking: ## Breaking-change gate (P5): fail if a changed output-port cont
 prove-p2: ## Proof P2 — a landing file that violates its contract is rejected by the quality gate
 	uv run python proofs/p2_landing_gate.py
 
+.PHONY: prove-p14
+prove-p14: ## Proof P14 — landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)
+	uv run python proofs/p14_landing_lifecycle.py
+
 .PHONY: prove-p5
 prove-p5: $(ENV_FILE) ## Proof P5 — breaking change blocked, then passes with a version bump + approval
 	./proofs/p5_breaking_change.sh
