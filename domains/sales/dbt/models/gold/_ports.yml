@@ -57,7 +57,7 @@ models:
           generated: true
   - name: num_customers
     data_type: integer
-    description: Distinct customers in the state.
+    description: Distinct customer keys (customer_id) in the state. customer_id is issued per order, so this counts order-level buyers, not distinct people.
     data_tests:
     - not_null:
         config:
@@ -98,3 +98,4 @@ models:
       meta:
         datacontract_cli:
           generated: true
+  description: 'One row per customer state: distinct orders and customers, total revenue and average review score.'

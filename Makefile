@@ -232,7 +232,8 @@ catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lin
 	datahub ingest -c platform/catalog/recipes/postgres_oltp.yml; \
 	datahub ingest -c platform/catalog/recipes/postgres_analytics.yml; \
 	for d in customer customer_experience sales; do \
-		DBT_TARGET=$(CURDIR)/domains/$$d/dbt/target datahub ingest -c platform/catalog/recipes/dbt.yml; \
+		DBT_TARGET=$(CURDIR)/domains/$$d/dbt/target DBT_PROJECT=dgp_$$d \
+			datahub ingest -c platform/catalog/recipes/dbt.yml; \
 	done
 
 .PHONY: catalog-govern
@@ -258,6 +259,10 @@ prove-p2: ## Proof P2 — a landing file that violates its contract is rejected 
 prove-p5: $(ENV_FILE) ## Proof P5 — breaking change blocked, then passes with a version bump + approval
 	./proofs/p5_breaking_change.sh
 
+.PHONY: prove-p12
+prove-p12: ## Proof P12 — an output port can't be published undocumented (table, columns, semantic fields)
+	./proofs/p12_port_completeness.sh
+
 .PHONY: prove-p8
 prove-p8: $(ENV_FILE) ## Proof P8 — consumers see PII masked and are denied raw/staging; compliance sees raw (M8)
 	uv run --no-project --with 'psycopg[binary]' python proofs/p8_access_control.py
@@ -276,7 +281,7 @@ prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, dete
 	uv run --no-project --with 'psycopg[binary]' --with pyyaml python proofs/p11_federated_routing.py
 
 .PHONY: prove-all
-prove-all: prove-p2 prove-p5 ## Run the self-contained proofs (P2, P5); P3/P6/P7/P10/P11 need the live platform
+prove-all: prove-p2 prove-p5 prove-p12 ## Run the self-contained proofs (P2, P5, P12); P3/P6/P7/P10/P11 need the live platform
 	@echo "Self-contained proofs passed. P3/P6/P7/P10/P11 run against the live platform (see docs/proofs.md)."
 
 .PHONY: check-semantics

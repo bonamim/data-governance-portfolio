@@ -47,6 +47,7 @@ Marketplace joins after the slice is proven.
 | **P9** | **Disaster recovery** — restores work within RTO | Run the restore drill | Platform rebuilt from backups and git; all quality checks pass; measured recovery time ≤ RTO |
 | **P10** | **Governed AI — BI and AI agree** — one definition, computed the same way | Ask the governed semantic MCP (the AI's only metric path) and Superset for each metric; also request an ungoverned/PII column | Identical number from the AI path, Superset and a direct-Ossie control; the ungoverned column is refused ("not in the semantic layer") |
 | **P11** | **Agentic mesh** — the AI layer is federated and governable | Scope an agent to one domain and ask for another domain's product; route questions through the orchestrator | A domain agent answers only its own products (isolation); the orchestrator routes each product to its owning domain deterministically; a routed metric equals the direct Ossie number |
+| **P12** | **Output-port completeness** — consumers and AI agents never read an undocumented port | Strip a column description, a column classification, the table description, and a semantic field description | Each is blocked in CI (`check-output-ports` / `check-semantics`) naming the missing item; the documented ports pass |
 
 ---
 
@@ -61,8 +62,9 @@ are built; `make prove-all` runs them:
 | **P5** — breaking-change gate | `make prove-p5` | ✅ simulates the PR, asserts blocked → blocked → passes, reverts |
 | **P10** — governed AI == BI | `make prove-p10` | ✅ packaged (needs the live platform + `make bi-publish`): asserts AI = Superset = direct-Ossie per metric |
 | **P11** — agentic mesh | `make prove-p11` | ✅ packaged: domain isolation + deterministic routing run anywhere; the routed-number check uses the live platform |
+| **P12** — output-port completeness | `make prove-p12` | ✅ strips documentation from the real contract + Ossie model, asserts each CI gate blocks, reverts |
 | **P8** — access control + PII masking | `make prove-p8` | ✅ packaged (needs the live platform + `make mask`): consumer denied raw/staging + sees masked, compliance sees raw |
-| — | `make prove-all` | runs the self-contained proofs (P2, P5) |
+| — | `make prove-all` | runs the self-contained proofs (P2, P5, P12) |
 
 The platform-dependent proofs (P3/P6/P7/P10) aren't in `prove-all` (they need a running platform) —
 these commands exercise the mechanisms today (platform up — `make up`; catalog for P7 —

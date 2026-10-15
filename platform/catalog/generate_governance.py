@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -90,6 +92,18 @@ def _search_datasets(platform: str) -> list[str]:
     )
     with urllib.request.urlopen(req) as resp:  # noqa: S310 (local GMS)
         return [e["entity"] for e in json.load(resp)["value"]["entities"]]
+
+
+def _is_ingested(urn: str) -> bool:
+    """True when the entity was ingested (has a schema), not just referenced by a written aspect."""
+    url = f"{GMS}/aspects/{urllib.parse.quote(urn, safe='')}?aspect=schemaMetadata&version=0"
+    try:
+        with urllib.request.urlopen(url):  # noqa: S310 (local GMS)
+            return True
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False
+        raise
 
 
 def _all_dataset_urns() -> list[str]:
@@ -228,15 +242,20 @@ def main() -> int:
     # 5. Link each warehouse dataset to the Airflow DAG that builds it — as node metadata, not a
     #    lineage edge (a DataJob and a dbt model can't merge into one node, so an edge would add a
     #    second upstream; a link keeps the "which DAG builds this" on the node itself). ADR-0018.
+    #    On the dbt node when there is one (the DAG runs dbt; the Postgres sibling's Documentation
+    #    stays the contract's description); on the Postgres node only for tables dbt doesn't know
+    #    (raw tables of domains with no dbt project yet, loaded by their ingestion DAG).
     linked = 0
-    for urn in _all_dataset_urns():
-        dataset_name = urn.split(",")[1]
+    for dataset_name in sorted({u.split(",")[1] for u in _all_dataset_urns()}):
         if not dataset_name.startswith(f"{DB}."):
             continue  # warehouse datasets only (skip the shop_oltp / landing sources)
         schema = dataset_name.split(".")[1]
         domain = _domain_of(schema)
         if not domain:
             continue
+        urn = make_dataset_urn("dbt", dataset_name, "PROD")
+        if not _is_ingested(urn):
+            urn = make_dataset_urn(WAREHOUSE_PLATFORM, dataset_name, "PROD")
         layer = schema[len(domain) + 1 :]  # raw | bronze | silver | gold
         dag = f"{domain}_ingestion" if layer == "raw" else f"{domain}_transform"
         emitter.emit(

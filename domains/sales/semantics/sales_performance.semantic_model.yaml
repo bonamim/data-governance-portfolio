@@ -18,15 +18,19 @@ datasets:
             - dialect: ANSI_SQL
               expression: customer_state
       - name: num_orders
+        description: "Distinct orders placed by customers in the state."
         expression:
           dialects: [{ dialect: ANSI_SQL, expression: num_orders }]
       - name: num_customers
+        description: "Distinct customer keys (customer_id) in the state; customer_id is issued per order, so not distinct people."
         expression:
           dialects: [{ dialect: ANSI_SQL, expression: num_customers }]
       - name: total_revenue
+        description: "Sum of payment value for the state's orders."
         expression:
           dialects: [{ dialect: ANSI_SQL, expression: total_revenue }]
       - name: avg_review_score
+        description: "Average review score (1-5) of the state's reviewed orders."
         expression:
           dialects: [{ dialect: ANSI_SQL, expression: avg_review_score }]
 metrics:
@@ -45,7 +49,7 @@ metrics:
         - dialect: ANSI_SQL
           expression: "SUM(sales_performance.num_orders)"
   - name: customer_count
-    description: "Total distinct customers across the selected states."
+    description: "Total distinct customer keys (customer_id) across the selected states. customer_id is issued per order, so this counts order-level buyers, not distinct people."
     datatype: Integer
     expression:
       dialects:

@@ -10,6 +10,11 @@ clean-targets: ["target", "dbt_packages"]
 # Medallion internal layers; output ports are tagged per-model (ADR-0012).
 models:
   dgp_customer:
+    # Write model/column descriptions into the warehouse as COMMENTs, so the table/view asset
+    # itself is documented (not just the dbt node) for DataHub and any other reader.
+    +persist_docs:
+      relation: true
+      columns: true
     bronze:
       +schema: bronze
       +materialized: view

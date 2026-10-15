@@ -26,6 +26,7 @@ models:
       meta:
         datacontract_cli:
           generated: true
+    description: Review identifier.
   - name: order_id
     data_type: text
     data_tests:
@@ -43,6 +44,7 @@ models:
       meta:
         datacontract_cli:
           generated: true
+    description: The reviewed order; joins to sales.orders.
   - name: review_score
     data_type: integer
     data_tests:
@@ -60,6 +62,7 @@ models:
       meta:
         datacontract_cli:
           generated: true
+    description: Customer satisfaction score from 1 (worst) to 5 (best).
   - name: has_comment
     data_type: boolean
     data_tests:
@@ -77,6 +80,7 @@ models:
       meta:
         datacontract_cli:
           generated: true
+    description: True when the customer left a free-text comment. The comment itself is not published (it can carry PII).
   - name: review_creation_date
     data_type: timestamp
     data_tests:
@@ -94,9 +98,12 @@ models:
       meta:
         datacontract_cli:
           generated: true
+    description: Date the satisfaction survey was sent to the customer.
   - name: review_answer_timestamp
     data_type: timestamp
     config:
       meta:
         datacontract_cli:
           generated: true
+    description: When the customer answered the survey; null if not yet answered.
+  description: 'One row per customer satisfaction review of an order: the score, when it was sent and answered, and whether it has a comment.'

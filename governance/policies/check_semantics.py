@@ -5,6 +5,10 @@ Every Apache Ossie semantic model (``domains/*/semantics/*.semantic_model.yaml``
 on **governed output-port columns**: each dataset's ``source`` resolves to an output port (its ODCS
 contract), and every field and metric references a column that exists in that contract. So the
 business semantics that Superset and the AI agent compute can't drift from the data contract.
+
+Every dataset, field and metric must also carry a ``description``: the semantic MCP hands these
+to the AI agent verbatim (``list_metrics``), and an agent with no description guesses the meaning
+from the name — e.g. counting ``customer_id`` (per order) as people.
 """
 
 from __future__ import annotations
@@ -64,6 +68,11 @@ def main() -> int:
                 )
                 continue
             governed |= cols
+            if not str(ds.get("description") or "").strip():
+                errors.append(f"{rel}: dataset '{ds.get('name')}' has no description")
+            for f in ds.get("fields") or []:
+                if not str(f.get("description") or "").strip():
+                    errors.append(f"{rel}: field '{f.get('name')}' has no description")
             bad_fields = {f.get("name") for f in ds.get("fields") or []} - cols - {None}
             if bad_fields:
                 errors.append(
@@ -72,6 +81,8 @@ def main() -> int:
                 )
 
         for metric in spec.get("metrics") or []:
+            if not str(metric.get("description") or "").strip():
+                errors.append(f"{rel}: metric '{metric.get('name')}' has no description")
             bad = _metric_refs(metric) - governed
             if bad:
                 errors.append(
@@ -84,7 +95,10 @@ def main() -> int:
         for e in errors:
             print(f"  - {e}")
         return 1
-    print(f"Semantic governance OK: {len(models)} semantic model(s), all on contract columns.")
+    print(
+        f"Semantic governance OK: {len(models)} semantic model(s), all on contract columns"
+        " and fully described."
+    )
     return 0
 
 

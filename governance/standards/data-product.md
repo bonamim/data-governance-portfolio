@@ -41,6 +41,14 @@ publish:                   # optional (ADR-0014). Default: publish in place.
 | every `output_port` points at a valid ODCS contract | same + `datacontract lint` |
 | `inputs` reference data products (output ports), never raw/staging | same |
 | aggregate products declare **≥ 3** consuming teams | same |
+| **output-port completeness** — the output-port contract's table has a `description`, and every column has a `description` and a `classification` | `governance/policies/check_output_ports.py` (proof P12) |
+| every Ossie semantic dataset, field and metric has a `description` (it is what the AI agent reads) | `governance/policies/check_semantics.py` (proof P12) |
+
+An output port is an interface consumers read **without asking the owner** — people in the
+catalog, Superset, and AI agents through the semantic MCP. A column with no description is a
+promise nobody made: a person can ask, an agent guesses from the name and answers confidently.
+So completeness blocks publishing; it is not a warning. (`datacontract lint` does not cover it:
+ODCS makes `description` optional.)
 
 ## 3. Heuristics (review guidance in the publishing guardrails)
 

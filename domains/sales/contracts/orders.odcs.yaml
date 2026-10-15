@@ -9,6 +9,7 @@ description:
 domain: sales
 schema:
 - name: orders
+  description: One row per customer order, with its status and lifecycle timestamps (purchase, approval, delivery, estimated delivery).
   physicalType: table
   properties:
   - name: order_id

@@ -72,6 +72,7 @@ models:
       meta:
         datacontract_cli:
           generated: true
+    description: City of the customer's delivery address (lower case, as entered).
   - name: customer_state
     data_type: text
     data_tests:
@@ -89,6 +90,7 @@ models:
       meta:
         datacontract_cli:
           generated: true
+    description: Two-letter Brazilian state of the customer's delivery address (e.g. SP, RJ).
   - name: customer_unique_id
     data_type: text
     description: "The person identifier (links a person's orders). PII — masked at read by role: consumers see a hash pseudonym, the compliance role sees the raw value."
@@ -107,3 +109,4 @@ models:
       meta:
         datacontract_cli:
           generated: true
+  description: One row per order-level customer key, with the customer's location and a person identifier masked by role.

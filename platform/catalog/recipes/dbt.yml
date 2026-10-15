@@ -10,6 +10,12 @@ source:
     run_results_paths:
       - "${DBT_TARGET}/run_results.json"
     target_platform: postgres
+    # Emit only this project's nodes. dbt-loom puts other domains' public models in the manifest
+    # as stubs (no descriptions); emitting them would overwrite the owning domain's node.
+    # They still resolve lineage, so the cross-domain edges remain.
+    node_name_pattern:
+      allow:
+        - "^[a-z_]+\\.${DBT_PROJECT}\\."
     # dbt tests become DataHub assertions on the modelled datasets.
     entities_enabled:
       test_results: "YES"

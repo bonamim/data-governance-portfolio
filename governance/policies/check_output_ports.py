@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publishing guardrails: an output port is declared in ODCS, built, and defined.
+"""Publishing guardrails: an output port is declared in ODCS, built, defined and documented.
 
 Publishing is a deliberate act (ADR-0012): a model is an output port only when its
 ODCS contract carries the `output_port` tag (which `datacontract dbt sync` then
@@ -8,7 +8,11 @@ nothing is published by accident and nothing is contracted in vain:
 
   - every output-port contract (tag `output_port`) has a data product definition and
     a dbt model named after it (in some medallion layer);
-  - every data product definition corresponds to an output-port contract.
+  - every data product definition corresponds to an output-port contract;
+  - every output-port contract is complete (governance/standards/data-product.md): the
+    table has a description, and every column has a description and a classification.
+    A port is an interface consumers (people, BI and AI agents) read without asking
+    the owner, so a blank column is a promise nobody made.
 """
 
 from __future__ import annotations
@@ -26,15 +30,36 @@ def _domain_of(path: Path) -> str:
     return rel[1] if rel[0] == "domains" else "reference"
 
 
-def contract_ports() -> dict[str, str]:
-    """Return {product: domain} for every output-port ODCS contract (tag output_port)."""
-    ports: dict[str, str] = {}
+def _port_contracts() -> dict[str, tuple[str, Path, dict]]:
+    """Return {product: (domain, path, schema object)} for every output-port ODCS contract."""
+    ports: dict[str, tuple[str, Path, dict]] = {}
     for c in REPO_ROOT.glob("domains/*/contracts/*.odcs.yaml"):  # excludes contracts/landing/
         doc = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
         schema = (doc.get("schema") or [{}])[0]
         if "output_port" in (schema.get("tags") or []):
-            ports[schema.get("name", c.stem)] = _domain_of(c)
+            ports[schema.get("name", c.stem)] = (_domain_of(c), c, schema)
     return ports
+
+
+def _is_described(text: object, name: str) -> bool:
+    """A real description: non-blank and not just the column name restated."""
+    t = str(text or "").strip()
+    return bool(t) and t.lower().replace(" ", "_") != name.lower()
+
+
+def completeness_violations(schema: dict, where: str) -> list[str]:
+    """Missing documentation on one output-port schema object (table + columns)."""
+    out: list[str] = []
+    table = schema.get("name", "?")
+    if not _is_described(schema.get("description"), table):
+        out.append(f"{where}: table '{table}' has no description")
+    for prop in schema.get("properties") or []:
+        col = prop.get("name", "?")
+        if not _is_described(prop.get("description"), col):
+            out.append(f"{where}: column '{col}' has no description")
+        if not prop.get("classification"):
+            out.append(f"{where}: column '{col}' has no classification")
+    return out
 
 
 def _model_file(domain: str, product: str) -> Path | None:
@@ -48,17 +73,18 @@ def _definitions() -> set[str]:
 
 
 def main() -> int:
-    ports = contract_ports()
+    ports = _port_contracts()
     defs = _definitions()
     violations: list[str] = []
 
-    for product, domain in ports.items():
+    for product, (domain, path, schema) in ports.items():
         if product not in defs:
             violations.append(
                 f"output-port contract '{product}' ({domain}) has no data product definition"
             )
         if _model_file(domain, product) is None:
             violations.append(f"output-port contract '{product}' ({domain}) has no dbt model")
+        violations += completeness_violations(schema, str(path.relative_to(REPO_ROOT)))
 
     for product in defs:
         if product not in ports:
@@ -70,9 +96,15 @@ def main() -> int:
         print("Output port (publishing guardrail) violations:\n")
         for v in violations:
             print(f"  - {v}")
-        print(f"\n{len(violations)} violation(s). See docs/adr/0012-medallion-and-output-ports.md")
+        print(
+            f"\n{len(violations)} violation(s). See docs/adr/0012-medallion-and-output-ports.md"
+            " and governance/standards/data-product.md (output-port completeness)."
+        )
         return 1
-    print(f"Output ports OK: {len(ports)} published port(s), each contracted, built and defined.")
+    print(
+        f"Output ports OK: {len(ports)} published port(s), each contracted, built, defined"
+        " and fully documented."
+    )
     return 0
 
 

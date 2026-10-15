@@ -11,20 +11,24 @@ description:
 domain: customer_experience
 schema:
   - name: reviews
+    description: "One row per customer satisfaction review of an order: the score, when it was sent and answered, and whether it has a comment."
     physicalType: table
     tags: [output_port]
     properties:
       - name: review_id
+        description: "Review identifier."
         logicalType: string
         physicalType: text
         required: true
         classification: internal
       - name: order_id
+        description: "The reviewed order; joins to sales.orders."
         logicalType: string
         physicalType: text
         required: true
         classification: internal
       - name: review_score
+        description: "Customer satisfaction score from 1 (worst) to 5 (best)."
         logicalType: integer
         physicalType: integer
         required: true
@@ -33,16 +37,19 @@ schema:
           minimum: 1
           maximum: 5
       - name: has_comment
+        description: "True when the customer left a free-text comment. The comment itself is not published (it can carry PII)."
         logicalType: boolean
         physicalType: boolean
         required: true
         classification: public
       - name: review_creation_date
+        description: "Date the satisfaction survey was sent to the customer."
         logicalType: date
         physicalType: timestamp
         required: true
         classification: public
       - name: review_answer_timestamp
+        description: "When the customer answered the survey; null if not yet answered."
         logicalType: date
         physicalType: timestamp
         required: false

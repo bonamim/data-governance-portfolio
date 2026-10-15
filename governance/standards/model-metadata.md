@@ -32,5 +32,10 @@ so no ODCS contract, no classification, no SLA.
 Publishing is one deliberate step: write an **ODCS output-port contract** for the
 model (with `tags: [output_port]`) and a **data product definition**. `make
 sync-contracts` then seeds and fills the model's entry in `_ports.yml`, and the
-publishing guardrail (`check_output_ports.py`) starts enforcing it. The model keeps
+publishing guardrail (`check_output_ports.py`) starts enforcing it.
+
+Unlike an internal model, a port's metadata **is** a CI gate: the contract must describe the
+table (`schema[].description`, synced to the dbt model description) and every column (a
+`description` and a `classification`). See *output-port completeness* in
+[data-product.md](data-product.md). The model keeps
 living in whatever layer it already was — Bronze, Silver or Gold.

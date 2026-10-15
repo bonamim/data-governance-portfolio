@@ -13,6 +13,7 @@ description:
 domain: customer
 schema:
   - name: customers
+    description: "One row per order-level customer key, with the customer's location and a person identifier masked by role."
     physicalType: table
     tags: [output_port]
     properties:
@@ -41,11 +42,13 @@ schema:
         required: true
         classification: internal
       - name: customer_city
+        description: "City of the customer's delivery address (lower case, as entered)."
         logicalType: string
         physicalType: text
         required: true
         classification: public
       - name: customer_state
+        description: "Two-letter Brazilian state of the customer's delivery address (e.g. SP, RJ)."
         logicalType: string
         physicalType: text
         required: true
