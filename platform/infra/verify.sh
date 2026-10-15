@@ -13,7 +13,7 @@ ok()   { echo "  ok: $1"; }
 echo "== MinIO buckets =="
 buckets="$($COMPOSE run --rm --no-deps -T --entrypoint bash minio-init -c \
   'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null && mc ls local' 2>/dev/null || true)"
-for b in "$LANDING_BUCKET" "$STATE_BUCKET"; do
+for b in "${LANDING_INBOX_BUCKET:-landing-inbox}" "${LANDING_ARCHIVE_BUCKET:-landing-archive}" "$STATE_BUCKET"; do
   echo "$buckets" | grep -q "$b/" && ok "bucket $b exists" || fail "bucket $b missing"
 done
 

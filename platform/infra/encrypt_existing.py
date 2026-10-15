@@ -20,7 +20,8 @@ import sys
 import boto3
 
 BUCKETS = [
-    os.environ.get("LANDING_BUCKET", "landing"),
+    os.environ.get("LANDING_INBOX_BUCKET", "landing-inbox"),
+    os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive"),
     os.environ.get("STATE_BUCKET", "platform-state"),
     os.environ.get("BACKUP_BUCKET", "platform-backups"),
 ]

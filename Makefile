@@ -168,6 +168,14 @@ test: ## Run the Python test suite
 check-boundaries: ## Enforce ADR-0008 module boundaries (governance policy)
 	uv run python governance/policies/check_boundaries.py
 
+.PHONY: landing-access
+landing-access: ## Regenerate landing-zone access policies from sources.yml (ADR-0024; applied by `make up`)
+	uv run python platform/access/landing_access.py
+
+.PHONY: check-landing-access
+check-landing-access: ## Fail if the committed landing access policies drift from sources.yml
+	uv run python platform/access/landing_access.py --check
+
 .PHONY: check-contracts
 check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
 	uv run python governance/policies/check_contracts.py
@@ -359,4 +367,4 @@ check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, 
 	uv run python governance/policies/check_ai_agents.py
 
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-data-products check-output-ports check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks

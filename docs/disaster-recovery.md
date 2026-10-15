@@ -46,8 +46,9 @@ regenerated, not restored.** This keeps backups small and restores simple.
 
 ### MinIO
 - **Versioning** on all buckets — protects against overwrite and accidental delete.
-- **Object lock** (governance mode) on `landing` with a retention period — protects against
-  ransomware and malicious delete.
+- **Object lock** on `landing-archive` (enabled at creation, no bucket default): every accepted file is
+  locked for its contract's retention class (GOVERNANCE locally, COMPLIANCE in production) —
+  protects against ransomware and malicious delete; quarantine stays unlocked and expires (ADR-0024).
 - **Replication** to a second MinIO site or a cloud bucket in another region.
 
 ### PostgreSQL (`shop_oltp`, `analytics`, DataHub, Airflow, Superset metadata)

@@ -39,7 +39,7 @@ cross-cutting rows.
 | Application access | — | One MinIO user per writer/reader with a bucket-scoped policy (e.g. `landing-writer`, `landing-reader`) |
 | Public access | None | None — anonymous bucket policies forbidden |
 | Versioning | On | On for every bucket (recovers overwritten or deleted files) |
-| Object lock | Off | On (governance mode) for the landing bucket — raw files are immutable evidence |
+| Object lock | On for `landing-archive`, per accepted object, GOVERNANCE (ADR-0024) | Same, COMPLIANCE mode — accepted files are immutable evidence |
 | Encryption | SSE-S3 on every bucket (built-in KMS, static key) | SSE with an external KMS (MinIO KES) |
 | Replication | Off | Site or bucket replication to a second location |
 | Lifecycle | None | Expire noncurrent versions after the retention period |
@@ -203,8 +203,8 @@ Clients verify against the CA, and the s3-browser is not deployed in production.
   **no published ports** and are reachable only from the services that need them.
 - Allow-list per flow, for example: Airflow workers → Postgres/MinIO; DataHub GMS → MySQL/OpenSearch/Kafka;
   Superset → analytics (read-only role); MCP servers → analytics + DataHub GMS.
-- Partners write to the landing bucket through a dedicated endpoint with per-partner write-only
-  credentials (ADR-0016).
+- Partners write to `landing-inbox/<source>/` through a dedicated endpoint with per-partner write-only
+  credentials (generated policies, ADR-0024; event trigger ADR-0016).
 
 ### 4.5 Encryption at rest (X7)
 
@@ -213,8 +213,9 @@ Clients verify against the CA, and the s3-browser is not deployed in production.
   asserts that every current object is encrypted. Production replaces the static key with KES.
 - Volumes on encrypted disks (LUKS / cloud EBS-PD-managed-disk encryption with a customer key).
 - MinIO: KES with an external KMS (`MINIO_KMS_KES_ENDPOINT`, `MINIO_KMS_KES_KEY_NAME`) and
-  `mc encrypt set sse-kms <key> <alias>/<bucket>` on every bucket. `landing` and the backup bucket are
-  created `--with-lock` with `mc retention set --default GOVERNANCE <days>`.
+  `mc encrypt set sse-kms <key> <alias>/<bucket>` on every bucket. `landing-archive` is created
+  `--with-lock` with NO default retention (the loader locks accepted objects; quarantine must expire);
+  the backup bucket is created `--with-lock` with `mc retention set --default GOVERNANCE <days>`.
 - Backups: pgBackRest `repo1-cipher-type=aes-256-cbc` with the passphrase in the secrets manager.
 - PII: role-based masking at read (ADR-0013). Optionally `pgcrypto`/column encryption for the most
   sensitive fields.

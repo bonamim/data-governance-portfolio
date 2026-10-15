@@ -61,9 +61,16 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      LANDING_BUCKET: ${LANDING_BUCKET}
+      LANDING_INBOX_BUCKET: ${LANDING_INBOX_BUCKET:-landing-inbox}
+      LANDING_ARCHIVE_BUCKET: ${LANDING_ARCHIVE_BUCKET:-landing-archive}
       STATE_BUCKET: ${STATE_BUCKET}
       BACKUP_BUCKET: ${BACKUP_BUCKET:-platform-backups}
+      # Secrets of the principals in platform/access/landing/principals.tsv (ADR-0024).
+      LANDING_LOADER_SECRET_KEY: ${LANDING_LOADER_SECRET_KEY:-}
+      LANDING_PARTNER_OLIST_SECRET: ${LANDING_PARTNER_OLIST_SECRET:-}
+    volumes:
+      # Generated from sources.yml by platform/access/landing_access.py (committed, CI drift guard).
+      - ../access/landing:/landing-access:ro
     entrypoint:
       - /bin/bash
       - -c
@@ -78,17 +85,51 @@ services:
           echo "waiting for MinIO S3 API ($$attempt/30)..."; sleep 2
         done
         mc ready local
-        for bucket in "$$LANDING_BUCKET" "$$STATE_BUCKET"; do
-          mc mb --ignore-existing "local/$$bucket"
-          mc version enable "local/$$bucket"
-          # Retention (ADR-0011): keep current versions; expire superseded/deleted
-          # versions after the retention window so storage does not grow forever.
-          # Production also sets object-lock on landing (production-readiness.md).
-          mc encrypt set sse-s3 "local/$$bucket" >/dev/null   # encryption at rest (X7)
-          mc ilm rule add --noncurrent-expire-days 365 "local/$$bucket" >/dev/null 2>&1 \
-            || mc ilm rule add --expire-days 365 --noncurrent-expire-days 365 "local/$$bucket" >/dev/null 2>&1 || true
-          echo "bucket ready (versioned, SSE-S3, 365d retention): $$bucket"
+        # Platform state (dbt artifacts, ADR-0006): versioned, superseded versions kept 365d.
+        mc mb --ignore-existing "local/$$STATE_BUCKET"
+        mc version enable "local/$$STATE_BUCKET"
+        mc encrypt set sse-s3 "local/$$STATE_BUCKET" >/dev/null   # encryption at rest (X7)
+        mc ilm rule add --noncurrent-expire-days 365 "local/$$STATE_BUCKET" >/dev/null 2>&1 || true
+        echo "bucket ready (versioned, SSE-S3, 365d noncurrent): $$STATE_BUCKET"
+
+        # Landing zone = two buckets keyed by lifecycle stage (ADR-0024). Rules are by prefix or
+        # tag, so their number stays fixed however many sources are onboarded.
+        ilm_once() {  # add a lifecycle rule unless one with the same prefix/tag filter exists
+          local bucket=$$1 filter=$$2; shift 2
+          mc ilm rule ls --json "local/$$bucket" 2>/dev/null | grep -q -- "$$filter" && return 0
+          mc ilm rule add "$$@" "local/$$bucket" >/dev/null
+        }
+        # Inbox: partner-facing and transient. Anything still here after 30 days was never claimed.
+        mc mb --ignore-existing "local/$$LANDING_INBOX_BUCKET"
+        mc version enable "local/$$LANDING_INBOX_BUCKET"
+        mc encrypt set sse-s3 "local/$$LANDING_INBOX_BUCKET" >/dev/null
+        ilm_once "$$LANDING_INBOX_BUCKET" '"Days":30' --expire-days 30 --noncurrent-expire-days 7
+        echo "bucket ready (versioned, SSE-S3, 30d safety-net expiry): $$LANDING_INBOX_BUCKET"
+        # Archive: object lock ENABLED but no default retention: the loader locks accepted files
+        # per object, so quarantined files stay deletable at 90 days.
+        if ! mc stat "local/$$LANDING_ARCHIVE_BUCKET" >/dev/null 2>&1; then
+          mc mb --with-lock "local/$$LANDING_ARCHIVE_BUCKET"
+        fi
+        mc encrypt set sse-s3 "local/$$LANDING_ARCHIVE_BUCKET" >/dev/null
+        for days in 90 365 2555; do   # one rule per retention class (layout.RETENTION_CLASSES)
+          ilm_once "$$LANDING_ARCHIVE_BUCKET" "\"Value\":\"$${days}d\"" \
+            --tags "retention-class=$${days}d" --expire-days "$$days" --noncurrent-expire-days 30
         done
+        ilm_once "$$LANDING_ARCHIVE_BUCKET" '"quarantine/"' --prefix "quarantine/" --expire-days 90
+        echo "bucket ready (object lock, SSE-S3, retention by tag, quarantine 90d): $$LANDING_ARCHIVE_BUCKET"
+
+        # Least-privilege principals (generated policies; secrets from .env / secrets manager).
+        for f in /landing-access/policies/*.json; do
+          mc admin policy create local "$$(basename "$$f" .json)" "$$f" >/dev/null
+        done
+        while IFS=$$'\t' read -r user policy secret_var; do
+          case "$$user" in ''|'#'*) continue ;; esac
+          secret="$${!secret_var:-}"
+          if [ -z "$$secret" ]; then echo "WARN: $$secret_var unset, principal $$user not created"; continue; fi
+          mc admin user add local "$$user" "$$secret" >/dev/null
+          mc admin policy attach local "$$policy" --user "$$user" >/dev/null 2>&1 || true
+          echo "principal ready: $$user -> $$policy"
+        done < /landing-access/principals.tsv
         # Backups (DR §3, proof P9): versioned, ~4 weekly cycles kept. Production puts this in a
         # DIFFERENT location from the landing zone, object-locked and replicated.
         mc mb --ignore-existing "local/$$BACKUP_BUCKET"
