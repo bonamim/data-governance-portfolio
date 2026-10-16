@@ -1,90 +1,80 @@
 #!/usr/bin/env python3
-"""Write-audit-publish orchestrator (ADR-0014/0015, proof P3).
+"""Write-audit-publish orchestrator for the CLI (ADR-0014/0015, proof P3).
 
-This only *sequences* dbt — all the publish SQL lives in the `dgp_dbt` package macros
-(`wap_publish` / `wap_drop_candidates`), so there is no hand-rolled SQL outside the dbt
-projects. For each domain:
+Runs the same per-model steps as the Airflow transform DAG (``dgp_platform_orchestration.wap``);
+all publish SQL lives in the ``dgp_dbt`` package macros. For each domain, in dependency order:
 
-  1. ``dbt deps``                                 install the shared macros
-  2. ``dbt build --vars '{wap: true, …}'``        WRITE opted-in table ports to
-                                                  ``<name>__candidate`` and AUDIT them
-                                                  (the contract DQ runs in the build)
-  3. pass → ``dbt run-operation wap_publish``          PUBLISH: dependency-safe atomic swap
-     fail → ``dbt run-operation wap_drop_candidates``  QUARANTINE: drop candidates, keep
-                                                       consumers on the last good version
+  1. core           ``dbt build`` of everything except opted-in models and their descendants
+  2. per WAP model  ``wap_prepare`` → ``dbt build`` to ``<name>__candidate`` (WRITE + AUDIT: the
+                    contract DQ runs in the build) → pass: ``wap_promote`` / fail:
+                    ``wap_drop_candidate`` (QUARANTINE: consumers keep the last good version)
+  3. descendants    of promoted models (those of a quarantined one keep its last good version)
+  4. masking + consumer grants; on success the manifest is saved as dbt state (Slim CI)
 
-Opt-in is per data product (``publish: {audit: required}``); everything else builds in place.
-Run: ``make publish``.
+Opt-in is per data product (``publish: {audit: required}``). A microbatch model is audited and
+merged per batch window: by default the latest batches, or ``--event-time-start/--end`` for a
+backfill. ``--full-refresh`` rebuilds incremental models in full.
+Run: ``make publish`` (or ``make backfill DOMAIN=sales START=2017-01-01 END=2017-03-01``).
 """
 
 from __future__ import annotations
 
-import json
-import shutil
+import argparse
+import logging
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
-import yaml
+from dgp_platform_orchestration import dbt_state, wap
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PROFILES = REPO_ROOT / "platform" / "transform"
-DOMAINS = ["customer", "customer_experience", "sales"]  # dependency order
-
-
-def _wap_products() -> dict[str, list[str]]:
-    """domain -> [product, …] for every product opting in to WAP (publish.audit == required)."""
-    out: dict[str, list[str]] = {}
-    for p in REPO_ROOT.glob("domains/*/data_products/*.yaml"):
-        defn = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-        if (defn.get("publish") or {}).get("audit") == "required":
-            out.setdefault(p.relative_to(REPO_ROOT).parts[1], []).append(defn["name"])
-    return out
-
-
-def _dbt(domain: str, *args: str) -> int:
-    dbt = shutil.which("dbt") or "dbt"
-    cwd = REPO_ROOT / "domains" / domain / "dbt"  # cwd so dbt-loom finds its config
-    return subprocess.run([dbt, *args, "--profiles-dir", str(PROFILES)], cwd=cwd).returncode
 
 
 def _grant() -> None:
     """Re-apply masking views, then consumer grants.
 
-    A rebuild/swap drops table grants, and dbt's table swap drops the backup table with CASCADE —
-    taking the role-aware masking views (ADR-0013) with it. So masking is re-applied before grants.
+    dbt's view and table materializations swap relations and drop the old one with CASCADE —
+    taking the role-aware masking views (ADR-0013) and grants with them. So masking is re-applied
+    before grants after every domain.
     """
     access = REPO_ROOT / "platform" / "access"
-    subprocess.run([sys.executable, str(access / "apply_masking.py")])
-    subprocess.run([sys.executable, str(access / "grant_consumers.py")])
+    subprocess.run([sys.executable, str(access / "apply_masking.py")], check=False)
+    subprocess.run([sys.executable, str(access / "grant_consumers.py")], check=False)
+
+
+def _date(value: str | None) -> datetime | None:
+    return datetime.fromisoformat(value) if value else None
 
 
 def main() -> int:
-    import argparse
-
     parser = argparse.ArgumentParser(description="Write-audit-publish output ports.")
     parser.add_argument("--domain", help="publish only this domain (default: all, in order)")
+    parser.add_argument("--event-time-start", help="backfill window start (microbatch models)")
+    parser.add_argument("--event-time-end", help="backfill window end, exclusive")
+    parser.add_argument("--full-refresh", action="store_true", help="rebuild incrementals in full")
+    parser.add_argument("--no-state", action="store_true", help="don't save the dbt state")
     args = parser.parse_args()
-    domains = [args.domain] if args.domain else DOMAINS
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    wap = _wap_products()
     exit_code = 0
-    for domain in domains:
-        products = wap.get(domain, [])
-        _dbt(domain, "deps")
-        wap_vars = "{wap: true, wap_products: [" + ", ".join(products) + "]}"
-        rc = _dbt(domain, "build", "--vars", wap_vars)
-        if rc == 0:
-            op_args = json.dumps({"domain": domain, "products": products})
-            if _dbt(domain, "run-operation", "wap_publish", "--args", op_args) != 0:
-                exit_code = 1
-        else:
-            op_args = json.dumps({"domain": domain})
-            _dbt(domain, "run-operation", "wap_drop_candidates", "--args", op_args)
-            print(f"  QUARANTINED {domain}: audit failed — kept last good, dropped candidate(s)")
-            exit_code = 1
+    for domain in [args.domain] if args.domain else wap.DOMAINS:
+        ok = wap.publish_domain(
+            REPO_ROOT,
+            domain,
+            start=_date(args.event_time_start),
+            end=_date(args.event_time_end),
+            full_refresh=args.full_refresh,
+        )
         # Grant after each domain so the next one can read its upstream ports.
         _grant()
+        if not ok:
+            print(
+                f"  QUARANTINED {domain}: an audit failed — its last good version stays published"
+            )
+            exit_code = 1
+        elif not args.no_state:
+            dbt_state.save(wap.project_dir(REPO_ROOT, domain) / "target" / "manifest.json", domain)
     return exit_code
 
 

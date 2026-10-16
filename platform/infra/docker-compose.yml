@@ -68,9 +68,12 @@ services:
       # Secrets of the principals in platform/access/landing/principals.tsv (ADR-0024).
       LANDING_LOADER_SECRET_KEY: ${LANDING_LOADER_SECRET_KEY:-}
       LANDING_PARTNER_OLIST_SECRET: ${LANDING_PARTNER_OLIST_SECRET:-}
+      DBT_STATE_USER: ${DBT_STATE_USER:-dbt-state}
+      DBT_STATE_SECRET_KEY: ${DBT_STATE_SECRET_KEY:-}
     volumes:
       # Generated from sources.yml by platform/access/landing_access.py (committed, CI drift guard).
       - ../access/landing:/landing-access:ro
+      - ../access/state:/state-access:ro
     entrypoint:
       - /bin/bash
       - -c
@@ -130,6 +133,15 @@ services:
           mc admin policy attach local "$$policy" --user "$$user" >/dev/null 2>&1 || true
           echo "principal ready: $$user -> $$policy"
         done < /landing-access/principals.tsv
+        # dbt state writer (ADR-0015 §3): read/write on platform-state/dbt/* only.
+        mc admin policy create local dbt-state /state-access/dbt-state.json >/dev/null
+        if [ -n "$${DBT_STATE_SECRET_KEY:-}" ]; then
+          mc admin user add local "$$DBT_STATE_USER" "$$DBT_STATE_SECRET_KEY" >/dev/null
+          mc admin policy attach local dbt-state --user "$$DBT_STATE_USER" >/dev/null 2>&1 || true
+          echo "principal ready: $$DBT_STATE_USER -> dbt-state"
+        else
+          echo "WARN: DBT_STATE_SECRET_KEY unset, principal $$DBT_STATE_USER not created"
+        fi
         # Backups (DR §3, proof P9): versioned, ~4 weekly cycles kept. Production puts this in a
         # DIFFERENT location from the landing zone, object-locked and replicated.
         mc mb --ignore-existing "local/$$BACKUP_BUCKET"

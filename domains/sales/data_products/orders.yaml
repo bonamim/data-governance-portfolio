@@ -2,6 +2,8 @@
 name: orders
 display_name: "Order Book"
 type: source-aligned
+publish:
+  audit: required   # write-audit-publish: each batch is audited before it is merged (ADR-0015).
 purpose: "Publish the authoritative record of customer orders and their lifecycle status."
 owner:
   team: sales

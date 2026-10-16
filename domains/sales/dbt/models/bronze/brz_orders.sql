@@ -1,4 +1,6 @@
 -- Bronze: standardized orders from raw (typed, empty strings -> NULL). Internal.
+-- event_time lets the microbatch port (sales.orders) read only each batch's rows.
+{{ config(event_time='order_purchase_timestamp') }}
 select
     order_id,
     customer_id,

@@ -315,7 +315,9 @@ def run(keep: bool) -> int:
                 load.stderr[-400:] if load.returncode else "",
             )
             pub = subprocess.run(
-                ["uv", "run", "--group", "dbt", "python", "platform/transform/publish.py"],
+                # --no-state: the drill's rebuild must not replace the live dbt state baseline.
+                ["uv", "run", "--group", "dbt", "python", "platform/transform/publish.py",
+                 "--no-state"],
                 cwd=REPO_ROOT, env=env, capture_output=True, text=True,
             )  # fmt: skip
             passed = re.findall(r"Done\. PASS=(\d+) WARN=(\d+) ERROR=(\d+)", pub.stdout)
