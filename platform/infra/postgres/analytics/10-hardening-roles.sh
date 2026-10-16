@@ -10,6 +10,9 @@
 #   agent_<domain>  one read-only role per federated domain agent (ADR-0021); granted only its own
 #                   domain's output ports by grant_consumers.py, so isolation holds in the database
 #                   too, not just in the agent's code.
+#   landing_events  the landing arrival queue (ADR-0016): MinIO's bucket notifications append to
+#                   landing_events.arrivals and Airflow's arrival trigger drains it. Owns that one
+#                   schema; reads nothing else (the local stand-in for an SQS queue).
 set -euo pipefail
 
 DOMAINS="sales customer marketplace customer_experience reference"
@@ -32,6 +35,8 @@ agent_password() {
 
 ensure_login access_admin "$ACCESS_ADMIN_PASSWORD"
 ensure_login catalog_reader "$CATALOG_READER_PASSWORD"
+ensure_login landing_events "$LANDING_EVENTS_PASSWORD"
+run_sql -c "CREATE SCHEMA IF NOT EXISTS landing_events AUTHORIZATION landing_events"
 for domain in $DOMAINS; do
 	ensure_login "agent_${domain}" "$(agent_password "$domain")"
 	run_sql -c "GRANT ${domain}_role TO access_admin"
@@ -57,4 +62,4 @@ run_sql <<-SQL
 	\$\$;
 SQL
 
-echo "analytics: access_admin, catalog_reader and agent_<domain> roles ensured."
+echo "analytics: access_admin, catalog_reader, landing_events and agent_<domain> roles ensured."
