@@ -9,6 +9,7 @@ A partner delivers files into the inbox; the contract gate files each one to ``a
   0. layout     archive has object lock + one lifecycle rule per retention class + quarantine rule
   1. bad data   null order_id + review_score 99 -> quarantined, reason recorded, raw untouched
   2. bad name   a file not following the partner's naming convention -> quarantined (naming)
+  2b. future    a business date in the future -> quarantined (naming.business_date)
   3. good       a conforming file -> the gate files it to accepted/ (partition from the FILE NAME,
                 lock, retention tag) and loads nothing; load_raw then loads it; a retried
                 load_raw loads nothing again (no re-check, no double load)
@@ -224,6 +225,18 @@ def step_bad_name(c: Ctx) -> None:
     check(c.inbox_empty(), "inbox drained")
 
 
+def step_future_date(c: Ctx) -> None:
+    print("2b. Business date from the future: quarantined, never posing as the newest data")
+    name = "olist_order_reviews_22000430.csv"
+    c.deliver(name, _csv(_rows()))
+    run_id, out = c.run("future")
+    (lid, status, partition, key, checks) = c.ledger(run_id)[-1]
+    failed = [x["check"] for x in checks if not x["passed"]]
+    check(status == "quarantined" and failed == ["naming.business_date"],
+          "quarantined by the business-date rule only", ", ".join(failed))  # fmt: skip
+    check(c.inbox_empty(), "inbox drained")
+
+
 def step_good(c: Ctx) -> None:
     print("3. Conforming file: the gate accepts it (no load), then load_raw loads it")
     business = c.today - timedelta(days=1)
@@ -406,6 +419,18 @@ def step_catalog(c: Ctx) -> None:
         check(part is not None, f"DataHub: {tag} delivery -> {label} {res}", part or "not found")
 
 
+SCHED = "governance-platform-airflow-scheduler-1"
+
+
+def _airflow_pause(pause: bool) -> None:
+    """Arrivals fire the domain's ingestion DAG (ADR-0016); while this proof drives the gate
+    itself, the DAG is paused so one gate at a time works the inbox."""
+    if subprocess.run(["docker", "inspect", SCHED], capture_output=True).returncode == 0:
+        verb = "pause" if pause else "unpause"
+        subprocess.run(["docker", "exec", SCHED, "airflow", "dags", verb,
+                        f"{DOMAIN}_ingestion"], capture_output=True)  # fmt: skip
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Proof P14 — landing lifecycle")
     parser.add_argument("--skip-catalog", action="store_true", help="skip the DataHub step")
@@ -417,14 +442,19 @@ def main() -> int:
         sys.exit(f"analytics warehouse unreachable — `make up` first ({e})")
     if not c.inbox_empty():
         sys.exit("the reviews inbox is not empty — drain it (`dgp-ingest gate`) before P14")
-    step_layout(c)
-    step_bad_data(c)
-    step_bad_name(c)
-    step_good(c)
-    step_real_and_resend(c)
-    step_access(c)
-    if not args.skip_catalog:
-        step_catalog(c)
+    _airflow_pause(True)
+    try:
+        step_layout(c)
+        step_bad_data(c)
+        step_bad_name(c)
+        step_future_date(c)
+        step_good(c)
+        step_real_and_resend(c)
+        step_access(c)
+        if not args.skip_catalog:
+            step_catalog(c)
+    finally:
+        _airflow_pause(False)
     if failures:
         print(f"\nP14 FAILED: {len(failures)} check(s): {', '.join(failures)}")
         return 1

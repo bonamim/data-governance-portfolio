@@ -76,7 +76,7 @@ preflight: ## List default/weak credentials (X2); DGP_ENV=prod make preflight fa
 .PHONY: db-roles
 db-roles: ## Ensure least-privilege roles + the DR heartbeat on a RUNNING platform (fresh volumes get them at init)
 	@for svc in postgres-oltp postgres-analytics; do \
-		$(COMPOSE) exec -T $$(env | grep -E '^(ACCESS_ADMIN|CATALOG_READER|AGENT_[A-Z_]+)_PASSWORD=' | sed 's/^/-e /') \
+		$(COMPOSE) exec -T $$(env | grep -E '^(ACCESS_ADMIN|CATALOG_READER|LANDING_EVENTS|AGENT_[A-Z_]+)_PASSWORD=' | sed 's/^/-e /') \
 			$$svc bash /docker-entrypoint-initdb.d/10-hardening-roles.sh; \
 	done
 	$(COMPOSE) exec -T postgres-oltp bash /docker-entrypoint-initdb.d/20-dr-heartbeat.sh
@@ -359,6 +359,14 @@ prove-p15: $(ENV_FILE) ## Proof P15 — per-model write-audit-publish: in-place 
 .PHONY: prove-p16
 prove-p16: $(ENV_FILE) ## Proof P16 — dbt state + Slim CI: a change builds only what it touched (M9, live)
 	uv run --group dbt python proofs/p16_slim_ci.py
+
+.PHONY: prove-p17
+prove-p17: $(ENV_FILE) ## Proof P17 — an upload alone runs ingestion; a burst is one run (M10, live + Airflow)
+	uv run python proofs/p17_event_driven.py
+
+.PHONY: prove-p18
+prove-p18: $(ENV_FILE) ## Proof P18 — batch completion signals, delivery deadlines, alerts to the owner (M10, live)
+	uv run python proofs/p18_completion_and_sla.py
 
 .PHONY: prove-p14
 prove-p14: ## Proof P14 — landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)
