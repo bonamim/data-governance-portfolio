@@ -25,4 +25,5 @@
 | [0021](0021-federated-domain-agents.md) | Federated domain agents + catalog-routed orchestrator (agentic mesh) | Accepted |
 | [0022](0022-backups-and-restore-drill.md) | Backups and the automated restore drill (proof P9) | Accepted |
 | [0023](0023-local-hardening-stand-ins.md) | Prove hardening locally where possible; specify the rest as desired controls | Accepted |
-| [0024](0024-landing-zone-layout-access-and-lifecycle.md) | Landing-zone layout, access and lifecycle (inbox + archive, contract-derived partitions) | Accepted |
+| [0024](0024-landing-zone-layout-access-and-lifecycle.md) | Landing-zone layout, access and lifecycle (inbox + archive, contract-derived partitions) | Accepted (§7 amended by 0025) |
+| [0025](0025-separate-contract-gate-and-raw-load.md) | Separate the contract gate from the raw load (two tasks, ledger hand-off) | Accepted |

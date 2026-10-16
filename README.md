@@ -147,14 +147,15 @@ make install
 #      - place kaggle.json at ~/.kaggle/kaggle.json
 #    Create one at https://www.kaggle.com/settings -> API -> Create New Token.
 
-# 5. Run ingestion: download -> seed shop_oltp -> land files -> load raw (+ ledger).
+# 5. Run ingestion: download -> seed shop_oltp -> land files -> contract gate -> load raw (+ ledger).
 set -a && source .env && set +a
 uv run dgp-ingest all
 ```
 
 After step 5, every dataset is in `<domain>_raw` in the `analytics` warehouse and every
 load is recorded in `platform_meta.ingestion_ledger`. Landing files are drained from
-`landing-inbox` into `landing-archive/accepted/` (or `quarantine/`, ADR-0024). Re-running is safe:
+`landing-inbox` into `landing-archive/accepted/` (or `quarantine/`, ADR-0024) by the contract gate
+before anything is loaded; the load reads only accepted files (ADR-0025). Re-running is safe:
 a re-delivered unchanged file is skipped by checksum (the idempotency behind proof P6).
 
 **Governance and quality gates** (run before every commit):
@@ -302,11 +303,19 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   - [x] **Desired production controls specified** with acceptance tests (production-readiness §5,
     D1–D10): TLS reverse proxy, OIDC SSO, secrets manager, network isolation, external KMS, HA,
     central logging, alert routing. They need infrastructure a laptop can't host and are go-live gates.
-- [ ] **M9 — Transform-layer scale (ADR-0015):** orchestrate dbt with **Cosmos** (manifest mode —
-  per-model tasks/retries/parallelism); **per-model portable write-audit-publish** (blue/green swap /
-  warehouse zero-copy clone / Iceberg branch; incremental = audit-batch-then-merge); **dbt state +
-  Slim CI** (`state:modified --defer`, `manifest.json` in `platform-state`); **microbatch +
-  runtime-param backfill**. Built when a domain grows past the static-Olist scale.
+- [ ] **M9 — Transform-layer scale (ADR-0015):**
+  - [x] **Contract gate as its own task (ADR-0025):** `land → contract_gate → load_raw` — the check
+    files every inbox file to `accepted/` or `quarantine/` and loads nothing; `load_raw` loads only
+    accepted files not yet loaded (ledger hand-off via `gate_id`), so a load retries without
+    re-checking; `publish_quality` hangs off the gate. Dedup is on a SHA-256 of the content (the
+    ETag differs between single-part and multipart uploads), and `replay` loads each dataset's
+    newest accepted file on or before the date (P9 no longer needs every dataset on one day).
+    P14 proves it.
+  - [ ] orchestrate dbt with **Cosmos** (manifest mode — per-model tasks/retries/parallelism);
+    **per-model portable write-audit-publish** (blue/green swap / warehouse zero-copy clone /
+    Iceberg branch; incremental = audit-batch-then-merge); **dbt state + Slim CI**
+    (`state:modified --defer`, `manifest.json` in `platform-state`); **microbatch +
+    runtime-param backfill**. Built when a domain grows past the static-Olist scale.
 - [ ] **M10 — Event-driven ingestion (ADR-0016):** the inbox, write-only partner scoping, dedup,
   quarantine and DataHub results it plugs into are built (ADR-0024, P14). M10 adds (checklist in
   [ADR-0016 §5](docs/adr/0016-event-driven-ingestion.md)):
@@ -316,8 +325,6 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   - **completion signals** `expected_files` and `marker` (today: `per_file`, `settle`), bounded by
     the contract's `timeOfAvailability` deadline with a missing/incomplete-delivery alert;
   - **alerting** — quarantine and SLA-miss notifications to the owning domain;
-  - **content checksum** (`x-amz-checksum-sha256`) for dedup instead of the ETag, which differs
-    between single-part and multipart uploads of the same content;
   - **production bucket controls** — deny non-TLS and unencrypted uploads, storage-class
     transitions, per-partner KMS keys, and per-partner credentials provisioned from the secrets
     manager (today one env var per source in `minio-init`).

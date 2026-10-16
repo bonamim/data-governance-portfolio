@@ -1,6 +1,6 @@
 # ADR-0024: Landing-zone layout, access and lifecycle (inbox + archive)
 
-**Status:** Accepted
+**Status:** Accepted (§7 and the idempotency consequence amended by [ADR-0025](0025-separate-contract-gate-and-raw-load.md): the gate and the load are separate tasks)
 **Amends** [ADR-0011](0011-landing-zone-slas-and-partitioning.md) §2–§3 (partitioning, retention).
 **Prepares** [ADR-0016](0016-event-driven-ingestion.md) (event-driven ingestion: the trigger plugs
 into the inbox defined here).
@@ -114,7 +114,7 @@ expire at 90 days.
 
 ### 7. Gate results are published to DataHub
 Each rule the gate executes is recorded per file in the ledger (`checks` JSON, with partition,
-object version and archive key). The `publish_quality` task that follows `load_raw` in every
+object version and archive key). The `publish_quality` task that follows `contract_gate` in every
 ingestion DAG (and `make catalog-quality` for a full reconcile) runs
 `platform/catalog/publish_landing_quality.py`, which projects them into DataHub:
 
@@ -130,8 +130,8 @@ The ledger stays the system of record; DataHub is the read model (ADR-0018).
   predictable, short-lived, owner-readable place.
 - Lifecycle: 2 inbox rules + 4 archive rules (3 retention classes + quarantine), constant as
   sources grow. Retention per dataset is a contract value checked in CI.
-- Idempotency (P6) becomes "the latest loaded file for this dataset has the same checksum →
-  skip". A re-delivered identical file is recorded `skipped` and drained from the inbox.
+- Idempotency (P6) becomes "the latest accepted file for this dataset has the same content →
+  skip" (decided by the gate, ADR-0025). A re-delivered identical file is recorded `skipped` and drained from the inbox.
 - Replay/rebuild reads `accepted/` (`dgp-ingest replay --partition-date`), never the inbox; the
   restore drill (P9) uses it.
 - Proof **P14** exercises the whole path on the live platform: partner permissions, quarantine

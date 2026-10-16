@@ -31,10 +31,10 @@ partner → PUT object → landing-inbox/<source>/<dataset>/
         → bucket notification (MinIO / S3)
         → queue (SQS / SNS / EventBridge)
         → Airflow asset update (triggerer / sensor)
-        → load_raw → contracts-at-landing gate → raw/<domain> asset
+        → contract_gate → load_raw → raw/<domain> asset
 ```
 
-The `load_raw → validate → raw asset` path and the per-domain isolation (proof P1) are
+The `contract_gate → load_raw → raw asset` path (ADR-0025) and the per-domain isolation (proof P1) are
 **unchanged** — only what *fires* it changes. Pull remains available for the datasets we genuinely
 fetch (e.g. reference data).
 
@@ -67,7 +67,7 @@ What ADR-0024 left open and this ADR's build must close:
 | 2 | Arrival in the catalog | Gate results published after each run (`publish_quality` task) | Also emit a DataHub *operation* at arrival, so freshness/timeliness are measured from landing time |
 | 3 | Completion signals | `per_file`, `settle` | `expected_files`, `marker` (only where the partner already sends one); all bounded by `timeOfAvailability` |
 | 4 | Alerting | Visible in the ledger, `_reason.json`, DataHub | Quarantine / incomplete delivery / SLA miss → owning domain's alert route |
-| 5 | Dedup checksum | ETag (differs between single-part and multipart uploads of the same bytes, so a re-upload by another method reloads once) | Content checksum (`x-amz-checksum-sha256`) recorded in the ledger |
+| 5 | Dedup checksum | **Done (ADR-0025):** the gate computes the SHA-256 of the content it downloads and records it (`content_sha256`), so single-part and multipart uploads of the same bytes dedup | Optionally also verify a partner-sent `x-amz-checksum-sha256` on arrival |
 | 6 | Bucket controls | SSE default, object lock, generated policies | Deny non-TLS + unencrypted uploads; storage-class transitions; per-partner KMS keys |
 | 7 | Partner credentials | One `LANDING_PARTNER_<SOURCE>_SECRET` env var per source in `minio-init` | Provisioned per partner from the secrets manager (or SFTP/Transfer Family users mapped to their prefix) |
 
