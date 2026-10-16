@@ -18,6 +18,12 @@ source:
         - ".*_gold"
     include_tables: true
     include_views: true
+    # Lineage of views comes from dbt, which builds every view in these schemas. Parsing the view
+    # SQL here would draw the same edge a second time, through a DataHub-generated "query" entity
+    # (urn:li:query:view_...). Views built outside dbt (the masking views) live in <domain>_masked,
+    # which is not ingested.
+    include_view_lineage: false
+    include_view_column_lineage: false
     profiling:
       enabled: false # keep the PoC light; turn on for stats/null-counts later
 sink:

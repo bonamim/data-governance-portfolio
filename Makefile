@@ -283,9 +283,13 @@ catalog-down: ## Stop DataHub (keeps its volumes)
 
 .PHONY: catalog-docs
 catalog-docs: $(ENV_FILE) ## Regenerate dbt manifest+catalog artifacts for ingestion
+	@# dbt_packages/ is gitignored: install the shared dgp_dbt package first, as `make transform` does.
+	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/transform
 	uv run --group dbt dbt docs generate --project-dir domains/customer/dbt --profiles-dir platform/transform
+	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
 	uv run --group dbt dbt docs generate --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
-	cd domains/sales/dbt && uv run --group dbt dbt docs generate --profiles-dir ../../../platform/transform
+	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/transform \
+		&& uv run --group dbt dbt docs generate --profiles-dir ../../../platform/transform
 
 .PHONY: catalog-ingest
 catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lineage, tests) into DataHub
