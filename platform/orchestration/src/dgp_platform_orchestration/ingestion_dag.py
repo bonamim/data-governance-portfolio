@@ -115,6 +115,9 @@ def build_ingestion_dag(domain: str):
         schedule=[OLIST_CACHE],
         start_date=_START,
         catchup=False,
+        # One run at a time per domain: two overlapping runs would list the same inbox file and
+        # gate it twice (the ledger hand-off assumes a single gate/load per dataset at a time).
+        max_active_runs=1,
         default_args=_DEFAULT_ARGS,
         tags=[domain, "ingestion"],
         doc_md=f"Seed/land/load the **{domain}** domain's raw datasets.",

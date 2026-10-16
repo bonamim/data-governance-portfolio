@@ -300,17 +300,17 @@ Each milestone is done only when its production-readiness and disaster-recovery 
     derived from the contract (filename or arrival; daily/hourly/monthly), never imposed on the
     partner; access policies generated from `sources.yml`; gate results published to DataHub as
     assertions per partition (`make catalog-quality`). `make prove-p14`.
-  - [x] **Desired production controls specified** with acceptance tests (production-readiness §5,
-    D1–D10): TLS reverse proxy, OIDC SSO, secrets manager, network isolation, external KMS, HA,
-    central logging, alert routing. They need infrastructure a laptop can't host and are go-live gates.
-- [ ] **M9 — Transform-layer scale (ADR-0015):**
-  - [x] **Contract gate as its own task (ADR-0025):** `land → contract_gate → load_raw` — the check
-    files every inbox file to `accepted/` or `quarantine/` and loads nothing; `load_raw` loads only
+  - [x] **Contract gate as its own task (ADR-0025, follow-up to the lifecycle):**
+    `land → contract_gate → load_raw` — the check files every inbox file to `accepted/` or `quarantine/` and loads nothing; `load_raw` loads only
     accepted files not yet loaded (ledger hand-off via `gate_id`), so a load retries without
     re-checking; `publish_quality` hangs off the gate. Dedup is on a SHA-256 of the content (the
     ETag differs between single-part and multipart uploads), and `replay` loads each dataset's
     newest accepted file on or before the date (P9 no longer needs every dataset on one day).
     P14 proves it.
+  - [x] **Desired production controls specified** with acceptance tests (production-readiness §5,
+    D1–D10): TLS reverse proxy, OIDC SSO, secrets manager, network isolation, external KMS, HA,
+    central logging, alert routing. They need infrastructure a laptop can't host and are go-live gates.
+- [ ] **M9 — Transform-layer scale (ADR-0015):**
   - [ ] orchestrate dbt with **Cosmos** (manifest mode — per-model tasks/retries/parallelism);
     **per-model portable write-audit-publish** (blue/green swap / warehouse zero-copy clone /
     Iceberg branch; incremental = audit-batch-then-merge); **dbt state + Slim CI**
