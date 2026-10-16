@@ -112,8 +112,18 @@ grants: ## Apply consumer grants from data product definitions (output ports onl
 	uv run python platform/access/grant_consumers.py
 
 .PHONY: publish
-publish: ## Write-audit-publish: build to a candidate, run contractual DQ, swap on pass
+publish: ## Write-audit-publish per model: build to a candidate, audit (contract DQ), promote on pass
 	uv run --group dbt python platform/transform/publish.py
+
+.PHONY: slim-ci
+slim-ci: ## Slim CI: build only the models a change touched (state:modified+) in <domain>_ci, deferring the rest to what is published
+	uv run --group dbt python platform/transform/slim_ci.py
+
+.PHONY: backfill
+backfill: ## Reprocess a window of microbatch models: make backfill DOMAIN=sales START=2017-01-01 END=2017-03-01
+	@test -n "$(DOMAIN)" -a -n "$(START)" -a -n "$(END)" || { echo "usage: make backfill DOMAIN=<d> START=YYYY-MM-DD END=YYYY-MM-DD"; exit 2; }
+	uv run --group dbt python platform/transform/publish.py --domain $(DOMAIN) \
+		--event-time-start $(START) --event-time-end $(END)
 
 .PHONY: endpoints
 endpoints: ## Print local service URLs and credentials (from .env)
@@ -133,8 +143,18 @@ endpoints: ## Print local service URLs and credentials (from .env)
 airflow-build: ## Build the Airflow image (installs ingestion + orchestration)
 	$(COMPOSE_ALL) build
 
+.PHONY: dbt-manifests
+dbt-manifests: $(ENV_FILE) ## Parse every dbt project into target/manifest.json (Cosmos renders the transform DAGs from it; dbt-loom reads it)
+	@# Dependency order: sales reads its upstream domains' manifests through dbt-loom.
+	@for d in customer customer_experience sales; do \
+		( cd domains/$$d/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/transform >/dev/null \
+			&& uv run --group dbt dbt parse --profiles-dir ../../../platform/transform >/dev/null ) \
+			|| { echo "dbt parse failed for $$d"; exit 1; }; \
+		echo "  manifest: domains/$$d/dbt/target/manifest.json"; \
+	done
+
 .PHONY: airflow-up
-airflow-up: up airflow-build ## Start Airflow (needs the platform up first)
+airflow-up: up airflow-build dbt-manifests ## Start Airflow (needs the platform up first)
 	$(COMPOSE_ALL) up -d --wait airflow-apiserver airflow-scheduler airflow-dag-processor airflow-triggerer
 	@echo "Airflow UI: http://localhost:$(AIRFLOW_API_PORT)  (dev: no login)"
 
@@ -327,6 +347,18 @@ check-breaking: ## Breaking-change gate (P5): fail if a changed output-port cont
 .PHONY: prove-p2
 prove-p2: ## Proof P2 — a landing file that violates its contract is rejected by the quality gate
 	uv run python proofs/p2_landing_gate.py
+
+.PHONY: prove-p6
+prove-p6: $(ENV_FILE) ## Proof P6 — a backfill rewrites exactly its window; reruns are idempotent (M9, live)
+	uv run --group dbt python proofs/p6_backfill.py
+
+.PHONY: prove-p15
+prove-p15: $(ENV_FILE) ## Proof P15 — per-model write-audit-publish: in-place promote, quarantine, Airflow (M9, live)
+	uv run --group dbt python proofs/p15_per_model_wap.py
+
+.PHONY: prove-p16
+prove-p16: $(ENV_FILE) ## Proof P16 — dbt state + Slim CI: a change builds only what it touched (M9, live)
+	uv run --group dbt python proofs/p16_slim_ci.py
 
 .PHONY: prove-p14
 prove-p14: ## Proof P14 — landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)

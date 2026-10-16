@@ -35,6 +35,9 @@ ensure_login catalog_reader "$CATALOG_READER_PASSWORD"
 for domain in $DOMAINS; do
 	ensure_login "agent_${domain}" "$(agent_password "$domain")"
 	run_sql -c "GRANT ${domain}_role TO access_admin"
+	# Slim CI sandbox (ADR-0015 §3): changed models are built here, unchanged ones deferred to the
+	# published schemas. Owned by the domain role; never granted to consumers.
+	run_sql -c "CREATE SCHEMA IF NOT EXISTS ${domain}_ci AUTHORIZATION ${domain}_role"
 done
 
 run_sql <<-SQL

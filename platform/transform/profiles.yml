@@ -3,6 +3,8 @@
 # that domain's least-privilege role and its target schema is the output-port schema
 # <domain>; staging models land in <domain>_staging via dbt's default schema
 # concatenation. Passwords come from the environment (.env locally).
+# The `ci` target is the Slim CI sandbox (ADR-0015 §3): every model of the run lands in
+# <domain>_ci, unchanged refs are deferred to what is published (--defer --state).
 config:
   send_anonymous_usage_stats: false
 
@@ -18,6 +20,15 @@ dgp_sales: &pg
       password: "{{ env_var('SALES_ROLE_PASSWORD') }}"
       schema: sales
       threads: 4
+    ci:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: sales_role
+      password: "{{ env_var('SALES_ROLE_PASSWORD') }}"
+      schema: sales_ci
+      threads: 4
 
 dgp_customer:
   <<: *pg
@@ -30,6 +41,15 @@ dgp_customer:
       user: customer_role
       password: "{{ env_var('CUSTOMER_ROLE_PASSWORD') }}"
       schema: customer
+      threads: 4
+    ci:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: customer_role
+      password: "{{ env_var('CUSTOMER_ROLE_PASSWORD') }}"
+      schema: customer_ci
       threads: 4
 
 dgp_customer_experience:
@@ -44,6 +64,15 @@ dgp_customer_experience:
       password: "{{ env_var('CUSTOMER_EXPERIENCE_ROLE_PASSWORD') }}"
       schema: customer_experience
       threads: 4
+    ci:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: customer_experience_role
+      password: "{{ env_var('CUSTOMER_EXPERIENCE_ROLE_PASSWORD') }}"
+      schema: customer_experience_ci
+      threads: 4
 
 dgp_marketplace:
   <<: *pg
@@ -56,4 +85,13 @@ dgp_marketplace:
       user: marketplace_role
       password: "{{ env_var('MARKETPLACE_ROLE_PASSWORD') }}"
       schema: marketplace
+      threads: 4
+    ci:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_INTERNAL_PORT', env_var('ANALYTICS_PORT', '5433')) | int }}"
+      dbname: "{{ env_var('ANALYTICS_DB', 'analytics') }}"
+      user: marketplace_role
+      password: "{{ env_var('MARKETPLACE_ROLE_PASSWORD') }}"
+      schema: marketplace_ci
       threads: 4

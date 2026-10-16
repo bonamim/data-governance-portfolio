@@ -48,6 +48,18 @@ jobs:
       - name: Breaking-change contract gate (proof P5)
         if: github.event_name == 'pull_request'
         run: BASE_REF=origin/${{ github.base_ref }} make check-breaking
+      - name: Slim CI plan — the models this change rebuilds (ADR-0015 §3)
+        if: github.event_name == 'pull_request'
+        # Parse only (dbt ls against the base branch's manifests): no warehouse is reached, the
+        # profile just needs its variables set. `make slim-ci` builds them for real.
+        env:
+          SALES_ROLE_PASSWORD: parse-only
+          CUSTOMER_ROLE_PASSWORD: parse-only
+          CUSTOMER_EXPERIENCE_ROLE_PASSWORD: parse-only
+          MARKETPLACE_ROLE_PASSWORD: parse-only
+        run: >-
+          uv run --group dbt python platform/transform/slim_ci.py
+          --baseline git:origin/${{ github.base_ref }} --plan-only
       - name: Lint
         run: uv run ruff check .
       - name: Format check
