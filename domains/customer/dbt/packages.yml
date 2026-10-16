@@ -1,3 +1,4 @@
 packages:
-  # Shared platform macros (write-audit-publish alias, future masking helpers).
-  - local: ../../../platform/transform/dgp_dbt
+  # Shared platform macros (write-audit-publish). The path is overridable because Airflow
+  # (Cosmos) runs each task from a temporary copy of the project, where the relative path breaks.
+  - local: "{{ env_var('DGP_DBT_PACKAGE_DIR', '../../../platform/transform/dgp_dbt') }}"

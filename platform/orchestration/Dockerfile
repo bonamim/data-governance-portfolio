@@ -5,9 +5,11 @@ FROM apache/airflow:3.3.2-python3.12@sha256:9df9c8be4096b9cc626bd7cb1f2b8c712eef
 
 # Heavy, stable tooling first so iterating on the platform packages (below) stays a fast rebuild.
 # Transform tooling so the transform DAGs can run dbt build + write-audit-publish and generate
-# dbt metadata from ODCS contracts.
+# dbt metadata from ODCS contracts. Cosmos renders each dbt project as one task per model
+# (ADR-0015), from the manifest — pinned, as it shapes every transform DAG.
 RUN pip install --no-cache-dir \
-      "dbt-core>=1.9" "dbt-postgres>=1.9" "dbt-loom>=0.7" "datacontract-cli>=1.2"
+      "dbt-core>=1.9" "dbt-postgres>=1.9" "dbt-loom>=0.7" "datacontract-cli>=1.2" \
+      "astronomer-cosmos==1.15.1"
 
 # DataHub lineage: the plugin emits DataFlow (DAG) / DataJob (task) entities and task->dataset
 # lineage to the catalog (ADR-0018). Compatible with Airflow 3 via the OpenLineage provider.

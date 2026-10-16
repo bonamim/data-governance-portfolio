@@ -2,12 +2,14 @@
 # ADR-0003). Reads the upstream projects' manifests; sales_performance can then
 # ref('dgp_customer','customers') and ref('dgp_customer_experience','reviews').
 # Those models are access: public — private/internal models are not importable.
+# DGP_DBT_PROJECT_DIR (with a trailing /) is unset locally, so the paths stay relative to this
+# project; Airflow sets it to the project's absolute path because Cosmos runs dbt from a copy.
 manifests:
   - name: dgp_customer
     type: file
     config:
-      path: ../../customer/dbt/target/manifest.json
+      path: ${DGP_DBT_PROJECT_DIR}../../customer/dbt/target/manifest.json
   - name: dgp_customer_experience
     type: file
     config:
-      path: ../../customer_experience/dbt/target/manifest.json
+      path: ${DGP_DBT_PROJECT_DIR}../../customer_experience/dbt/target/manifest.json

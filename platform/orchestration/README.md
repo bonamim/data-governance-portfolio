@@ -28,6 +28,22 @@ The factory reads the domain's `sources.yml` and builds the right task graph:
 `quarantine/`; it loads nothing. `load_raw` loads only accepted files no load has picked up yet, so
 it can be retried without re-checking (ADR-0025).
 
+## Transform DAGs (ADR-0015)
+
+`domains/<d>/pipelines/<d>_transform.py` is one call to `build_transform_dag(domain)`. Cosmos
+renders the dbt project from its manifest (`make dbt-manifests`, run by `make airflow-up`):
+
+| Task group | What runs |
+|---|---|
+| `models` | one `run` + `test` group per model, except opted-in ports and their descendants |
+| `wap_<model>` | per opted-in port: `plan → stage → write → audit_view → audit → publish`, `quarantine` on failure |
+| `downstream` | models that read an opted-in port, after its publish |
+| `grant` | masking views + consumer grants (always) |
+| `save_state` | manifest → `platform-state`; emits `published/<domain>` only if everything published |
+
+Backfill = trigger the DAG with params `event_time_start` / `event_time_end` (or `full_refresh`).
+The steps are the same ones `make publish` runs (`dgp_platform_orchestration.wap`).
+
 ## Assets and triggering
 
 - `platform_acquire_olist` (platform bundle) downloads the Olist dataset and publishes the
