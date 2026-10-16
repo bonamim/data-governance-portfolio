@@ -8,6 +8,7 @@ landing zone is two buckets (inbox + archive, ADR-0024).
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 from dataclasses import dataclass
@@ -96,6 +97,20 @@ class ObjectStore:
             h["LastModified"],
             h["ContentLength"],
         )
+
+    def partner_checksum(self, ref: ObjectRef) -> str | None:
+        """The SHA-256 the partner sent with the upload (``x-amz-checksum-sha256``), hex, if any.
+
+        Only a full-object checksum is comparable with the content's own hash; a multipart upload's
+        composite checksum (``…-N``) is a checksum of part checksums, so it is not returned.
+        """
+        kwargs = {"Bucket": ref.bucket, "Key": ref.key, "ChecksumMode": "ENABLED"}
+        if ref.version_id:
+            kwargs["VersionId"] = ref.version_id
+        value = self.client.head_object(**kwargs).get("ChecksumSHA256")
+        if not value or "-" in value:
+            return None
+        return base64.b64decode(value).hex()
 
     def upload_file(self, local_path: Path, bucket: str, key: str) -> None:
         """Upload a file (the partner simulator). No read-back: a partner is write-only."""

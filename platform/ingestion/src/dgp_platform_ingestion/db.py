@@ -79,10 +79,14 @@ def copy_csv_into(
         return cur.rowcount
 
 
-def load_csv_file(conn: psycopg.Connection, schema: str, table: str, csv_path: Path) -> int:
-    """Create <schema>.<table> from the CSV header and load it. Returns row count."""
+def load_csv_file(
+    conn: psycopg.Connection, schema: str, table: str, csv_path: Path, *, append: bool = False
+) -> int:
+    """Create <schema>.<table> from the CSV header and load it (or, with ``append``, add the rows
+    of another file of the same batch to it). Returns row count."""
     columns = _read_header(csv_path)
-    prepare_text_table(conn, schema, table, columns)
+    if not append:
+        prepare_text_table(conn, schema, table, columns)
     with csv_path.open("rb") as fh:
         return copy_csv_into(conn, schema, table, fh)
 

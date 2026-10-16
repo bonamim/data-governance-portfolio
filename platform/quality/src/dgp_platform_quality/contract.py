@@ -37,6 +37,9 @@ class Contract:
     properties: dict = field(default_factory=dict)
     team: str | None = None
     purpose: str | None = None
+    # ODCS `slaProperties` as {property: {value, unit, element}} — e.g. timeOfAvailability, the
+    # delivery deadline the landing SLA monitor checks (ADR-0016).
+    sla: dict = field(default_factory=dict)
 
     @property
     def column_names(self) -> list[str]:
@@ -82,6 +85,11 @@ def load_contract(path: Path) -> Contract:
         },
         team=(raw.get("team") or {}).get("name"),
         purpose=(raw.get("description") or {}).get("purpose"),
+        sla={
+            p["property"]: {k: v for k, v in p.items() if k != "property"}
+            for p in raw.get("slaProperties") or []
+            if p.get("property")
+        },
     )
 
 

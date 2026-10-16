@@ -6,6 +6,7 @@
     dgp-ingest gate        # drain the landing inbox through the contract gate (accepted/quarantine)
     dgp-ingest load-raw    # load every dataset into <domain>_raw: OLTP + accepted files (+ ledger)
     dgp-ingest replay      # rebuild raw from shop_oltp + archive accepted/ (--partition-date)
+    dgp-ingest sla         # check landing delivery deadlines; alert the owner on a miss
     dgp-ingest all         # acquire -> seed -> land -> gate -> load-raw
 
 The Airflow DAGs call the same functions in pipeline.py; this CLI is for local
@@ -21,7 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import pipeline
+from . import pipeline, sla
 from .settings import Settings
 
 
@@ -51,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=["acquire", "seed", "land", "gate", "load-raw", "replay", "all"],
+        choices=["acquire", "seed", "land", "gate", "load-raw", "replay", "sla", "all"],
         help="pipeline step to run",
     )
     args = parser.parse_args(argv)
@@ -73,6 +74,13 @@ def main(argv: list[str] | None = None) -> int:
         ),
         "gate": lambda: pipeline.contract_gate(repo_root, settings, run_id, args.domain),
         "load-raw": lambda: pipeline.load_raw(repo_root, settings, run_id, args.domain),
+        "sla": lambda: [
+            print(
+                f"{f.dataset} {f.partition}: {f.state} (deadline {f.deadline:%Y-%m-%d %H:%M} UTC)"
+                + (f" — {f.detail}" if f.detail else "")
+            )
+            for f in sla.check(repo_root, settings, args.domain)
+        ],  # fmt: skip
         "replay": lambda: pipeline.replay(
             repo_root, settings, run_id, args.partition_date or pipeline._today_utc(), args.domain
         ),

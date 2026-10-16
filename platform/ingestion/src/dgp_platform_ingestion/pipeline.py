@@ -23,15 +23,15 @@ from __future__ import annotations
 import hashlib
 import logging
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
-from dgp_platform_quality.contract import Contract, load_contract_for
+from dgp_platform_quality.contract import load_contract_for
 from dgp_platform_quality.engine import Assertion, ValidationResult, validate_file
 
-from . import db, layout, ledger
+from . import alerts, arrivals, db, layout, ledger
 from .config import Dataset, load_datasets, olist_files
 from .layout import FilenameMismatch, LandingRules
 from .objectstore import ObjectRef, ObjectStore
@@ -139,154 +139,298 @@ def contract_gate(
     domain: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, int]:
-    """Drain each landing dataset's inbox through the contract gate (ADR-0024, ADR-0025).
+    """Drain each landing dataset's inbox through the contract gate (ADR-0016, -0024, -0025).
 
-    Every settled delivery is checked against its ODCS contract and filed to ``accepted/``
-    (ledger ``accepted``, waiting for ``load_raw``) or ``quarantine/`` (+ ``_reason.json``). Nothing
-    is written to the warehouse here. Returns the outcomes, e.g. {"accepted": 1, "quarantined": 0,
-    "skipped": 0, "waiting": 0}.
+    Deliveries are decided in batches by the contract's completion signal: one file at a time
+    (``per_file``, ``settle``) or a whole partition once complete (``expected_files``, ``marker``).
+    Each batch is checked against its ODCS contract and filed to ``accepted/`` (ledger
+    ``accepted``, waiting for ``load_raw``) or ``quarantine/`` (+ ``_reason.json``, and an alert to
+    the owning domain). Nothing is written to the warehouse here. Processed arrivals are acked on
+    the arrival queue. Returns file counts, e.g. {"accepted": 1, "quarantined": 0, "skipped": 0,
+    "waiting": 0}.
     """
     store = ObjectStore(settings.objectstore)
     outcomes = {"accepted": 0, "quarantined": 0, "skipped": 0, "waiting": 0}
+    datasets = _landing_datasets(load_datasets(repo_root, domain))
     with db.connect(settings.analytics_loader) as analytics, tempfile.TemporaryDirectory() as tmp:
         ledger.ensure_schema(analytics)
-        for d in _landing_datasets(load_datasets(repo_root, domain)):
+        for d in datasets:
             contract = load_contract_for(repo_root, d.domain, d.name)
             rules = LandingRules.from_contract(contract)
             if problems := rules.problems():
                 raise ValueError(f"{d.domain}.{d.name} landing contract: {'; '.join(problems)}")
             prefix = layout.inbox_prefix(d.source_system, d.name)
-            for obj in store.list(store.inbox, prefix):
-                if obj.key.endswith("/"):
-                    continue  # folder placeholder some SFTP/UI clients create
-                if not rules.is_settled(obj.last_modified, now or datetime.now(UTC)):
-                    outcomes["waiting"] += 1
-                    log.info("waiting on %s (completionSignal settle)", obj.key)
-                    continue
-                pinned = store.head(obj.bucket, obj.key)
-                outcome = _gate_delivery(
-                    analytics, store, d, contract, rules, pinned, Path(tmp), run_id
+            # Folder placeholders (some SFTP/UI clients create them) are not deliveries.
+            objects = [o for o in store.list(store.inbox, prefix) if not o.key.endswith("/")]
+            ready, waiting = layout.plan_batches(rules, objects, now or datetime.now(UTC))
+            for b in waiting:
+                outcomes["waiting"] += len(b.files) + (1 if b.marker else 0)
+                log.info(
+                    "waiting on %s %s (completionSignal %s)",
+                    d.name,
+                    b.partition or b.files[0].key,
+                    rules.completion_signal,
                 )
-                outcomes[outcome] += 1
+            for b in ready:
+                files = [store.head(o.bucket, o.key) for o in b.files]
+                gate = _Gate(analytics, store, repo_root, d, contract, rules, Path(tmp), run_id)
+                outcomes[gate.decide(files, b.partition)] += len(files)
+                if b.marker is not None:  # the partner's marker closed this batch; consumed
+                    store.delete_version(store.head(b.marker.bucket, b.marker.key))
+        _ack_arrivals(settings, store, datasets)
     log.info("gate outcomes: %s", outcomes)
     return outcomes
 
 
-def _gate_delivery(
-    analytics: psycopg.Connection,
-    store: ObjectStore,
-    d: Dataset,
-    contract: Contract | None,
-    rules: LandingRules,
-    obj: ObjectRef,
-    tmp: Path,
-    run_id: str,
-) -> str:
-    """Gate one pinned inbox object and file it to accepted/ or quarantine/ (ADR-0024).
+def _ack_arrivals(settings: Settings, store: ObjectStore, datasets: list[Dataset]) -> None:
+    """Ack the arrival-queue rows of files that have left the inbox (ADR-0016)."""
+    if settings.landing_events is None:
+        log.info("no arrival queue configured (LANDING_EVENTS_PASSWORD unset): nothing to ack")
+        return
+    prefixes = [layout.inbox_prefix(d.source_system, d.name) for d in datasets]
+    in_inbox = {o.key for p in prefixes for o in store.list(store.inbox, p)}
+    with db.connect(settings.landing_events) as q:
+        if acked := arrivals.ack(q, prefixes, in_inbox):
+            log.info("acked %d arrival event(s)", acked)
 
-    Crash-safe order: file to the archive -> ledger commit -> delete the inbox version. A crash
-    before the commit leaves the object in the inbox and the next run redoes it; a crash after
-    it is caught by the content check (``skipped``) and the inbox is drained.
+
+@dataclass
+class _Inspection:
+    obj: ObjectRef
+    partition: str
+    local: Path | None
+    sha256: str | None
+    result: ValidationResult
+
+    @property
+    def checks(self) -> list[dict]:
+        return [asdict(a) for a in self.result.assertions]
+
+
+class _Gate:
+    """Decide one batch: inspect every file, then file them all to accepted/ or quarantine/.
+
+    Crash-safe order: file to the archive -> ledger commit -> delete the inbox versions. A crash
+    before the commit leaves the files in the inbox and the next run redoes them; a crash after it
+    is caught by the content check (``skipped``) and the inbox is drained.
     """
-    dataset_id = f"{d.source_system}/{d.name}"
-    common = {
-        "source_type": "file",
-        "source_identifier": obj.key,
-        "object_etag": obj.etag,
-        "object_version": obj.version_id,
-        "contract_version": contract.version if contract else None,
-        "target_schema": d.raw_schema,
-        "target_table": d.raw_table,
-        "run_id": run_id,
-        "dataset": dataset_id,
-    }
 
-    try:
-        partition = rules.partition_for(obj.filename, obj.last_modified)
-        naming = None
-    except FilenameMismatch as exc:
-        # File the rejected delivery by arrival time so it can still be found and triaged.
-        partition = rules.partition_from_arrival(obj.last_modified)
-        naming = Assertion("naming.filename_pattern", None, False, str(exc))
+    def __init__(self, analytics, store, repo_root, d, contract, rules, tmp, run_id):
+        self.analytics, self.store, self.repo_root = analytics, store, repo_root
+        self.d, self.contract, self.rules, self.tmp, self.run_id = d, contract, rules, tmp, run_id
+        self.dataset_id = f"{d.source_system}/{d.name}"
 
-    local = tmp / obj.filename
-    if naming is None:
-        store.download(obj, local)
-        common["content_sha256"] = sha = _sha256(local)
-        if ledger.unchanged(analytics, dataset_id, sha, obj.etag):
-            ledger.record(
-                analytics, **common, partition=partition, status="skipped",
-                message="unchanged delivery: same content as the latest accepted file",
-            )  # fmt: skip
-            analytics.commit()
-            store.delete_version(obj)
-            log.info("skipped %s (same content as the latest accepted, sha256 %s)", obj.key, sha)
-            return "skipped"
+    def _common(self, i: _Inspection, batch_id: str) -> dict:
+        return {
+            "source_type": "file",
+            "source_identifier": i.obj.key,
+            "object_etag": i.obj.etag,
+            "object_version": i.obj.version_id,
+            "content_sha256": i.sha256,
+            "arrived_at": i.obj.last_modified,
+            "contract_version": self.contract.version if self.contract else None,
+            "target_schema": self.d.raw_schema,
+            "target_table": self.d.raw_table,
+            "run_id": self.run_id,
+            "dataset": self.dataset_id,
+            "partition": i.partition,
+            "batch_id": batch_id,
+        }
 
-    if naming is not None:
-        result = ValidationResult(passed=False, rows=0, assertions=[naming])
-    else:
+    def inspect(self, obj: ObjectRef) -> _Inspection:
+        rules = self.rules
+        try:
+            partition = rules.partition_for(obj.filename, obj.last_modified)
+        except FilenameMismatch as exc:
+            # File the rejected delivery by arrival time so it can still be found and triaged.
+            naming = Assertion("naming.filename_pattern", None, False, str(exc))
+            return _Inspection(
+                obj,
+                rules.partition_from_arrival(obj.last_modified),
+                None,
+                None,
+                ValidationResult(passed=False, rows=0, assertions=[naming]),
+            )
+        local = self.tmp / obj.filename
+        self.store.download(obj, local)
+        sha = _sha256(local)
         # Landing-zone quality gate: a file must match its ODCS contract before it may reach
         # the warehouse (proof P2). A dataset without a contract yet passes through.
         result = (
-            validate_file(local, contract)
-            if contract is not None
+            validate_file(local, self.contract)
+            if self.contract is not None
             else ValidationResult(passed=True, rows=0, assertions=[])
         )
+        extra = []
         if rules.filename_pattern is not None:
-            ok = Assertion("naming.filename_pattern", None, True, "file name matches the contract")
-            result = ValidationResult(result.passed, result.rows, [ok, *result.assertions])
-    checks = [asdict(a) for a in result.assertions]
-
-    if not result.passed:
-        key = layout.quarantine_key(d.source_system, d.name, partition, run_id, obj.filename)
-        store.copy(obj, store.archive, key)
-        store.put_json(
-            store.archive,
-            key.rsplit("/", 1)[0] + "/" + layout.REASON_FILE,
-            {
-                "dataset": dataset_id,
-                "owner": d.domain,
-                "contract": {"id": contract.id, "version": contract.version} if contract else None,
-                "delivery": {
-                    "bucket": obj.bucket,
-                    "key": obj.key,
-                    "version_id": obj.version_id,
-                    "etag": obj.etag,
-                    "size": obj.size,
-                    "arrived_at": obj.last_modified,
-                },  # fmt: skip
-                "partition": partition,
-                "run_id": run_id,
-                "rows": result.rows,
-                "failed": [c for c in checks if not c["passed"]],
-                "checks": checks,
-            },
+            extra.append(Assertion("naming.filename_pattern", None, True, "file name matches"))
+            future = rules.in_future(partition, datetime.now(UTC))
+            extra.append(Assertion("naming.business_date", None, not future,
+                                   f"business date {partition} is in the future" if future
+                                   else "business date not in the future"))  # fmt: skip
+        # Integrity: a partner that sends x-amz-checksum-sha256 gets it verified (ADR-0016).
+        if (sent := self.store.partner_checksum(obj)) is not None:
+            ok = sent == sha
+            extra.append(
+                Assertion(
+                    "integrity.checksum_sha256",
+                    None,
+                    ok,
+                    "matches the partner's checksum"
+                    if ok
+                    else f"partner sent {sent[:12]}…, content is {sha[:12]}…",
+                )
+            )
+        passed = result.passed and all(a.passed for a in extra)
+        return _Inspection(
+            obj,
+            partition,
+            local,
+            sha,
+            ValidationResult(passed, result.rows, [*extra, *result.assertions]),
         )
-        ledger.record(
-            analytics, **common, partition=partition, archive_key=key, checks=checks,
-            row_count=result.rows, status="quarantined", message=result.summary(),
-        )  # fmt: skip
-        analytics.commit()
-        store.delete_version(obj)
-        log.warning(
-            "QUARANTINED %s -> s3://%s/%s: %s", obj.key, store.archive, key, result.summary()
+
+    def decide(self, files: list[ObjectRef], partition: str | None) -> str:
+        found = [self.inspect(o) for o in files]
+        batch_id = f"{self.run_id}:{partition or files[0].key}"
+        if all(i.sha256 for i in found) and self._unchanged(found):
+            for i in found:
+                ledger.record(
+                    self.analytics,
+                    **self._common(i, batch_id),
+                    status="skipped",
+                    message="unchanged delivery: same content as the latest accepted",
+                )
+            self.analytics.commit()
+            for i in found:
+                self.store.delete_version(i.obj)
+            log.info(
+                "skipped %s (same content as the latest accepted)", ", ".join(f.key for f in files)
+            )
+            return "skipped"
+        if all(i.result.passed for i in found):
+            return self._accept(found, batch_id)
+        return self._quarantine(found, batch_id, partition)
+
+    def _unchanged(self, found: list[_Inspection]) -> bool:
+        if len(found) == 1:
+            return ledger.unchanged(
+                self.analytics, self.dataset_id, found[0].sha256, found[0].obj.etag
+            )
+        return ledger.unchanged_batch(self.analytics, self.dataset_id, {i.sha256 for i in found})
+
+    def _accept(self, found: list[_Inspection], batch_id: str) -> str:
+        for i in found:
+            key = layout.accepted_key(
+                self.d.source_system, self.d.name, i.partition, i.obj.filename
+            )
+            version = self.store.copy(
+                i.obj,
+                self.store.archive,
+                key,
+                retain_until=self.rules.retain_until(datetime.now(UTC)),
+                tagging=self.rules.retention_tag,
+            )
+            ledger.record(
+                self.analytics,
+                **self._common(i, batch_id),
+                archive_key=key,
+                archive_version=version,
+                checks=i.checks,
+                row_count=i.result.rows,
+                status="accepted",
+            )
+        self.analytics.commit()
+        for i in found:
+            self.store.delete_version(i.obj)
+            log.info("ACCEPTED %s (waiting for load_raw)", i.obj.key)
+        return "accepted"
+
+    def _quarantine(self, found: list[_Inspection], batch_id: str, partition: str | None) -> str:
+        d, store = self.d, self.store
+        failing = [i for i in found if not i.result.passed]
+        why = "; ".join(f"{i.obj.filename}: {i.result.summary()}" for i in failing)
+        keys = {}
+        for i in found:
+            keys[i.obj.key] = layout.quarantine_key(
+                d.source_system, d.name, i.partition, self.run_id, i.obj.filename
+            )
+            store.copy(i.obj, store.archive, keys[i.obj.key])
+        for folder, members in _by_folder(found, keys).items():
+            store.put_json(
+                store.archive,
+                f"{folder}/{layout.REASON_FILE}",
+                {
+                    "dataset": self.dataset_id,
+                    "owner": d.domain,
+                    "contract": {"id": self.contract.id, "version": self.contract.version}
+                    if self.contract
+                    else None,
+                    "completion_signal": self.rules.completion_signal,
+                    "batch": {"partition": partition, "files": [i.obj.filename for i in found]}
+                    if len(found) > 1
+                    else None,
+                    "run_id": self.run_id,
+                    "failed": [
+                        {**c, "file": i.obj.filename}
+                        for i in members
+                        for c in i.checks
+                        if not c["passed"]
+                    ],
+                    "files": [
+                        {
+                            "delivery": {
+                                "bucket": i.obj.bucket,
+                                "key": i.obj.key,
+                                "version_id": i.obj.version_id,
+                                "etag": i.obj.etag,
+                                "size": i.obj.size,
+                                "arrived_at": i.obj.last_modified,
+                            },
+                            "partition": i.partition,
+                            "rows": i.result.rows,
+                            "checks": i.checks,
+                        }
+                        for i in members
+                    ],
+                },
+            )
+        for i in found:
+            msg = i.result.summary() if not i.result.passed else f"rejected with its batch: {why}"
+            ledger.record(
+                self.analytics,
+                **self._common(i, batch_id),
+                archive_key=keys[i.obj.key],
+                checks=i.checks,
+                row_count=i.result.rows,
+                status="quarantined",
+                message=msg,
+            )
+        self.analytics.commit()
+        for i in found:
+            store.delete_version(i.obj)
+        log.warning("QUARANTINED %s: %s", ", ".join(i.obj.key for i in found), why)
+        alerts.send(
+            self.analytics,
+            self.repo_root,
+            domain=d.domain,
+            kind="landing.quarantine",
+            subject=f"{self.dataset_id}: {len(found)} file(s) quarantined — {why}"[:500],
+            dedup_key=f"landing.quarantine:{self.dataset_id}:{batch_id}",
+            detail={
+                "files": [i.obj.key for i in found],
+                "reason": f"s3://{store.archive}/{keys[found[0].obj.key].rsplit('/', 1)[0]}/"
+                f"{layout.REASON_FILE}",
+            },
         )
         return "quarantined"
 
-    key = layout.accepted_key(d.source_system, d.name, partition, obj.filename)
-    version = store.copy(
-        obj, store.archive, key,
-        retain_until=rules.retain_until(datetime.now(UTC)), tagging=rules.retention_tag,
-    )  # fmt: skip
-    ledger.record(
-        analytics, **common, partition=partition, archive_key=key, archive_version=version,
-        checks=checks, row_count=result.rows, status="accepted",
-    )  # fmt: skip
-    analytics.commit()
-    store.delete_version(obj)
-    log.info("ACCEPTED %s -> s3://%s/%s (waiting for load_raw)", obj.key, store.archive, key)
-    return "accepted"
+
+def _by_folder(found: list[_Inspection], keys: dict[str, str]) -> dict[str, list[_Inspection]]:
+    out: dict[str, list[_Inspection]] = {}
+    for i in found:
+        out.setdefault(keys[i.obj.key].rsplit("/", 1)[0], []).append(i)
+    return out
 
 
 # -------------------------------------------------------------------- load-raw
@@ -323,8 +467,9 @@ def load_raw(
     """Load OLTP datasets, then each landing dataset's pending accepted file into <domain>_raw.
 
     Reads only what the contract gate already accepted (ledger rows no load has picked up), so a
-    retry re-runs the load without re-checking any file (ADR-0025). Raw holds one file per dataset:
-    when several are pending, the newest is loaded and the older ones are recorded ``superseded``.
+    retry re-runs the load without re-checking any file (ADR-0025). Raw holds one batch per dataset
+    (a file, or a partition's files under a batch completion signal): when several are pending, the
+    newest is loaded and the older ones are recorded ``superseded``.
     Returns the landing outcomes, e.g. {"loaded": 1, "superseded": 0}.
     """
     datasets = load_datasets(repo_root, domain)
@@ -335,17 +480,11 @@ def load_raw(
         _load_oltp(analytics, settings, datasets, run_id)
         for d in _landing_datasets(datasets):
             dataset_id = f"{d.source_system}/{d.name}"
-            waiting = ledger.pending(analytics, dataset_id)
-            if not waiting:
+            batches = ledger.pending_batches(analytics, dataset_id)
+            if not batches:
                 log.info("nothing accepted for %s since the last load", dataset_id)
                 continue
-            *older, newest = waiting
-            obj = store.head(store.archive, newest.archive_key, newest.archive_version)
-            local = Path(tmp) / obj.filename
-            store.download(obj, local)
-            # Load and ledger rows share one transaction: either raw has the file and the ledger
-            # says so, or neither (a retry loads it again).
-            rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, local)
+            *older, newest = batches
             common = {
                 "source_type": "file",
                 "target_schema": d.raw_schema,
@@ -353,18 +492,27 @@ def load_raw(
                 "run_id": run_id,
                 "dataset": dataset_id,
             }
-            for a in older:
+            # The newest batch (one file, or a whole partition) replaces raw: the first file
+            # recreates the table, the rest append. Load and ledger rows share one transaction:
+            # either raw has the batch and the ledger says so, or neither (a retry loads it again).
+            total = 0
+            for n, a in enumerate(newest):
+                obj = store.head(store.archive, a.archive_key, a.archive_version)
+                local = Path(tmp) / obj.filename
+                store.download(obj, local)
+                rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, local, append=n > 0)
+                ledger.record(analytics, **common, **_from_gate(a), row_count=rows, status="loaded")
+                total += rows
+            for a in (a for b in older for a in b):
                 ledger.record(
                     analytics, **common, **_from_gate(a), status="superseded",
-                    message=f"a newer accepted file was loaded instead ({newest.archive_key})",
+                    message=f"a newer accepted batch was loaded instead ({newest[0].batch_id})",
                 )  # fmt: skip
-            ledger.record(
-                analytics, **common, **_from_gate(newest), row_count=rows, status="loaded"
-            )
             analytics.commit()
-            outcomes["loaded"] += 1
-            outcomes["superseded"] += len(older)
-            log.info("loaded %s.%s (%d rows) from %s", d.raw_schema, d.raw_table, rows, obj.key)
+            outcomes["loaded"] += len(newest)
+            outcomes["superseded"] += sum(len(b) for b in older)
+            log.info("loaded %s.%s (%d rows) from %d file(s)", d.raw_schema, d.raw_table, total,
+                     len(newest))  # fmt: skip
     log.info("load outcomes: %s", outcomes)
     return outcomes
 
@@ -376,6 +524,8 @@ def _from_gate(a: ledger.Accepted) -> dict:
         "source_identifier": a.source_identifier,
         "object_etag": a.object_etag,
         "content_sha256": a.content_sha256,
+        "arrived_at": a.arrived_at,
+        "batch_id": a.batch_id,
         "object_version": a.object_version,
         "contract_version": a.contract_version,
         "partition": a.partition,

@@ -6,3 +6,9 @@ description: "Reviews and post-purchase satisfaction signals."
 owner:
   team: customer_experience
   contact: "#cx-data"
+
+# Where this domain's operational alerts go (ADR-0016): quarantined or missing deliveries, SLA
+# misses. The webhook URL is a secret, read from the named env var (secrets manager in production).
+alerts:
+  channel: "#cx-data"
+  webhook_env: ALERT_WEBHOOK_CUSTOMER_EXPERIENCE

@@ -14,8 +14,8 @@ partner. Everything here is pure (no I/O) so it is unit-tested directly.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, time, timedelta
 
 from dgp_platform_quality.contract import Contract
 
@@ -26,7 +26,13 @@ PARTITION_SCHEMES = {
     "dt=YYYY-MM": "dt=%Y-%m",
 }
 PARTITION_SOURCES = ("filename", "arrival")
-COMPLETION_SIGNALS = ("per_file", "settle")
+# When a delivery may be processed (ADR-0016):
+#   per_file        every file on arrival
+#   settle          a file once nothing has changed it for settleMinutes
+#   expected_files  a partition once expectedFiles data files for it are in the inbox
+#   marker          a partition once the partner's completion marker for it is in the inbox
+COMPLETION_SIGNALS = ("per_file", "settle", "expected_files", "marker")
+BATCH_SIGNALS = ("expected_files", "marker")
 # Accepted-file retention classes; each has exactly one archive lifecycle rule (minio-init).
 RETENTION_CLASSES = (90, 365, 2555)
 
@@ -49,6 +55,12 @@ class LandingRules:
     retention_days: int = 365
     completion_signal: str = "per_file"
     settle_minutes: int = 0
+    expected_files: int | None = None
+    marker_pattern: re.Pattern | None = None
+    # Delivery deadline (ODCS slaProperties.timeOfAvailability, UTC) and how many days the
+    # business date trails it (slaProperties.latency in days): by 04:00 on day D, dt=D-1 is due.
+    time_of_availability: time | None = None
+    business_date_lag_days: int = 1
 
     @classmethod
     def from_contract(cls, contract: Contract | None) -> LandingRules:
@@ -56,6 +68,12 @@ class LandingRules:
             return cls()
         p = contract.properties
         pattern = p.get("filenamePattern")
+        marker = p.get("completionMarker")
+        toa = (contract.sla.get("timeOfAvailability") or {}).get("value")
+        latency = contract.sla.get("latency") or {}
+        lag = (
+            int(latency.get("value", 1)) if latency.get("unit", "d") in ("d", "day", "days") else 1
+        )
         return cls(
             partition_scheme=str(p.get("partitionScheme", cls.partition_scheme)),
             partition_source=str(p.get("partitionSource", "filename" if pattern else "arrival")),
@@ -63,6 +81,10 @@ class LandingRules:
             retention_days=int(p.get("retentionDays", cls.retention_days)),
             completion_signal=str(p.get("completionSignal", cls.completion_signal)),
             settle_minutes=int(p.get("settleMinutes", 0)),
+            expected_files=int(p["expectedFiles"]) if p.get("expectedFiles") else None,
+            marker_pattern=re.compile(marker) if marker else None,
+            time_of_availability=_parse_toa(toa) if toa else None,
+            business_date_lag_days=lag,
         )
 
     def problems(self) -> list[str]:
@@ -85,11 +107,49 @@ class LandingRules:
         if self.retention_days not in RETENTION_CLASSES:
             out.append(f"retentionDays {self.retention_days} not in {RETENTION_CLASSES}")
         if self.completion_signal not in COMPLETION_SIGNALS:
-            out.append(
-                f"completionSignal '{self.completion_signal}' not supported yet "
-                f"{COMPLETION_SIGNALS} (expected_files/marker come with ADR-0016)"
-            )
+            out.append(f"completionSignal '{self.completion_signal}' not in {COMPLETION_SIGNALS}")
+        if self.completion_signal == "expected_files" and not (self.expected_files or 0) >= 1:
+            out.append("completionSignal 'expected_files' needs expectedFiles >= 1")
+        if self.completion_signal == "marker":
+            if self.marker_pattern is None:
+                out.append("completionSignal 'marker' needs a completionMarker pattern")
+            elif self.partition_source == "filename":
+                groups = set(self.marker_pattern.groupindex)
+                if "date" not in groups and not {"year", "month"} <= groups:
+                    out.append("completionMarker needs the partition's (?P<date>) group")
         return out
+
+    @property
+    def batched(self) -> bool:
+        return self.completion_signal in BATCH_SIGNALS
+
+    def is_marker(self, filename: str) -> bool:
+        return bool(self.marker_pattern and self.marker_pattern.match(filename))
+
+    def marker_partition(self, filename: str, arrived: datetime) -> str:
+        """The partition a completion marker closes (same date groups as the data files)."""
+        fmt = PARTITION_SCHEMES[self.partition_scheme]
+        if self.partition_source == "arrival":
+            return arrived.astimezone(UTC).strftime(fmt)
+        assert self.marker_pattern is not None
+        m = self.marker_pattern.match(filename)
+        assert m is not None
+        return _business_time(m.groupdict()).strftime(fmt)
+
+    def due_partition(self, now: datetime) -> tuple[str, datetime] | None:
+        """The partition that must be in by now, and its deadline (None: no deadline declared).
+
+        A daily dataset with timeOfAvailability 04:00 and a one-day latency owes dt=D-1 by 04:00
+        on day D; before that deadline, the previous day's partition is the one checked.
+        """
+        if self.time_of_availability is None:
+            return None
+        now = now.astimezone(UTC)
+        deadline = datetime.combine(now.date(), self.time_of_availability, tzinfo=UTC)
+        if now < deadline:
+            deadline -= timedelta(days=1)
+        business = deadline - timedelta(days=self.business_date_lag_days)
+        return business.strftime(PARTITION_SCHEMES[self.partition_scheme]), deadline
 
     def is_settled(self, last_modified: datetime, now: datetime) -> bool:
         """True when the object may be processed under the contract's completion signal."""
@@ -114,12 +174,74 @@ class LandingRules:
         """Fallback partition (used to file a rejected file whose name could not be parsed)."""
         return arrived.astimezone(UTC).strftime(PARTITION_SCHEMES[self.partition_scheme])
 
+    def in_future(self, partition: str, now: datetime) -> bool:
+        """Does a file-name partition start after tomorrow (UTC)? A business date from the future
+        is a partner error; filed as delivered it would pose as the newest data."""
+        m = re.match(r"dt=(\d{4})-(\d{2})(?:-(\d{2}))?", partition)
+        if self.partition_source != "filename" or not m:
+            return False
+        start = datetime(int(m[1]), int(m[2]), int(m[3] or 1), tzinfo=UTC)
+        return start > now.astimezone(UTC) + timedelta(days=1)
+
     def retain_until(self, archived: datetime) -> datetime:
         return archived + timedelta(days=self.retention_days)
 
     @property
     def retention_tag(self) -> str:
         return f"retention-class={self.retention_days}d"
+
+
+def _parse_toa(value: str) -> time:
+    """'04:00+00:00' / '04:00' -> 04:00 UTC (offsets other than UTC are converted)."""
+    text = str(value).strip()
+    parsed = datetime.fromisoformat(f"2000-01-01T{text}")
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(UTC)
+    return parsed.time().replace(tzinfo=None)
+
+
+@dataclass
+class Batch:
+    """Files the gate decides on together: one file, or a whole partition (batch signals)."""
+
+    partition: str | None
+    files: list = field(default_factory=list)
+    marker: object | None = None
+
+
+def plan_batches(rules: LandingRules, objects: list, now: datetime) -> tuple[list, list]:
+    """Split inbox objects (anything with ``filename`` and ``last_modified``) into ready batches
+    and waiting ones, by the contract's completion signal.
+
+    A file whose name can't be parsed is its own ready batch: the gate quarantines it by the
+    naming rule rather than letting it hold up a partition.
+    """
+    if not rules.batched:
+        ready = [o for o in objects if rules.is_settled(o.last_modified, now)]
+        waiting = [Batch(None, [o]) for o in objects if o not in ready]
+        return [Batch(None, [o]) for o in ready], waiting
+    groups: dict[str, Batch] = {}
+    ready: list[Batch] = []
+    for o in objects:
+        if rules.is_marker(o.filename):
+            part = rules.marker_partition(o.filename, o.last_modified)
+            groups.setdefault(part, Batch(part)).marker = o
+            continue
+        try:
+            part = rules.partition_for(o.filename, o.last_modified)
+        except FilenameMismatch:
+            ready.append(Batch(None, [o]))
+            continue
+        groups.setdefault(part, Batch(part)).files.append(o)
+    waiting = []
+    for part in sorted(groups):
+        b = groups[part]
+        if rules.completion_signal == "expected_files":
+            complete = len(b.files) >= (rules.expected_files or 1)
+        else:
+            complete = b.marker is not None and bool(b.files)
+        (ready if complete else waiting).append(b)
+    return ready, waiting
 
 
 def _business_time(groups: dict[str, str | None]) -> datetime:

@@ -107,3 +107,80 @@ def test_replay_takes_each_datasets_newest_file_as_of_a_date():
 )
 def test_repo_landing_contracts_are_executable(contract):
     assert LandingRules.from_contract(load_contract(REPO / contract)).problems() == []
+
+
+class _Obj:
+    def __init__(self, filename: str, minutes_ago: int = 60):
+        self.filename = filename
+        self.last_modified = ARRIVED - timedelta(minutes=minutes_ago)
+
+
+def _names(batches) -> list[tuple]:
+    return [(b.partition, sorted(f.filename for f in b.files), bool(b.marker)) for b in batches]
+
+
+def test_expected_files_waits_for_the_whole_partition():
+    rules = _rules(completionSignal="expected_files", expectedFiles=2,
+                   filenamePattern=r"^part(?P<n>\d)_(?P<date>\d{8})\.csv$")  # fmt: skip
+    objs = [_Obj("part1_20261014.csv"), _Obj("part2_20261014.csv"), _Obj("part1_20261015.csv"),
+            _Obj("garbage.csv")]  # fmt: skip
+    ready, waiting = layout.plan_batches(rules, objs, ARRIVED)
+    assert _names(ready) == [
+        (None, ["garbage.csv"], False),  # unparseable: its own batch, quarantined by naming
+        ("dt=2026-10-14", ["part1_20261014.csv", "part2_20261014.csv"], False),
+    ]
+    assert _names(waiting) == [("dt=2026-10-15", ["part1_20261015.csv"], False)]
+
+
+def test_marker_closes_its_partition_only():
+    rules = _rules(completionSignal="marker", completionMarker=r"^_DONE_(?P<date>\d{8})$",
+                   filenamePattern=r"^tx_(?P<date>\d{8})_\d+\.csv$")  # fmt: skip
+    objs = [_Obj("tx_20261014_1.csv"), _Obj("tx_20261014_2.csv"), _Obj("_DONE_20261014"),
+            _Obj("tx_20261015_1.csv"), _Obj("_DONE_20261016")]  # fmt: skip
+    ready, waiting = layout.plan_batches(rules, objs, ARRIVED)
+    assert _names(ready) == [("dt=2026-10-14", ["tx_20261014_1.csv", "tx_20261014_2.csv"], True)]
+    # a marker with no data yet is still waiting (incomplete), as is data with no marker
+    assert _names(waiting) == [("dt=2026-10-15", ["tx_20261015_1.csv"], False),
+                               ("dt=2026-10-16", [], True)]  # fmt: skip
+
+
+def test_per_file_and_settle_batches_are_single_files():
+    rules = _rules(completionSignal="settle", settleMinutes=30)
+    ready, waiting = layout.plan_batches(rules, [_Obj("a.csv", 60), _Obj("b.csv", 5)], ARRIVED)
+    assert _names(ready) == [(None, ["a.csv"], False)]
+    assert _names(waiting) == [(None, ["b.csv"], False)]
+
+
+def test_batch_signal_rules_are_validated():
+    assert "needs expectedFiles" in " ".join(_rules(completionSignal="expected_files").problems())
+    assert "needs a completionMarker" in " ".join(_rules(completionSignal="marker").problems())
+    bad = _rules(completionSignal="marker", completionMarker=r"^_SUCCESS$",
+                 filenamePattern=r"^x_(?P<date>\d{8})\.csv$")  # fmt: skip
+    assert "completionMarker needs the partition's" in " ".join(bad.problems())
+
+
+def test_deadline_owes_the_previous_business_day():
+    rules = LandingRules(time_of_availability=layout._parse_toa("04:00+00:00"))
+    due, deadline = rules.due_partition(datetime(2026, 10, 16, 9, 0, tzinfo=UTC))
+    assert (due, deadline) == ("dt=2026-10-15", datetime(2026, 10, 16, 4, 0, tzinfo=UTC))
+    # before today's deadline, yesterday's deadline (for dt=D-2) is the one in force
+    due, _ = rules.due_partition(datetime(2026, 10, 16, 3, 0, tzinfo=UTC))
+    assert due == "dt=2026-10-14"
+    assert LandingRules().due_partition(ARRIVED) is None
+    assert layout._parse_toa("06:30+02:00").hour == 4
+
+
+def test_repo_contract_reads_its_delivery_deadline():
+    path = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"
+    rules = LandingRules.from_contract(load_contract(path))
+    assert rules.time_of_availability is not None and rules.time_of_availability.hour == 4
+    assert rules.business_date_lag_days == 1
+
+
+def test_a_business_date_from_the_future_is_flagged():
+    rules = _rules(filenamePattern=r"^r_(?P<date>\d{8})\.csv$")
+    now = datetime(2026, 10, 16, 12, tzinfo=UTC)
+    assert not rules.in_future("dt=2026-10-17", now)  # tomorrow: a partner a timezone ahead
+    assert rules.in_future("dt=2026-10-18", now)
+    assert rules.in_future("dt=2200-04-30", now)
+    assert not _rules().in_future("dt=2200-04-30", now)  # arrival-time partitions can't be

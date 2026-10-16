@@ -193,6 +193,9 @@ def _latest_partition(client) -> str:
         for o in page.get("Contents", []):
             if m := re.search(r"/dt=(\d{4}-\d{2}-\d{2})", o["Key"]):
                 dates.add(m.group(1))
+    # A partition dated in the future (a partner's wrong business date) must not define "latest".
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    dates = {d for d in dates if d <= today}
     if not dates:
         raise SystemExit(f"{bucket}/accepted/ has no partitions — nothing to rebuild from")
     return max(dates)

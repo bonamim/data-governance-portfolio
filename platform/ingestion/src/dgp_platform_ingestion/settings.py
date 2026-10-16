@@ -63,6 +63,8 @@ class Settings:
     analytics_loader: PostgresSettings
     objectstore: ObjectStoreSettings
     kaggle_dataset: str
+    # The landing arrival queue (ADR-0016); None when not configured (the gate then skips acks).
+    landing_events: PostgresSettings | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -100,4 +102,9 @@ class Settings:
                 lock_mode=os.environ.get("LANDING_LOCK_MODE", "GOVERNANCE"),
             ),
             kaggle_dataset=os.environ.get("OLIST_DATASET", "olistbr/brazilian-ecommerce"),
+            landing_events=PostgresSettings(
+                ana_host, ana_port, ana_db, "landing_events", os.environ["LANDING_EVENTS_PASSWORD"]
+            )
+            if os.environ.get("LANDING_EVENTS_PASSWORD")
+            else None,
         )

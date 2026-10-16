@@ -33,6 +33,7 @@ datasets:
 | land | `dgp-ingest land` | PoC partner simulator: PUT files into `s3://landing-inbox/<source>/<dataset>/` as the write-only partner |
 | gate | `dgp-ingest gate` | Drain each landing inbox through the contract gate into `accepted/` (ledger `accepted`) or `quarantine/` (+ `_reason.json`); loads nothing |
 | load-raw | `dgp-ingest load-raw` | Load OLTP datasets, and for each landing dataset the `accepted/` file no load has picked up yet (ADR-0025), writing `platform_meta.ingestion_ledger` |
+| sla | `dgp-ingest sla` | Check each landing dataset's due partition against its contract deadline (`timeOfAvailability`); alert the owner on `missing` / `incomplete` / `rejected` (ADR-0016) |
 | replay | `dgp-ingest replay --partition-date D` | Rebuild raw from `shop_oltp` + each dataset's newest `accepted/` file on or before `D` (restore drill, backfill); never touches the inbox |
 | all | `dgp-ingest all` | acquire → seed → land → gate → load-raw |
 
@@ -44,8 +45,18 @@ dbt *staging* layer's job (M3), which keeps this loader free of per-dataset sche
 - **State / idempotency** (ADR-0006, ADR-0024): every delivery is recorded in the ingestion ledger
   with its content SHA-256, pinned object version, partition, where it was filed and the per-rule
   gate results (`checks`, published to DataHub by `make catalog-quality`). A delivery whose content
-  equals the dataset's latest accepted file is skipped by the gate (ADR-0025); either way the inbox version is deleted, so a file is
-  processed once. OLTP raw loads are full-refresh (truncate + reload).
+  equals the dataset's latest accepted file is skipped by the gate (ADR-0025); either way the inbox
+  version is deleted, so a file is processed once. OLTP raw loads are full-refresh (truncate +
+  reload).
+- **Completion signals** (ADR-0016): `per_file` / `settle` decide each file alone;
+  `expected_files` (`expectedFiles: N`) and `marker` (`completionMarker`, a regex with the
+  partition's date groups) decide a whole partition as one batch — all accepted, or all quarantined
+  under one `_reason.json` — and `load_raw` loads the batch together. A marker is consumed.
+- **Arrivals** (ADR-0016): uploads land in `landing_events.arrivals` (bucket notifications); the gate
+  acks the rows of files that have left the inbox (`arrivals.py`). A partner-sent
+  `x-amz-checksum-sha256` is verified (`integrity.checksum_sha256`).
+- **Alerts** (`alerts.py`): quarantines and deadline misses go to the domain's registry route, once
+  per condition (`platform_meta.alerts`).
 - **Landing layout** (ADR-0024):
 
   ```

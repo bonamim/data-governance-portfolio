@@ -11,7 +11,9 @@ record; DataHub is the read model, ADR-0018):
   * one **assertion per contract rule** the gate executes (schema, completeness, not-null,
     unique, type, range, file naming);
   * one **assertion run event per delivered file and rule**, from the ingestion ledger: result,
-    partition, row count, and where the file was filed (accepted/ or quarantine/ + _reason.json).
+    partition, row count, and where the file was filed (accepted/ or quarantine/ + _reason.json);
+  * one **operation per delivered file, at the time it landed** in the inbox (ADR-0016), so the
+    dataset's freshness ("last updated") is measured from arrival, not from when we processed it.
 
 S3 datasets that are no longer landing datasets (e.g. names from an older layout) are
 soft-deleted, so the catalog matches the repo. Idempotent: re-running upserts.
@@ -65,6 +67,8 @@ from datahub.metadata.schema_classes import (
     DateTypeClass,
     DomainsClass,
     NumberTypeClass,
+    OperationClass,
+    OperationTypeClass,
     OtherSchemaClass,
     OwnerClass,
     OwnershipClass,
@@ -140,6 +144,18 @@ def _rules(contract, rules: LandingRules) -> list[dict]:
                  value=_param(rules.filename_pattern.pattern, P.STRING)),
              "desc": f"File name follows the partner convention {rules.filename_pattern.pattern}"}
         )  # fmt: skip
+        out.append(
+            {"check": "naming.business_date", "column": None, "scope": "unknown",
+             "op": AssertionStdOperatorClass._NATIVE_,
+             "agg": AssertionStdAggregationClass._NATIVE_,
+             "desc": "The business date in the file name is not in the future"}
+        )  # fmt: skip
+    out.append(
+        {"check": "integrity.checksum_sha256", "column": None, "scope": "unknown",
+         "op": AssertionStdOperatorClass._NATIVE_,
+         "agg": AssertionStdAggregationClass._NATIVE_,
+         "desc": "When the partner sends x-amz-checksum-sha256, the content matches it"}
+    )  # fmt: skip
     if contract.min_rows is not None:
         out.append(
             {"check": "completeness.row_count", "column": None, "scope": "rows",
@@ -303,16 +319,58 @@ def _ledger_rows(dataset_id: str) -> list[tuple]:
     with psycopg.connect(conninfo) as conn:
         return conn.execute(
             "SELECT id, run_id, status, source_identifier, object_version, partition, archive_key,"
-            " row_count, contract_version, checks, loaded_at FROM platform_meta.ingestion_ledger"
+            " row_count, contract_version, checks, coalesce(arrived_at, loaded_at), loaded_at"
+            " FROM platform_meta.ingestion_ledger"
             " WHERE dataset = %s AND checks IS NOT NULL ORDER BY loaded_at",
             (dataset_id,),
         ).fetchall()
 
 
+def _arrival_mcps(dataset_id: str, ds_urn: str) -> list:
+    """One operation per delivered file, stamped with its arrival time (freshness, ADR-0016)."""
+    mcps = []
+    for (
+        lid,
+        run_id,
+        status,
+        key,
+        _v,
+        partition,
+        _k,
+        rows,
+        _c,
+        _ch,
+        arrived,
+        recorded,
+    ) in _ledger_rows(dataset_id):
+        # lastUpdatedTimestamp is the arrival (what freshness reads). The aspect's own timestamp is
+        # when the ledger recorded it: files landing in the same second (S3 times are to the
+        # second) would otherwise share one timeseries key and overwrite each other.
+        landed = int(arrived.astimezone(UTC).timestamp() * 1000)
+        ts = int(recorded.astimezone(UTC).timestamp() * 1_000_000) // 1000
+        mcps.append(
+            MetadataChangeProposalWrapper(
+                entityUrn=ds_urn,
+                aspect=OperationClass(
+                    timestampMillis=ts,
+                    lastUpdatedTimestamp=landed,
+                    operationType=OperationTypeClass.CUSTOM,
+                    customOperationType="ARRIVAL",
+                    numAffectedRows=rows,
+                    actor=None,
+                    customProperties={"file": f"s3://{INBOX}/{key}", "outcome": status,
+                                      "partition": partition or "", "ledger_id": str(lid),
+                                      "run_id": run_id or ""},
+                ),
+            )
+        )  # fmt: skip
+    return mcps
+
+
 def _run_event_mcps(dataset_id: str, ds_urn: str) -> tuple[list, int]:
     mcps, files = [], 0
     for (lid, run_id, status, key, version, partition, archive_key, rows, cver, checks,
-         loaded_at) in _ledger_rows(dataset_id):  # fmt: skip
+         _arrived, loaded_at) in _ledger_rows(dataset_id):  # fmt: skip
         files += 1
         filed_to = f"s3://{ARCHIVE}/{archive_key}" if archive_key else ""
         reason = (
@@ -388,6 +446,7 @@ def main() -> int:
         current.add(ds_urn)
         dataset_id = f"{d['source']}/{d['name']}"
         events, files = _run_event_mcps(dataset_id, ds_urn)
+        events += _arrival_mcps(dataset_id, ds_urn)
         assertions = _assertion_mcps(contract, rules, ds_urn)
         for mcp in _dataset_mcps(d, contract, rules, ds_urn) + assertions + events:
             emitter.emit_mcp(mcp)

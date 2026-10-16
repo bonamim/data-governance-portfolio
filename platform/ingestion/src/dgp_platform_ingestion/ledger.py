@@ -17,6 +17,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 LEDGER = "platform_meta.ingestion_ledger"
+ALERTS = "platform_meta.alerts"
 
 STATUSES = ("accepted", "loaded", "quarantined", "skipped", "superseded")
 
@@ -39,6 +40,22 @@ _MIGRATIONS = [
     # Dedup on content, not the ETag: the ETag of the same bytes differs between a single-part
     # and a multipart upload, so a re-delivery by another client would load again.
     f"ALTER TABLE {LEDGER} ADD COLUMN IF NOT EXISTS content_sha256 text",
+    # ADR-0016: when the file landed (freshness is measured from it), and the batch a file was
+    # decided with (a whole partition under the expected_files / marker completion signals).
+    f"ALTER TABLE {LEDGER} ADD COLUMN IF NOT EXISTS arrived_at timestamptz",
+    f"ALTER TABLE {LEDGER} ADD COLUMN IF NOT EXISTS batch_id text",
+    # Alerts sent to the owning domain (ADR-0016). dedup_key makes a condition alert once.
+    f"""CREATE TABLE IF NOT EXISTS {ALERTS} (
+        id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        dedup_key   text UNIQUE NOT NULL,
+        domain      text NOT NULL,
+        kind        text NOT NULL,
+        subject     text NOT NULL,
+        detail      jsonb,
+        route       text,
+        delivered   boolean,
+        error       text,
+        raised_at   timestamptz NOT NULL DEFAULT now())""",
     # Widen the status check once (to accepted/superseded), not on every run.
     f"""DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ingestion_ledger_status_check'
@@ -81,6 +98,8 @@ class Accepted:
     object_etag: str | None
     content_sha256: str | None
     object_version: str | None
+    arrived_at: object | None
+    batch_id: str
     contract_version: str | None
     partition: str | None
     archive_key: str
@@ -91,13 +110,39 @@ def pending(conn: psycopg.Connection, dataset: str) -> list[Accepted]:
     """Accepted files of a dataset that no load has picked up yet, oldest first."""
     rows = conn.execute(
         f"SELECT a.id, a.source_identifier, a.object_etag, a.content_sha256, a.object_version, "
-        "a.contract_version, "
+        "a.arrived_at, coalesce(a.batch_id, a.id::text), a.contract_version, "
         f"a.partition, a.archive_key, a.archive_version FROM {LEDGER} a "
         "WHERE a.dataset = %s AND a.status = 'accepted' "
         f"AND NOT EXISTS (SELECT 1 FROM {LEDGER} l WHERE l.gate_id = a.id) ORDER BY a.id",
         (dataset,),
     ).fetchall()
     return [Accepted(*r) for r in rows]
+
+
+def pending_batches(conn: psycopg.Connection, dataset: str) -> list[list[Accepted]]:
+    """Pending accepted files grouped by the batch they were accepted in, oldest batch first."""
+    batches: dict[str, list[Accepted]] = {}
+    for a in pending(conn, dataset):
+        batches.setdefault(a.batch_id, []).append(a)
+    return sorted(batches.values(), key=lambda b: max(a.id for a in b))
+
+
+def unchanged_batch(conn: psycopg.Connection, dataset: str, sha256s: set[str]) -> bool:
+    """Is this batch the same content as the dataset's newest good batch (accepted or loaded)?"""
+    row = conn.execute(
+        f"SELECT coalesce(batch_id, id::text) FROM {LEDGER} "
+        "WHERE source_type = 'file' AND dataset = %s AND status IN ('accepted', 'loaded') "
+        "ORDER BY id DESC LIMIT 1",
+        (dataset,),
+    ).fetchone()
+    if row is None:
+        return False
+    shas = conn.execute(
+        f"SELECT DISTINCT content_sha256 FROM {LEDGER} WHERE dataset = %s AND status = 'accepted' "
+        "AND coalesce(batch_id, id::text) = %s",
+        (dataset, row[0]),
+    ).fetchall()
+    return {s[0] for s in shas} == sha256s
 
 
 def record(
@@ -121,6 +166,8 @@ def record(
     archive_version: str | None = None,
     gate_id: int | None = None,
     content_sha256: str | None = None,
+    arrived_at: object | None = None,
+    batch_id: str | None = None,
 ) -> None:
     conn.execute(
         f"""
@@ -128,8 +175,8 @@ def record(
             (source_type, source_identifier, object_etag, contract_version,
              target_schema, target_table, row_count, status, run_id, message,
              dataset, partition, object_version, archive_key, checks, archive_version, gate_id,
-             content_sha256)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             content_sha256, arrived_at, batch_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             source_type,
@@ -150,5 +197,7 @@ def record(
             archive_version,
             gate_id,
             content_sha256,
+            arrived_at,
+            batch_id,
         ),
     )

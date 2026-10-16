@@ -6,3 +6,9 @@ description: "Customer master / directory and related attributes."
 owner:
   team: customer
   contact: "#customer-data"
+
+# Where this domain's operational alerts go (ADR-0016): quarantined or missing deliveries, SLA
+# misses. The webhook URL is a secret, read from the named env var (secrets manager in production).
+alerts:
+  channel: "#customer-data"
+  webhook_env: ALERT_WEBHOOK_CUSTOMER

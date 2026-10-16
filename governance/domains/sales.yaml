@@ -6,3 +6,9 @@ description: "Orders and revenue performance across the marketplace."
 owner:
   team: sales
   contact: "#sales-data"
+
+# Where this domain's operational alerts go (ADR-0016): quarantined or missing deliveries, SLA
+# misses. The webhook URL is a secret, read from the named env var (secrets manager in production).
+alerts:
+  channel: "#sales-data"
+  webhook_env: ALERT_WEBHOOK_SALES
