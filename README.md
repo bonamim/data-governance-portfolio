@@ -325,18 +325,25 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   - [x] **Microbatch + runtime-param backfill:** `sales.orders` is a monthly microbatch port; a
     normal run merges only the latest batches; `make backfill` / the DAG's `event_time_start` /
     `event_time_end` params reprocess exactly a window, audited before the merge. `make prove-p6`.
-- [ ] **M10 — Event-driven ingestion (ADR-0016):** the inbox, write-only partner scoping, dedup,
-  quarantine and DataHub results it plugs into are built (ADR-0024, P14). M10 adds (checklist in
-  [ADR-0016 §5](docs/adr/0016-event-driven-ingestion.md)):
-  - **arrival trigger** — `landing-inbox` bucket notification → queue → Airflow asset (windowed fan-in),
-    replacing the PoC pull (`platform_acquire_olist` + `land`); an arrival *operation* is also sent
-    to DataHub so freshness/timeliness are measured from the moment a file lands;
-  - **completion signals** `expected_files` and `marker` (today: `per_file`, `settle`), bounded by
-    the contract's `timeOfAvailability` deadline with a missing/incomplete-delivery alert;
-  - **alerting** — quarantine and SLA-miss notifications to the owning domain;
-  - **production bucket controls** — deny non-TLS and unencrypted uploads, storage-class
-    transitions, per-partner KMS keys, and per-partner credentials provisioned from the secrets
-    manager (today one env var per source in `minio-init`).
+- [x] **M10 — Event-driven ingestion (ADR-0016):**
+  - [x] **Arrival trigger:** inbox bucket notifications → arrival queue (`landing_events.arrivals`,
+    the local SQS) → an Airflow 3 `AssetWatcher` fires `landing/<domain>`; windowed fan-in (a burst
+    is one run), at-least-once (signal → ack on success → redeliver after a visibility timeout).
+    The PoC simulators moved to `platform_source_simulator`; nobody triggers an ingestion DAG.
+    `make prove-p17`.
+  - [x] **Arrival in the catalog:** one DataHub `ARRIVAL` operation per file at its landing time,
+    so freshness is measured from arrival.
+  - [x] **Completion signals:** `expected_files` and `marker` decide a partition as one batch
+    (all accepted, or all quarantined with one reason); `platform_landing_sla` checks each
+    contract's `timeOfAvailability` and reports `missing` / `incomplete` / `rejected`.
+    `make prove-p18`.
+  - [x] **Alerting:** quarantines and deadline misses go to the owning domain's route (registry
+    `alerts:` + a webhook secret), once per condition, recorded in `platform_meta.alerts`.
+  - [x] **Integrity:** a partner-sent `x-amz-checksum-sha256` is verified by the gate.
+  - [x] **Production bucket controls + credentials, as code:** TLS-only and SSE-KMS-per-partner
+    bucket policies, storage-class transitions, KMS keys and the secrets-manager inventory are
+    generated from `sources.yml`, drift-checked in CI and tested; applied by the production
+    deployment (production-readiness D11/D12).
 
 ### Backlog — built when a trigger appears, not on a schedule
 

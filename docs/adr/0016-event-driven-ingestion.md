@@ -1,6 +1,6 @@
 # ADR-0016: Event-driven ingestion for partner-pushed files
 
-**Status:** Proposed (design; the PoC keeps the pull simulator until this lands)
+**Status:** Accepted — implemented in M10 (2026-10-16); see *Implementation* below
 **Extends** [ADR-0011](0011-landing-zone-slas-and-partitioning.md) (landing zone),
 [ADR-0005](0005-airflow-orchestration.md) (orchestration).
 
@@ -63,13 +63,72 @@ What ADR-0024 left open and this ADR's build must close:
 
 | # | Item | Today | M10 |
 |---|---|---|---|
-| 1 | Arrival trigger | Airflow schedule on the PoC `olist-cache` asset | `landing-inbox` notification → queue → Airflow asset, windowed fan-in (no DAG per file) |
-| 2 | Arrival in the catalog | Gate results published after each run (`publish_quality` task) | Also emit a DataHub *operation* at arrival, so freshness/timeliness are measured from landing time |
-| 3 | Completion signals | `per_file`, `settle` | `expected_files`, `marker` (only where the partner already sends one); all bounded by `timeOfAvailability` |
-| 4 | Alerting | Visible in the ledger, `_reason.json`, DataHub | Quarantine / incomplete delivery / SLA miss → owning domain's alert route |
-| 5 | Dedup checksum | **Done (ADR-0025):** the gate computes the SHA-256 of the content it downloads and records it (`content_sha256`), so single-part and multipart uploads of the same bytes dedup | Optionally also verify a partner-sent `x-amz-checksum-sha256` on arrival |
-| 6 | Bucket controls | SSE default, object lock, generated policies | Deny non-TLS + unencrypted uploads; storage-class transitions; per-partner KMS keys |
-| 7 | Partner credentials | One `LANDING_PARTNER_<SOURCE>_SECRET` env var per source in `minio-init` | Provisioned per partner from the secrets manager (or SFTP/Transfer Family users mapped to their prefix) |
+| # | Item | Status (M10) |
+|---|---|---|
+| 1 | Arrival trigger | **Built.** `landing-inbox` notification → queue → Airflow `AssetWatcher` → `landing/<domain>`; windowed fan-in. Proof P17 |
+| 2 | Arrival in the catalog | **Built.** One DataHub `ARRIVAL` operation per file, stamped with its landing time. P17 |
+| 3 | Completion signals | **Built.** `expected_files`, `marker`, decided per partition batch; deadlines from `timeOfAvailability`. P18 |
+| 4 | Alerting | **Built.** Quarantine and SLA misses (`missing` / `incomplete` / `rejected`) → the domain's route, once. P17, P18 |
+| 5 | Dedup checksum | **Built.** Content SHA-256 (ADR-0025), plus a partner-sent `x-amz-checksum-sha256` is verified. P14, P17 |
+| 6 | Bucket controls | **Specified as code.** TLS-only, SSE-KMS per partner key, storage-class transitions: generated, drift-checked, tested; applied in production (D11) |
+| 7 | Partner credentials | **Specified as code.** One secrets-manager entry per principal, 90-day rotation (D12); locally still env vars |
+
+## Implementation (M10, 2026-10-16)
+
+**The queue.** MinIO's PostgreSQL notification target appends every `s3:ObjectCreated` in the inbox
+to `landing_events.arrivals` (S3 event JSON, the same records SQS delivers), with a persistent
+queue directory so events survive a database outage. The `landing_events` role owns only that
+schema. The semantics are SQS's: Airflow's trigger *signals* rows (`signalled_at`), the contract
+gate *acks* (deletes) a row once its file has left the inbox, and a row still present after the
+visibility timeout (10 min) is signalled again. The gate drains the whole inbox whatever fired
+it, so a duplicate or lost signal changes *when* a file is processed, never *whether*. Rows no
+prefix ever acks are purged after 7 days by the SLA monitor.
+
+**The trigger.** `LandingArrivalTrigger` (an Airflow 3 `BaseEventTrigger`, run by the triggerer
+through an `AssetWatcher` on `landing/<domain>`) polls every 10 s; when something arrives it waits
+30 s for the rest of the burst and fires once for everything due — P17's five-file burst is one
+run. In AWS the class is swapped for the common-messaging `MessageQueueTrigger` on SQS; nothing
+else changes.
+
+**The DAGs.** The simulators left the domain DAGs: `platform_source_simulator` (PoC only) seeds the
+operational DB (publishing `shop-oltp`) and delivers each partner's files as that partner. A
+domain's `<domain>_ingestion` is scheduled on `landing/<domain>` and/or `shop-oltp`, with
+`max_active_runs=1` (arrivals during a run queue one more run). `platform_landing_sla` runs every
+15 minutes.
+
+**Batches.** Under `expected_files` / `marker` the gate decides a whole partition at once: accepted
+only if every file passes; otherwise every file is quarantined under one `_reason.json` that lists
+the batch and names the failing file. `load_raw` loads the newest batch (first file replaces the
+raw table, the rest append, one transaction). A marker is consumed when its batch is decided.
+Dedup compares a batch's set of content hashes with the newest good batch.
+
+**Deadlines.** By `timeOfAvailability` on day D, the partition `latency` days earlier is due. Past
+the deadline it is `delivered`, `incomplete` (files waiting on their completion signal),
+`rejected` (only quarantined files) or `missing`; anything but `delivered` alerts.
+
+**Alerts.** Routes live in the domain registry (`alerts: {channel, webhook_env}`); the webhook URL
+is a secret from the environment. Every alert is recorded in `platform_meta.alerts` under a dedup
+key (one per batch for a quarantine, one per partition for a deadline), so a condition that
+persists alerts once. An unreachable route is recorded (`delivered=false`) and never fails the
+pipeline.
+
+**Freshness.** `publish_quality` emits one `ARRIVAL` operation per file with
+`lastUpdatedTimestamp` = when it landed. S3 times are to the second, so the aspect's own timestamp
+is the ledger's recording time — otherwise files landing in the same second overwrite each other.
+
+**Guards found while proving it.** A partner file whose business date is in the future is
+quarantined (`naming.business_date`): archived as accepted, it would pose as the newest data, and
+the restore drill — which replays "as of the newest partition" — picked such a file once. The drill
+now also ignores partitions dated after today.
+
+**Production controls.** `landing_access.py` also generates `platform/access/landing/production/`:
+bucket policies (deny `aws:SecureTransport=false`, deny uploads that are not SSE-KMS, each partner
+prefix only under that partner's key, nobody deletes `accepted/`), lifecycles with storage-class
+transitions per retention class (`STANDARD_IA` 30 d, `GLACIER_IR` 90 d, `DEEP_ARCHIVE` 365 d for
+the 7-year class), one KMS key per partner, and the secrets-manager inventory. CI fails on drift;
+unit tests pin the guarantees. They need TLS on the object store, a KMS, a remote storage tier and
+a secrets manager, so they are applied by the production deployment (production-readiness D11,
+D12), like M8's desired controls (ADR-0023).
 
 ## Consequences
 - No architectural break: the landing-zone + contract gate design was already the right shape for

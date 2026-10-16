@@ -17,7 +17,7 @@
 | [0013](0013-role-based-dynamic-masking.md) | Role-based dynamic data masking (ODCS-declared, per-platform) | Accepted |
 | [0014](0014-flexible-write-audit-publish.md) | Flexible write-audit-publish (opt-in, severity-aware, materialization-aware) | Accepted (mechanism superseded by 0015) |
 | [0015](0015-scaling-the-transform-layer.md) | Scaling the transform layer (Cosmos, per-model WAP, dbt state, microbatch backfill) | Accepted (built in M9) |
-| [0016](0016-event-driven-ingestion.md) | Event-driven ingestion for partner-pushed files | Proposed |
+| [0016](0016-event-driven-ingestion.md) | Event-driven ingestion for partner-pushed files | Accepted (built in M10) |
 | [0017](0017-local-runtime-topology.md) | Local runtime topology (1 VM = 1 environment, capability compose projects) | Accepted |
 | [0018](0018-catalog-deployment-and-catalog-as-code.md) | Catalog deployment (pinned dgp-catalog compose) and catalog-as-code | Accepted |
 | [0019](0019-breaking-change-management.md) | Breaking-change management (gate, dbt model versions, consumer approval) | Accepted |
