@@ -143,6 +143,27 @@ def accepted_prefix(source: str, dataset: str, partition: str = "") -> str:
     return f"{ACCEPTED}/{source}/{dataset}/" + (f"{partition}/" if partition else "")
 
 
+def accepted_partition(source: str, dataset: str, key: str) -> str:
+    """The partition of an accepted key, e.g. ``dt=2026-10-15`` or ``dt=2026-10-15/hr=07``."""
+    return key[len(accepted_prefix(source, dataset)) :].rsplit("/", 1)[0]
+
+
+def newest_as_of(source: str, dataset: str, keys: list[str], date: str) -> str | None:
+    """The accepted key in the newest partition on or before ``date`` (YYYY-MM-DD), or None.
+
+    Datasets deliver on their own cadence, so "the state as of a date" is each dataset's latest
+    accepted file up to then, not a file for exactly that date. Within one partition the last key
+    wins (``keys`` arrive oldest first, as ``ObjectStore.list`` returns them).
+    """
+    candidates = [
+        (part, i, key)
+        for i, key in enumerate(keys)
+        if (m := re.match(r"dt=([\d-]+)", part := accepted_partition(source, dataset, key)))
+        and m.group(1) <= date
+    ]
+    return max(candidates)[2] if candidates else None
+
+
 def quarantine_key(source: str, dataset: str, partition: str, run_id: str, filename: str) -> str:
     return f"{QUARANTINE}/{source}/{dataset}/{partition}/{_safe(run_id)}/{filename}"
 

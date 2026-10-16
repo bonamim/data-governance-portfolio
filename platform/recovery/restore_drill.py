@@ -180,7 +180,8 @@ def _heartbeat() -> tuple[int, float]:
 
 
 def _latest_partition(client) -> str:
-    """Newest ``dt=YYYY-MM-DD`` partition of accepted landing files — what the rebuild replays.
+    """Newest ``dt=YYYY-MM-DD`` partition of accepted landing files — the date the rebuild replays
+    as of (each dataset then loads its newest accepted file on or before it).
 
     Only ``accepted/`` counts: those files passed the contract gate and are object-locked
     evidence (ADR-0024); quarantine and the inbox are never a rebuild source.

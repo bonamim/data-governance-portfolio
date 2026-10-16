@@ -81,6 +81,22 @@ def test_keys_and_retention():
     assert rules.retain_until(ARRIVED) == ARRIVED + timedelta(days=90)
 
 
+def test_replay_takes_each_datasets_newest_file_as_of_a_date():
+    pre = layout.accepted_prefix("olist", "sellers")
+    keys = [pre + "dt=2026-10-14/a.csv", pre + "dt=2026-10-15/b.csv", pre + "dt=2026-10-15/c.csv"]
+    # Nothing on the 16th: the state then is the newest file before it (last one in a partition).
+    assert (
+        layout.newest_as_of("olist", "sellers", keys, "2026-10-16") == pre + "dt=2026-10-15/c.csv"
+    )
+    assert (
+        layout.newest_as_of("olist", "sellers", keys, "2026-10-14") == pre + "dt=2026-10-14/a.csv"
+    )
+    assert layout.newest_as_of("olist", "sellers", keys, "2026-10-13") is None
+    hourly = [pre + "dt=2026-10-15/hr=23/x.csv", pre + "dt=2026-10-15/hr=07/y.csv"]
+    assert layout.newest_as_of("olist", "sellers", hourly, "2026-10-15").endswith("hr=23/x.csv")
+    assert layout.accepted_partition("olist", "sellers", hourly[0]) == "dt=2026-10-15/hr=23"
+
+
 @pytest.mark.parametrize(
     "contract",
     [

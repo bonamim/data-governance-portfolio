@@ -31,9 +31,10 @@ datasets:
 | acquire | `dgp-ingest acquire` | Download the Olist dataset from Kaggle into `data/olist/` |
 | seed | `dgp-ingest seed` | Load operational CSVs into `shop_oltp.shop.*` |
 | land | `dgp-ingest land` | PoC partner simulator: PUT files into `s3://landing-inbox/<source>/<dataset>/` as the write-only partner |
-| load-raw | `dgp-ingest load-raw` | Load OLTP datasets; drain each landing inbox through the contract gate into `accepted/` (loaded) or `quarantine/` (+ `_reason.json`), writing `platform_meta.ingestion_ledger` |
-| replay | `dgp-ingest replay --partition-date D` | Rebuild raw from `shop_oltp` + the archive's `accepted/` files for `dt=D` (restore drill, backfill); never touches the inbox |
-| all | `dgp-ingest all` | acquire → seed → land → load-raw |
+| gate | `dgp-ingest gate` | Drain each landing inbox through the contract gate into `accepted/` (ledger `accepted`) or `quarantine/` (+ `_reason.json`); loads nothing |
+| load-raw | `dgp-ingest load-raw` | Load OLTP datasets, and for each landing dataset the `accepted/` file no load has picked up yet (ADR-0025), writing `platform_meta.ingestion_ledger` |
+| replay | `dgp-ingest replay --partition-date D` | Rebuild raw from `shop_oltp` + each dataset's newest `accepted/` file on or before `D` (restore drill, backfill); never touches the inbox |
+| all | `dgp-ingest all` | acquire → seed → land → gate → load-raw |
 
 Raw tables are created with **text columns** from the CSV header; typing and cleaning are the
 dbt *staging* layer's job (M3), which keeps this loader free of per-dataset schema knowledge.
@@ -41,9 +42,9 @@ dbt *staging* layer's job (M3), which keeps this loader free of per-dataset sche
 ## Design notes
 
 - **State / idempotency** (ADR-0006, ADR-0024): every delivery is recorded in the ingestion ledger
-  with its checksum, pinned object version, partition, where it was filed and the per-rule gate
-  results (`checks`, published to DataHub by `make catalog-quality`). A delivery whose checksum
-  equals the dataset's latest load is skipped; either way the inbox version is deleted, so a file is
+  with its content SHA-256, pinned object version, partition, where it was filed and the per-rule
+  gate results (`checks`, published to DataHub by `make catalog-quality`). A delivery whose content
+  equals the dataset's latest accepted file is skipped by the gate (ADR-0025); either way the inbox version is deleted, so a file is
   processed once. OLTP raw loads are full-refresh (truncate + reload).
 - **Landing layout** (ADR-0024):
 

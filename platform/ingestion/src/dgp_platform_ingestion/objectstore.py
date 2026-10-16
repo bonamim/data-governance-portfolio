@@ -82,8 +82,12 @@ class ObjectStore:
                 )
         return sorted(out, key=lambda r: (r.last_modified, r.key))
 
-    def head(self, bucket: str, key: str) -> ObjectRef:
-        h = self.client.head_object(Bucket=bucket, Key=key)
+    def head(self, bucket: str, key: str, version_id: str | None = None) -> ObjectRef:
+        """Pin the current version of ``key``, or the given one (an archived accepted file)."""
+        kwargs = {"Bucket": bucket, "Key": key}
+        if version_id:
+            kwargs["VersionId"] = version_id
+        h = self.client.head_object(**kwargs)
         return ObjectRef(
             bucket,
             key,

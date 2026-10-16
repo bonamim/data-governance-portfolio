@@ -55,17 +55,22 @@ run_sql <<-SQL
 	    id                   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	    source_type          text        NOT NULL CHECK (source_type IN ('file', 'table')),
 	    source_identifier    text        NOT NULL,   -- inbox object key (files) or qualified table name
-	    object_etag          text,                   -- MinIO ETag / checksum; NULL for table sources
+	    object_etag          text,                   -- MinIO ETag; NULL for table sources
+	    content_sha256       text,                   -- SHA-256 of the file content (dedup, P6)
 	    dataset              text,                   -- <source>/<dataset> for files (ADR-0024)
 	    partition            text,                   -- archive partition, e.g. dt=2026-10-15
 	    object_version       text,                   -- the pinned inbox object version processed
 	    archive_key          text,                   -- accepted/... or quarantine/... key it was filed to
+	    archive_version      text,                   -- the archive object version filed (accepted/)
+	    gate_id              bigint,                 -- load rows: the 'accepted' gate row loaded (ADR-0025)
 	    checks               jsonb,                  -- per-rule landing-gate results (published to DataHub)
 	    contract_version     text,
 	    target_schema        text        NOT NULL,
 	    target_table         text        NOT NULL,
 	    row_count            bigint,
-	    status               text        NOT NULL CHECK (status IN ('loaded', 'quarantined', 'skipped')),
+	    status               text        NOT NULL
+	                         CONSTRAINT ingestion_ledger_status_check
+	                         CHECK (status IN ('accepted', 'loaded', 'quarantined', 'skipped', 'superseded')),
 	    run_id               text,                   -- Airflow run id
 	    data_interval_start  timestamptz,
 	    data_interval_end    timestamptz,
@@ -73,10 +78,14 @@ run_sql <<-SQL
 	    loaded_at            timestamptz NOT NULL DEFAULT now()
 	);
 
-	-- Idempotency (proof P6): a delivery whose checksum equals the dataset's latest loaded file
-	-- is skipped by the loader (ADR-0024); this index serves that lookup.
+	-- Idempotency (proof P6): a delivery whose content equals the dataset's latest accepted file
+	-- is skipped by the gate (ADR-0024); this index serves that lookup.
 	CREATE INDEX IF NOT EXISTS ingestion_ledger_dataset
 	    ON platform_meta.ingestion_ledger (dataset, loaded_at DESC);
+
+	-- The gate -> load hand-off (ADR-0025): an 'accepted' row no load row points at is pending.
+	CREATE INDEX IF NOT EXISTS ingestion_ledger_gate
+	    ON platform_meta.ingestion_ledger (gate_id);
 
 	CREATE INDEX IF NOT EXISTS ingestion_ledger_target
 	    ON platform_meta.ingestion_ledger (target_schema, target_table, loaded_at DESC);
