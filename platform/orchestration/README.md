@@ -18,11 +18,17 @@ dag = build_ingestion_dag("sales")
 
 The factory reads the domain's `sources.yml` and builds the right task graph:
 
-| Domain shape | Tasks generated |
-|---|---|
-| OLTP sources only (e.g. customer) | `seed → load_raw` |
-| Landing sources only (e.g. customer_experience) | `land → contract_gate → load_raw`, `contract_gate → publish_quality` |
-| Both (e.g. marketplace) | `seed → load_raw`, `land → contract_gate → load_raw`, `contract_gate → publish_quality` |
+| Domain shape | Scheduled on | Tasks generated |
+|---|---|---|
+| OLTP sources only (e.g. customer) | `shop-oltp` | `load_raw` |
+| Landing sources only (e.g. customer_experience) | `landing/<domain>` (arrivals) | `contract_gate → load_raw`, `contract_gate → publish_quality` |
+| Both (e.g. marketplace) | `shop-oltp` or `landing/<domain>` | `contract_gate → load_raw`, `contract_gate → publish_quality` |
+
+`landing/<domain>` is fired by an event trigger on the arrival queue (ADR-0016): the object
+store notifies it on every upload into the domain's inbox prefixes, and one burst is one run.
+The PoC source simulators (`seed`, partner `deliver`) live in the platform DAG
+`platform_source_simulator`, not in the domain DAGs; `platform_landing_sla` checks delivery
+deadlines every 15 minutes and alerts the owning domain.
 
 `contract_gate` checks every inbox file against its contract and files it to `accepted/` or
 `quarantine/`; it loads nothing. `load_raw` loads only accepted files no load has picked up yet, so
