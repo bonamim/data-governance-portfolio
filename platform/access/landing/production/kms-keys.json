@@ -1,0 +1,15 @@
+{
+  "keys": [
+    {
+      "alias": "alias/dgp-landing-olist",
+      "key_id_var": "KEY_ID_LANDING_OLIST",
+      "rotation": "yearly (automatic)",
+      "encrypt": [
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/landing-partner-olist"
+      ],
+      "decrypt": [
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/landing-loader"
+      ]
+    }
+  ]
+}

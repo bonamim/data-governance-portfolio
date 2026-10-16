@@ -1,0 +1,77 @@
+{
+  "Rules": [
+    {
+      "ID": "accepted-90d",
+      "Status": "Enabled",
+      "Filter": {
+        "Tag": {
+          "Key": "retention-class",
+          "Value": "90d"
+        }
+      },
+      "Expiration": {
+        "Days": 90
+      }
+    },
+    {
+      "ID": "accepted-365d",
+      "Status": "Enabled",
+      "Filter": {
+        "Tag": {
+          "Key": "retention-class",
+          "Value": "365d"
+        }
+      },
+      "Transitions": [
+        {
+          "Days": 30,
+          "StorageClass": "STANDARD_IA"
+        },
+        {
+          "Days": 90,
+          "StorageClass": "GLACIER_IR"
+        }
+      ],
+      "Expiration": {
+        "Days": 365
+      }
+    },
+    {
+      "ID": "accepted-2555d",
+      "Status": "Enabled",
+      "Filter": {
+        "Tag": {
+          "Key": "retention-class",
+          "Value": "2555d"
+        }
+      },
+      "Transitions": [
+        {
+          "Days": 30,
+          "StorageClass": "STANDARD_IA"
+        },
+        {
+          "Days": 90,
+          "StorageClass": "GLACIER_IR"
+        },
+        {
+          "Days": 365,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ],
+      "Expiration": {
+        "Days": 2555
+      }
+    },
+    {
+      "ID": "quarantine-90d",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "quarantine/"
+      },
+      "Expiration": {
+        "Days": 90
+      }
+    }
+  ]
+}

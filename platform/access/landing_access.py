@@ -7,9 +7,23 @@ Reads every ``sources.yml`` and writes, into ``platform/access/landing/``:
   policies/landing-loader.json             drain the inbox; write + read the archive (no delete)
   policies/landing-owner-<domain>.json     read the quarantine of the datasets the domain owns
   principals.tsv                           user <TAB> policy <TAB> env var holding its secret
+  production/                              the production bucket controls (ADR-0016 §5), as
+                                           templates: ${AWS_ACCOUNT_ID} / ${AWS_REGION} are filled
+                                           at deploy time
+    inbox-bucket-policy.json               TLS only; uploads must be SSE-KMS with the uploading
+                                           partner's own key
+    archive-bucket-policy.json             TLS only; SSE-KMS only; nobody deletes accepted/
+    inbox-lifecycle.json / archive-lifecycle.json
+                                           expiry + storage-class transitions per retention class
+    kms-keys.json                          one key per partner (encrypt) the loader may decrypt
+    secrets.json                           where each principal's credential lives in the secrets
+                                           manager, and its rotation
 
-The documents are standard IAM JSON: ``minio-init`` applies them locally (``make up``); in the
-cloud the same statements become IAM / S3 Access Point policies. The output is committed, and
+The policies are standard IAM JSON: ``minio-init`` applies ``policies/`` locally (``make up``); in
+the cloud the same statements become IAM / S3 Access Point policies. ``production/`` needs what a
+laptop can't host (TLS on the object store, a KMS, a remote storage tier, a secrets manager), so it
+is generated and reviewed here and applied by the production deployment (production-readiness
+D11/D12). The output is committed, and
 ``--check`` (``make check``) fails when it drifts from the source config, so who-can-touch-what is
 always reviewable in git.
 
@@ -33,6 +47,17 @@ ARCHIVE = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
 sys.path.insert(0, str(REPO_ROOT / "platform" / "ingestion" / "src"))
 sys.path.insert(0, str(REPO_ROOT / "platform" / "quality" / "src"))
 from dgp_platform_ingestion.config import load_datasets  # noqa: E402
+from dgp_platform_ingestion.layout import RETENTION_CLASSES  # noqa: E402
+
+KEY_ARN = "arn:aws:kms:${AWS_REGION}:${AWS_ACCOUNT_ID}:key/"
+ROLE_ARN = "arn:aws:iam::${AWS_ACCOUNT_ID}:role/"
+# Storage-class transitions for accepted evidence, per retention class (days -> class). The 90-day
+# class stays in STANDARD: an early transition would cost more than it saves.
+TRANSITIONS = {
+    90: [],
+    365: [(30, "STANDARD_IA"), (90, "GLACIER_IR")],
+    2555: [(30, "STANDARD_IA"), (90, "GLACIER_IR"), (365, "DEEP_ARCHIVE")],
+}
 
 
 def _arn(bucket: str, path: str = "") -> str:
@@ -116,6 +141,139 @@ def owner_policy(datasets: list[tuple[str, str]]) -> dict:
     )
 
 
+def _deny_insecure(bucket: str) -> list[dict]:
+    return [
+        {
+            "Sid": "DenyInsecureTransport",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [_arn(bucket), _arn(bucket, "*")],
+            "Condition": {"Bool": {"aws:SecureTransport": "false"}},
+        },
+        {
+            "Sid": "DenyUnencryptedUploads",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:PutObject",
+            "Resource": [_arn(bucket, "*")],
+            "Condition": {"StringNotEquals": {"s3:x-amz-server-side-encryption": "aws:kms"}},
+        },
+    ]
+
+
+def inbox_bucket_policy(sources: list[str]) -> dict:
+    """TLS only; every upload SSE-KMS; each partner's prefix only under its own key."""
+    return _doc(
+        *_deny_insecure(INBOX),
+        *[
+            {
+                "Sid": f"Deny{s.title()}OtherKey",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "s3:PutObject",
+                "Resource": [_arn(INBOX, f"{s}/*")],
+                "Condition": {
+                    "StringNotEquals": {
+                        "s3:x-amz-server-side-encryption-aws-kms-key-id": KEY_ARN
+                        + "${KEY_ID_LANDING_"
+                        + s.upper()
+                        + "}"
+                    }
+                },
+            }
+            for s in sources
+        ],
+    )
+
+
+def archive_bucket_policy() -> dict:
+    """TLS only; SSE-KMS only; accepted evidence can't be deleted (object lock is the backstop)."""
+    return _doc(
+        *_deny_insecure(ARCHIVE),
+        {
+            "Sid": "DenyDeleteAcceptedEvidence",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion", "s3:BypassGovernanceRetention"],
+            "Resource": [_arn(ARCHIVE, "accepted/*")],
+        },
+    )
+
+
+def inbox_lifecycle() -> dict:
+    return {
+        "Rules": [
+            {
+                "ID": "inbox-safety-net",
+                "Status": "Enabled",
+                "Filter": {"Prefix": ""},
+                "Expiration": {"Days": 30},
+                "NoncurrentVersionExpiration": {"NoncurrentDays": 7},
+                "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 1},
+            }
+        ]
+    }
+
+
+def archive_lifecycle() -> dict:
+    rules = [
+        {
+            "ID": f"accepted-{days}d",
+            "Status": "Enabled",
+            "Filter": {"Tag": {"Key": "retention-class", "Value": f"{days}d"}},
+            **(
+                {"Transitions": [{"Days": d, "StorageClass": c} for d, c in TRANSITIONS[days]]}
+                if TRANSITIONS[days]
+                else {}
+            ),
+            "Expiration": {"Days": days},
+        }
+        for days in RETENTION_CLASSES
+    ]
+    rules.append(
+        {
+            "ID": "quarantine-90d",
+            "Status": "Enabled",
+            "Filter": {"Prefix": "quarantine/"},
+            "Expiration": {"Days": 90},
+        }
+    )
+    return {"Rules": rules}
+
+
+def kms_keys(sources: list[str]) -> dict:
+    return {
+        "keys": [
+            {
+                "alias": f"alias/dgp-landing-{s}",
+                "key_id_var": f"KEY_ID_LANDING_{s.upper()}",
+                "rotation": "yearly (automatic)",
+                "encrypt": [ROLE_ARN + f"landing-partner-{s}"],
+                "decrypt": [ROLE_ARN + "landing-loader"],
+            }
+            for s in sources
+        ]
+    }
+
+
+def secrets_inventory(sources: list[str]) -> dict:
+    principals = ["landing-loader", *[f"partner-{s}" for s in sources]]
+    return {
+        "secrets": [
+            {
+                "principal": p,
+                "secret": f"dgp/landing/{p}",
+                "rotation_days": 90,
+                "read_by": "landing-loader workload role"
+                if p == "landing-loader"
+                else "the partner, through its onboarding portal (never the platform)",
+            }
+            for p in principals
+        ]
+    }
+
+
 def generate() -> dict[str, str]:
     """{relative path: file content} for everything under platform/access/landing/."""
     landing = [d for d in load_datasets(REPO_ROOT) if d.source_type == "landing"]
@@ -129,6 +287,13 @@ def generate() -> dict[str, str]:
         files[f"policies/landing-partner-{src}.json"] = partner_policy(src)
     for domain, ds in sorted(owned.items()):
         files[f"policies/landing-owner-{domain}.json"] = owner_policy(ds)
+
+    files["production/inbox-bucket-policy.json"] = inbox_bucket_policy(sources)
+    files["production/archive-bucket-policy.json"] = archive_bucket_policy()
+    files["production/inbox-lifecycle.json"] = inbox_lifecycle()
+    files["production/archive-lifecycle.json"] = archive_lifecycle()
+    files["production/kms-keys.json"] = kms_keys(sources)
+    files["production/secrets.json"] = secrets_inventory(sources)
 
     out = {path: json.dumps(doc, indent=2) + "\n" for path, doc in files.items()}
     # Principals created locally. Owner policies attach to the domain's SSO role in production
@@ -162,7 +327,7 @@ def main() -> int:
             for k in drift:
                 print(f"  - platform/access/landing/{k}")
             return 1
-        print(f"Landing access OK: {len(wanted) - 1} policies generated from sources.yml.")
+        print(f"Landing access OK: {len(wanted)} files generated from sources.yml.")
         return 0
 
     for stale in set(existing) - set(wanted):
