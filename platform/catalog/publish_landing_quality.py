@@ -16,9 +16,9 @@ record; DataHub is the read model, ADR-0018):
 S3 datasets that are no longer landing datasets (e.g. names from an older layout) are
 soft-deleted, so the catalog matches the repo. Idempotent: re-running upserts.
 
-Runs automatically as the ``publish_quality`` task after ``load_raw`` in each domain's ingestion
-DAG (``--domain``), so results reach DataHub right after every gate run. By hand / full reconcile:
-``make catalog-quality`` (isolated DataHub SDK env).
+Runs automatically as the ``publish_quality`` task after ``contract_gate`` in each domain's
+ingestion DAG (``--domain``), so results reach DataHub right after every gate run. By hand / full
+reconcile: ``make catalog-quality`` (isolated DataHub SDK env).
 """
 
 from __future__ import annotations

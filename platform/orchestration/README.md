@@ -21,8 +21,12 @@ The factory reads the domain's `sources.yml` and builds the right task graph:
 | Domain shape | Tasks generated |
 |---|---|
 | OLTP sources only (e.g. customer) | `seed → load_raw` |
-| Landing sources only (e.g. customer_experience) | `land → load_raw` |
-| Both (e.g. marketplace) | `seed, land → load_raw` |
+| Landing sources only (e.g. customer_experience) | `land → contract_gate → load_raw`, `contract_gate → publish_quality` |
+| Both (e.g. marketplace) | `seed → load_raw`, `land → contract_gate → load_raw`, `contract_gate → publish_quality` |
+
+`contract_gate` checks every inbox file against its contract and files it to `accepted/` or
+`quarantine/`; it loads nothing. `load_raw` loads only accepted files no load has picked up yet, so
+it can be retried without re-checking (ADR-0025).
 
 ## Assets and triggering
 

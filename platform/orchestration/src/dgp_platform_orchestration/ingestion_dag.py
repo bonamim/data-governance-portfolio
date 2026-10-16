@@ -9,8 +9,16 @@
 
 The ``seed`` (populate shop_oltp) and ``land`` (a partner delivering into the landing inbox) tasks
 are local PoC *simulators* of the source systems: in production the operational DB and the landing
-zone are fed by real producers, leaving only ``load_raw`` (source -> <domain>_raw), which is the
-Airflow node that carries lineage into the catalog.
+zone are fed by real producers. What stays is the platform's own work, one task per step so the
+order is visible in the Airflow graph (ADR-0025):
+
+    land -> contract_gate -> load_raw     (landing: check the file, then load what passed)
+                          -> publish_quality
+    seed -> load_raw                       (OLTP)
+
+``contract_gate`` files every inbox delivery to accepted/ or quarantine/ and loads nothing;
+``load_raw`` loads only accepted files no load has picked up yet, so it can be retried without
+re-checking. Both carry lineage into the catalog.
 """
 
 from __future__ import annotations
@@ -52,15 +60,25 @@ def _raw_outlets(datasets) -> list:
     return out
 
 
+def _landing_entity(d):
+    """The landing dataset: the S3 entity ``make catalog-quality`` publishes with the gate's
+    assertions (ADR-0024)."""
+    return _dataset("s3", layout.catalog_name(_ARCHIVE, d.source_system, d.name))
+
+
+def _landing_outlets(datasets) -> list:
+    """What the gate produces: the accepted landing datasets."""
+    return [ds for d in datasets if d.source_type == "landing" and (ds := _landing_entity(d))]
+
+
 def _source_inlets(datasets) -> list:
-    """The upstream sources: the shop_oltp table (OLTP) or the landing dataset (file datasets) —
-    the same S3 entity ``make catalog-quality`` publishes with the gate's assertions (ADR-0024)."""
+    """The load's upstream sources: the shop_oltp table (OLTP) or the landing dataset (files)."""
     out = []
     for d in datasets:
         if d.source_type == "oltp":
             ds = _dataset("postgres", f"shop_oltp.shop.{d.oltp_table}")
         else:
-            ds = _dataset("s3", layout.catalog_name(_ARCHIVE, d.source_system, d.name))
+            ds = _landing_entity(d)
         if ds:
             out.append(ds)
     return out
@@ -110,33 +128,36 @@ def build_ingestion_dag(domain: str):
         def land():
             pipeline.land_files(runtime.repo_root(), runtime.settings(), runtime.data_dir(), domain)
 
-        # Airflow lineage lives at the load boundary (ADR-0018): the loader consumes the source
-        # (shop_oltp table / landing object) and produces the <domain>_raw tables, so the catalog
-        # reads "source -> load_raw -> raw tables -> [dbt medallion] -> ports". raw_asset is for
-        # scheduling the transform DAG.
+        # The quality check, before anything reaches the warehouse (ADR-0024/0025): every inbox
+        # delivery is filed to accepted/ (landing dataset) or quarantine/. It loads nothing.
+        @task(outlets=_landing_outlets(datasets))
+        def contract_gate():
+            run_id = get_current_context()["run_id"]
+            pipeline.contract_gate(runtime.repo_root(), runtime.settings(), run_id, domain)
+
+        # Airflow lineage at the load boundary (ADR-0018): the loader consumes the source
+        # (shop_oltp table / accepted landing dataset) and produces the <domain>_raw tables, so the
+        # catalog reads "source -> load_raw -> raw tables -> [dbt medallion] -> ports". raw_asset
+        # is for scheduling the transform DAG.
         @task(outlets=[raw_asset(domain), *_raw_outlets(datasets)], inlets=_source_inlets(datasets))
         def load_raw():
             run_id = get_current_context()["run_id"]
-            pipeline.load_raw(
-                runtime.repo_root(), runtime.settings(), runtime.data_dir(), run_id, domain
-            )
+            pipeline.load_raw(runtime.repo_root(), runtime.settings(), run_id, domain)
 
-        # The landing gate's per-rule results reach DataHub right after every run (ADR-0024): the
-        # landing dataset's Quality tab shows this run's FAILURE/SUCCESS per partition.
+        # The gate's per-rule results reach DataHub right after every gate run (ADR-0024): the
+        # landing dataset's Quality tab shows this run's FAILURE/SUCCESS per partition. It hangs
+        # off the gate, not the load, so a failed load cannot hide a quarantine.
         @task
         def publish_quality():
             script = runtime.repo_root() / "platform" / "catalog" / "publish_landing_quality.py"
             subprocess.run([sys.executable, str(script), "--domain", domain], check=True)
 
-        upstream = []
-        if has_oltp:
-            upstream.append(seed())
-        if has_landing:
-            upstream.append(land())
         load = load_raw()
-        for up in upstream:
-            up >> load
+        if has_oltp:
+            seed() >> load
         if has_landing:
-            load >> publish_quality()
+            gate = contract_gate()
+            land() >> gate >> load
+            gate >> publish_quality()
 
     return _dag()
