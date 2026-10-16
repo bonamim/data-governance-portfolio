@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Proof P14 — landing-zone lifecycle, end to end on the live platform (ADR-0024).
 
-A partner delivers files into the inbox; the platform files each one to ``accepted/`` (locked,
-loaded) or ``quarantine/`` (with ``_reason.json``, not loaded); the results appear in DataHub as
-assertions on the landing dataset. Exercised with the ``reviews`` dataset:
+A partner delivers files into the inbox; the contract gate files each one to ``accepted/``
+(locked) or ``quarantine/`` (with ``_reason.json``); the raw load then loads only what was accepted
+(ADR-0025); the results appear in DataHub as assertions on the landing dataset. Exercised with the
+``reviews`` dataset:
 
   0. layout     archive has object lock + one lifecycle rule per retention class + quarantine rule
   1. bad data   null order_id + review_score 99 -> quarantined, reason recorded, raw untouched
   2. bad name   a file not following the partner's naming convention -> quarantined (naming)
-  3. good       a conforming file -> accepted/ (partition from the FILE NAME, lock, retention
-                tag), loaded, inbox drained
+  3. good       a conforming file -> the gate files it to accepted/ (partition from the FILE NAME,
+                lock, retention tag) and loads nothing; load_raw then loads it; a retried
+                load_raw loads nothing again (no re-check, no double load)
   4. real       the real Olist file -> accepted + loaded (restores the real data)
-  5. resend     the same file again -> skipped (idempotent, P6), inbox drained
+  5. resend     the same bytes again, as a multipart upload (another ETag) -> skipped on content
+                (idempotent, P6), inbox drained
   6. access     partner is write-only to its own prefix; nobody deletes accepted evidence
   7. catalog    `make catalog-quality` -> DataHub shows FAILURE/SUCCESS runs per partition
 
@@ -36,6 +39,7 @@ from pathlib import Path
 
 import boto3
 import psycopg
+from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
 from dgp_platform_ingestion import db, layout, pipeline
 from dgp_platform_ingestion.objectstore import ObjectStore
@@ -104,10 +108,25 @@ class Ctx:
         self.partner.put_object(Bucket=self.inbox, Key=key, Body=body)
         return key
 
+    def gate(self, run_id: str) -> dict:
+        return pipeline.contract_gate(REPO, self.settings, run_id, DOMAIN)
+
+    def load(self, run_id: str) -> dict:
+        return pipeline.load_raw(REPO, self.settings, run_id, DOMAIN)
+
+    def deliver_multipart(self, name: str, body: bytes) -> str:
+        """Same delivery through a multipart upload: same bytes, a different ETag."""
+        key = layout.inbox_prefix(SOURCE, DATASET) + name
+        cfg = TransferConfig(
+            multipart_threshold=5 * 1024 * 1024, multipart_chunksize=5 * 1024 * 1024
+        )
+        self.partner.upload_fileobj(io.BytesIO(body), self.inbox, key, Config=cfg)
+        return key
+
     def run(self, tag: str) -> tuple[str, dict]:
+        """One ingestion run, as the DAG does it: contract_gate, then load_raw."""
         run_id = f"p14-{tag}-{self.stamp}"
-        out = pipeline.load_raw(REPO, self.settings, REPO / "data", run_id, DOMAIN)
-        return run_id, out
+        return run_id, {**self.gate(run_id), **self.load(run_id)}
 
     def sql(self, query: str, *args):
         with db.connect(self.settings.analytics_loader) as conn:
@@ -206,13 +225,18 @@ def step_bad_name(c: Ctx) -> None:
 
 
 def step_good(c: Ctx) -> None:
-    print("3. Conforming file: accepted (partition from the file name), locked, loaded")
+    print("3. Conforming file: the gate accepts it (no load), then load_raw loads it")
     business = c.today - timedelta(days=1)
     name = f"olist_order_reviews_{business:%Y%m%d}.csv"
     c.deliver(name, _csv(_rows()))
-    run_id, out = c.run("good")
-    check(out["loaded"] == 1, "loader outcome: 1 loaded", str(out))
+    before = c.raw_count()
+    run_id = f"p14-good-{c.stamp}"
+    out = c.gate(run_id)
+    check(out["accepted"] == 1, "gate outcome: 1 accepted", str(out))
     (lid, status, partition, key, checks) = c.ledger(run_id)[-1]
+    check(status == "accepted", "ledger records status=accepted", f"ledger id {lid}")
+    check(c.raw_count() == before, "the gate loads nothing: raw table untouched", f"{before} rows")
+    check(c.inbox_empty(), "inbox drained by the gate")
     expected = layout.accepted_key(SOURCE, DATASET, f"dt={business:%Y-%m-%d}", name)
     check(key == expected, "partition comes from the partner's file name (yesterday)", key)
     ret = c.root.get_object_retention(Bucket=c.archive, Key=key)["Retention"]
@@ -227,8 +251,22 @@ def step_good(c: Ctx) -> None:
         {"Key": "retention-class", "Value": "365d"} in tags,
         "tagged retention-class=365d (picked up by the lifecycle rule)",
     )
+    out = c.load(run_id)
+    check(out["loaded"] == 1, "load_raw outcome: 1 loaded", str(out))
     check(c.raw_count() == 1001, "loaded into the warehouse raw table", "1001 rows")
-    check(c.inbox_empty(), "inbox drained")
+    (load_id, load_status, *_rest) = c.ledger(run_id)[-1]
+    gate_of = c.sql("SELECT gate_id FROM platform_meta.ingestion_ledger WHERE id = %s", load_id)
+    check(
+        load_status == "loaded" and gate_of[0][0] == lid,
+        "the load row points at the gate row it loaded",
+        f"ledger id {load_id} -> gate {lid}",
+    )
+    out = c.load(f"p14-retry-{c.stamp}")
+    check(
+        out["loaded"] == 0 and c.raw_count() == 1001,
+        "a retried load_raw loads nothing (no re-check, no double load)",
+        str(out),
+    )
     c.accepted_key = key
 
 
@@ -248,11 +286,24 @@ def step_real_and_resend(c: Ctx) -> None:
         rows > 99000, "raw table holds the real reviews again", f"{rows} rows ({real_rows} lines)"
     )
 
-    print("5. Re-delivery of the same file: skipped (idempotent, P6)")
-    c.deliver(name, body)
+    print("5. Re-delivery of the same bytes by multipart upload: skipped on content (P6)")
+    if len(body) <= 5 * 1024 * 1024:
+        check(False, "real file is large enough for a multipart upload", f"{len(body)} bytes")
+        return
+    key = c.deliver_multipart(name, body)
+    etag = c.loader.head(c.inbox, key).etag
+    check(
+        etag != hashlib.md5(body).hexdigest(),  # noqa: S324
+        "the multipart upload has a different ETag than the first delivery",
+        etag,
+    )
     run_id, out = c.run("resend")
     (lid, status, *_rest) = c.ledger(run_id)[-1]
-    check(out["skipped"] == 1 and status == "skipped", "ledger records status=skipped", str(out))
+    check(
+        out["skipped"] == 1 and status == "skipped",
+        "ledger records status=skipped (same content SHA-256)",
+        str(out),
+    )
     check(c.raw_count() == rows, "warehouse untouched", f"{rows} rows")
     check(c.inbox_empty(), "inbox drained")
 
@@ -328,8 +379,10 @@ def step_catalog(c: Ctx) -> None:
     if not check(pub.returncode == 0, "make catalog-quality", pub.stdout.strip().splitlines()[-1]):
         print(pub.stdout[-800:], pub.stderr[-800:])
         return
+    # Results are on the gate's rows (the ones with checks), not on the load rows.
     ids = {
-        tag: str(c.ledger(f"p14-{tag}-{c.stamp}")[-1][0]) for tag in ("bad", "name", "good", "real")
+        tag: str([r for r in c.ledger(f"p14-{tag}-{c.stamp}") if r[4] is not None][-1][0])
+        for tag in ("bad", "name", "good", "real")
     }
     want = [
         ("bad", "not_null", "order_id", "FAILURE"),
@@ -363,7 +416,7 @@ def main() -> int:
     except psycopg.OperationalError as e:
         sys.exit(f"analytics warehouse unreachable — `make up` first ({e})")
     if not c.inbox_empty():
-        sys.exit("the reviews inbox is not empty — drain it (`dgp-ingest load-raw`) before P14")
+        sys.exit("the reviews inbox is not empty — drain it (`dgp-ingest gate`) before P14")
     step_layout(c)
     step_bad_data(c)
     step_bad_name(c)
@@ -376,9 +429,10 @@ def main() -> int:
         print(f"\nP14 FAILED: {len(failures)} check(s): {', '.join(failures)}")
         return 1
     print(
-        "\nP14 proven: a partner's file is filed to accepted/ (locked, loaded) or quarantine/ "
-        "(with its reason, not loaded), the inbox is always drained, access is least-privilege, "
-        "and every rule's result is visible in DataHub."
+        "\nP14 proven: the gate files a partner's file to accepted/ (locked) or quarantine/ "
+        "(with its reason) before anything is loaded, load_raw loads only accepted files, the "
+        "inbox is always drained, access is least-privilege, and every rule's result is visible "
+        "in DataHub."
     )
     return 0
 
