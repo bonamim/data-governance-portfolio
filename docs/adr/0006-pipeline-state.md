@@ -58,5 +58,5 @@ flowchart TD
 ```
 
 Implemented by `platform/transform/publish.py` (`make publish`) and the
-`generate_alias_name` macro; run per domain by the Airflow transform DAGs. View ports carry
-no materialized data to protect and are published in place.
+`generate_alias_name` macro, per model since ADR-0015 (M9); run per domain by the Airflow
+transform DAGs. View ports carry no materialized data to protect and are published in place.

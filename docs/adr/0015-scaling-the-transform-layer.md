@@ -1,6 +1,6 @@
 # ADR-0015: Scaling the transform layer — Cosmos, per-model WAP, dbt state, microbatch backfill
 
-**Status:** Proposed (design; implementation is a scoped build-out from M4 onward)
+**Status:** Accepted — implemented in M9 (2026-10-16); see *Implementation* below for what was built and how it differs in detail
 **Extends** [ADR-0005](0005-airflow-orchestration.md) (Airflow), [ADR-0006](0006-pipeline-state.md) (microbatch).
 **Supersedes the *mechanism* of** [ADR-0014](0014-flexible-write-audit-publish.md) — the opt-in /
 severity policy stands; how it is built and orchestrated changes here.
@@ -105,5 +105,69 @@ State is the **code-change** axis and is complementary to incremental (the **dat
   the warehouses, not Postgres-specific plumbing.
 - Build-out is incremental and can land per concern: factory params first (cheap), then Cosmos
   on one domain, then the per-model promote, then state/defer, then microbatch backfill.
+
+## Implementation (M9, 2026-10-16)
+
+All four decisions are built and proven on the live platform (P6, P15, P16; P3 now holds in
+Airflow too). What was built, and the details the design left open:
+
+**One runner, two entry points.** `dgp_platform_orchestration.wap` holds the plan (which models
+opt in, upstream-first order, batch windows, descendants) and is used by both `publish.py` (CLI,
+restore drill, proofs) and the Airflow DAG, so the two cannot drift. The publish SQL stays in the
+`dgp_dbt` macros (`wap_prepare`, `wap_audit_view`, `wap_promote`, `wap_drop_candidate`).
+
+**Cosmos (§1).** `astronomer-cosmos==1.15.1`, `LoadMode.DBT_MANIFEST`, `ExecutionMode.LOCAL`,
+`TestBehavior.AFTER_EACH`. The manifest comes from `make dbt-manifests` (run by `make airflow-up`;
+the deploy step in production). The DAG per domain is:
+`models` (one run + test group per model, `package:<project>` so dbt-loom's injected upstream
+models are not rendered) → `wap_<model>` (`plan → stage → write → audit_view → audit → publish`,
+`quarantine` on failure, audit never retried) → `downstream` → `grant` (always) → `save_state`
+(only when everything published; the only task emitting `published/<domain>`). Edges are
+per model (Cosmos `tasks_map`), not per group. Cosmos runs dbt from a temporary copy of the
+project, so the shared package path (`packages.yml`) and the dbt-loom manifest paths take an
+absolute prefix from env vars that only Airflow sets. Cosmos emits no Airflow datasets, keeping
+ADR-0018's rule that dbt owns transform lineage.
+
+**Per-model promote on Postgres (§2).** The candidate is `<name>__candidate` in the model's own
+schema (an alias, not a candidate schema: one fewer schema per domain to own and grant). The audit
+runs the model's dbt tests against `<name>__audit`, a view of the table *as consumers would get it
+after the promote*. The promote:
+
+| Case | Promote |
+|---|---|
+| table (or incremental rebuilt in full), same columns | rows replaced **in place** (truncate + insert, one transaction): same table, so dependent views, grants, masking and docs survive |
+| first publish, a view becoming a table, or a new shape | rename the candidate in; **refused** while anything depends on the old relation (never `CASCADE`) |
+| microbatch with a window | the candidate holds only the window's batches; merge = delete the window + insert, one transaction |
+
+In-place replacement costs a copy on Postgres; on a warehouse the same macro maps to a zero-copy
+clone swap. A WAP model downstream of another runs after its publish and is skipped if that one
+was quarantined; a non-WAP descendant of a quarantined model is not rebuilt.
+
+**Audit the batch as the table (§2, §4).** Auditing only the batch would miss table-level rules: the
+`rowCount` floor fails on a one-month batch, and a batch that is clean on its own can duplicate an
+order elsewhere in the table. The audit view (published rows outside the window + the new batches)
+makes every contract rule judge the post-merge table, at the cost of a view. P15 proves both cases.
+
+**State and Slim CI (§3).** Every successful publish saves `target/manifest.json` to
+`s3://platform-state/dbt/<domain>/manifest.json` as the `dbt-state` principal (read/write on
+`dbt/*` only; the restore drill passes `--no-state`). `make slim-ci` plans
+`state:modified+` against that baseline and builds it with `--defer --target ci` into the
+domain's `<domain>_ci` sandbox schema (owned by the domain role, emptied first, never granted).
+Pull requests run the same plan against the base branch, parsed without a warehouse
+(`--baseline git:<ref> --plan-only`). The state store is regenerable: if it is lost, the next
+publish recreates it and Slim CI reports "no baseline" until then.
+
+**Backfill (§4).** `sales.orders` is the first microbatch port (monthly, `lookback=1`,
+`unique_key` — dbt-postgres merges batches). A normal run audits and merges the current batch
+plus the lookback; `make backfill DOMAIN=… START=… END=…` or the DAG's `event_time_start` /
+`event_time_end` params reprocess exactly that window (aligned to whole batches) through the same
+audit; `full_refresh` rebuilds in full. Guardrails: `max_active_runs=1` per transform DAG, and the
+merge replaces the window (never appends).
+
+**Known limits.** Backfill params apply to opted-in microbatch models; a non-microbatch
+incremental model opted in to WAP is rebuilt in full into its candidate. In Airflow, the
+`quarantine` task of a WAP model that was skipped because an upstream audit failed also runs
+(trigger rule `one_failed` counts `upstream_failed`); it only drops a candidate that does not
+exist.
 
 [astronomer-cosmos]: https://astronomer.github.io/astronomer-cosmos/

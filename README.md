@@ -310,12 +310,21 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   - [x] **Desired production controls specified** with acceptance tests (production-readiness §5,
     D1–D10): TLS reverse proxy, OIDC SSO, secrets manager, network isolation, external KMS, HA,
     central logging, alert routing. They need infrastructure a laptop can't host and are go-live gates.
-- [ ] **M9 — Transform-layer scale (ADR-0015):**
-  - [ ] orchestrate dbt with **Cosmos** (manifest mode — per-model tasks/retries/parallelism);
-    **per-model portable write-audit-publish** (blue/green swap / warehouse zero-copy clone /
-    Iceberg branch; incremental = audit-batch-then-merge); **dbt state + Slim CI**
-    (`state:modified --defer`, `manifest.json` in `platform-state`); **microbatch +
-    runtime-param backfill**. Built when a domain grows past the static-Olist scale.
+- [x] **M9 — Transform-layer scale (ADR-0015):**
+  - [x] **Cosmos, manifest mode:** each transform DAG renders one run + test task group per
+    model from `make dbt-manifests` (no `dbt ls` at parse), with per-model edges, retries and
+    parallelism.
+  - [x] **Per-model write-audit-publish:** opted-in models go `plan → stage → write → audit_view →
+    audit → publish` (or `quarantine`) one at a time; the audit runs the contract DQ on the table
+    as consumers would get it; same-shape tables are replaced in place, so dependent views,
+    grants and masking survive (never `CASCADE`). One bad model doesn't block the others; nothing
+    is built from it and no `published/<domain>` event is emitted. `make prove-p15`.
+  - [x] **dbt state + Slim CI:** every publish saves its manifest to `platform-state` (own
+    least-privilege principal); `make slim-ci` builds `state:modified+` in a `<domain>_ci`
+    sandbox with `--defer`; pull requests get the same plan against the base branch. `make prove-p16`.
+  - [x] **Microbatch + runtime-param backfill:** `sales.orders` is a monthly microbatch port; a
+    normal run merges only the latest batches; `make backfill` / the DAG's `event_time_start` /
+    `event_time_end` params reprocess exactly a window, audited before the merge. `make prove-p6`.
 - [ ] **M10 — Event-driven ingestion (ADR-0016):** the inbox, write-only partner scoping, dedup,
   quarantine and DataHub results it plugs into are built (ADR-0024, P14). M10 adds (checklist in
   [ADR-0016 §5](docs/adr/0016-event-driven-ingestion.md)):
