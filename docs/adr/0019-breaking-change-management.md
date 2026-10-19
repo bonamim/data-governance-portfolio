@@ -1,7 +1,7 @@
 # ADR-0019: Breaking-change management — gate, versioning, and consumer approval
 
-**Status:** Accepted (gate + escape hatch implemented, proof P5; the GitHub approval automation is
-deploy-time). **Relates to** [ADR-0012](0012-medallion-and-output-ports.md) (output ports),
+**Status:** Accepted (gate + escape hatch implemented, proof P5; versioned ports implemented,
+proof P19 — see *Amendment*; the GitHub approval automation is deploy-time). **Relates to** [ADR-0012](0012-medallion-and-output-ports.md) (output ports),
 [ADR-0015](0015-scaling-the-transform-layer.md) (dbt model versions).
 
 ## Context
@@ -57,6 +57,27 @@ M4 lineage + the data-product consumers tell you which case you are in and whom 
 The native **Approve** is the button; the mapping convention is *GitHub team slug == domain name*.
 This layer requires the repo on GitHub with those teams and a token allowed to push to PR branches —
 until then it is inert, and the portable gate (§1–2) still enforces the policy.
+
+## Amendment (2026-10-19): versioned ports as explicit version models
+§3's "dbt model versions" is built as **one port per major**, not dbt's `versions:` block:
+
+- `v2` of `customers` is the port **`customers_v2`**: its own ODCS contract (major 2), dbt model and
+  data product definition with `version_of: customers`. `customers` (v1) keeps its contract, model
+  and **relation** untouched, so BI, ad-hoc SQL and dbt consumers on it see no change at release.
+- **Why not dbt `versions:`.** An unpinned `ref('dgp_customer', 'customers')` — dbt-loom's
+  cross-project refs included — resolves to the *latest* version, so releasing v2 would silently
+  move every unpinned consumer onto the breaking shape: exactly what the gate exists to prevent.
+  It would also make v1 and v2 share one contract-to-model sync, where the platform's tooling
+  (sync, grants, masking, catalog, policies) is one contract per port.
+- **The window.** Releasing a successor requires the old version to be `status: deprecated` with a
+  `sunsetDate` (`check-port-versions`, in CI). The sunset becomes dbt's `deprecation_date` (dbt
+  warns models that still ref it) and a DataHub `Deprecation` with the successor named. After the
+  sunset, CI fails, naming the data products still reading it.
+- **Retirement** is deleting the old contract. The gate blocks it while any data product still
+  reads it, then requires the retired port's declared consumers in
+  `governance/approvals/<port>-retire.yaml`.
+- Releasing `customers_v2` is **not** a breaking change for the gate — nothing a consumer reads has
+  changed — so it needs no approval; consent is collected at retirement, when it matters.
 
 ## Consequences
 - Output-port interfaces can't break silently; a breaking change is deliberate, **approved**, and

@@ -347,7 +347,11 @@ Each milestone is done only when its production-readiness and disaster-recovery 
 
 ### Backlog — built when a trigger appears, not on a schedule
 
-- **Versioned output ports** (ADR-0019) — dbt model versions (`v1`/`v2`) for a port that gains a
+- [x] **Versioned output ports** (ADR-0019 amendment) — a new major ships as its own port
+  `<port>_v<N>` (`version_of`) beside the untouched v1, which is deprecated with a sunset; CI fails
+  after the sunset naming who still reads it; retirement is blocked while read and needs the
+  consumers' sign-off. Built as machinery + a worked example (`make prove-p19`, reverted), since no
+  port has such a consumer yet. Originally: dbt model versions (`v1`/`v2`) for a port that gains a
   consumer which can't migrate atomically (external team / BI / ad-hoc SQL). Opt-in per port; the
   approval gate already handles internal consumers.
 - **SQLMesh portability check** — re-run the same ODCS contracts and data products on **SQLMesh** to
