@@ -146,6 +146,13 @@ def main() -> int:
             else:
                 print(f"  OK refused {product} {metrics} by {dims}: {expect}")
 
+    # Discovery: an ungoverned product is explained (owner + next step), not an error.
+    listing = semantic.list_metrics("customers")
+    if listing.get("governed") is not False or not listing.get("owner_contact"):
+        failures.append(f"list_metrics('customers') should name its owner, got {listing}")
+    else:
+        print(f"  OK list_metrics customers: ungoverned, owner {listing['owner_contact']}")
+
     if failures:
         print("\nP10 FAILED — BI and AI do not agree:")
         for f in failures:

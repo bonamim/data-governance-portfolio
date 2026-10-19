@@ -150,10 +150,30 @@ def list_data_products() -> list[dict]:
 
 
 def list_metrics(product: str) -> dict:
-    """The governed metrics and dimensions available for a data product (from its Ossie spec)."""
+    """The governed metrics and dimensions available for a data product (from its Ossie spec).
+
+    An ungoverned product is a discovery answer, not an error: no metrics, plus its owner and how
+    to request a model. Only an unknown (or, for a domain agent, foreign) product raises.
+    """
+    known = next((p for p in _catalog_products() if p["data_product"] == product), None)
+    if known and not known["governed"]:
+        return {
+            "data_product": product,
+            "governed": False,
+            "domain": known["domain"],
+            "owner_contact": known.get("owner_contact"),
+            "metrics": [],
+            "dimensions": [],
+            "next_step": (
+                f"No governed metrics yet. Use request_semantic_model('{product}', ...) to ask the "
+                f"{known['domain']} domain ({known.get('owner_contact') or 'owner'}) to define "
+                "them."
+            ),
+        }
     spec, ds = _resolve(product)
     return {
         "data_product": ds.get("name"),
+        "governed": True,
         "source": ds.get("source"),
         "metrics": [
             {
