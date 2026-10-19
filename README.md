@@ -358,7 +358,10 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   SQLMesh pass the same contracts with identical data; it found a type defect dbt hid, and SQLMesh
   audits restated data only after writing it. Originally: re-run the same ODCS contracts and data products on **SQLMesh** to
   validate the engine-portability thesis against a natively stateful framework (ADR-0006 comparison).
-- **Superset native semantic-layer connection (Ossie)** — Superset's external semantic-layer support
+- **Superset native semantic-layer connection (Ossie)** — *waiting on Superset 7.0 GA* (checked
+  2026-10-19: PyPI's latest is 6.1.0; only `7.0.0rc1`/`rc2` images exist, the feature is still an
+  experimental flag and no Ossie extension exists yet). Decision: build it on the final release, not
+  an RC whose extension API can still change. Superset's external semantic-layer support
   (SIP-182: a first-class `SemanticLayer` connection — `get_metrics()`/`get_dimensions()`/`get_table()`
   — packaged as a `.supx` extension) is behind the `SEMANTIC_LAYERS` flag on `master`, **targeted at
   Superset 7.0** (not the pinned 4.1.1); first integrations are dbt MetricFlow and Snowflake Semantic
