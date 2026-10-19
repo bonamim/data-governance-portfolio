@@ -20,5 +20,15 @@ approved_by:
 ```
 
 A breaking change is unblocked only once `approved_by` covers **all** affected consumers — their
-declared consumers plus any domain that reads the port as a cross-domain input. The old version
-stays alive (dbt model version `v{N-1}`) with a deprecation window until consumers migrate.
+declared consumers plus any domain that reads the port as a cross-domain input.
+
+**Retiring a port version** (deleting `<port>.odcs.yaml` after its successor `<port>_v<N>` took
+over, ADR-0019 §3) is breaking too. The gate blocks it while any data product still reads it, then
+needs the retired port's declared consumers in `<port>-retire.yaml`:
+
+```yaml
+port: customers
+change: retire v1 (successor customers_v2)
+approved_by:
+  - team: sales
+```
