@@ -291,7 +291,8 @@ CLAUDE ?= claude
 
 # Governed analyst session: Claude Code whose only data path is the MCP servers. env -i drops every
 # .env secret (Make exports them all); the session gets just the consumer-role URI, which the semantic
-# server needs. ai/analyst.settings.json denies the shell, edits, and reads of secrets and raw data.
+# server needs. ai/analyst.settings.json denies the shell, edits, and reads of secrets and raw data;
+# ai/analyst-prompt.md tells the model to route refusals to the owner, not around the controls.
 .PHONY: ai-chat
 ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no shell, no secrets
 	@env -i HOME="$$HOME" USER="$$USER" PATH="$$PATH" TERM="$$TERM" LANG="$${LANG:-en_US.UTF-8}" TMPDIR="$$TMPDIR" \
@@ -299,7 +300,8 @@ ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no
 		$${CLAUDE_CONFIG_DIR:+CLAUDE_CONFIG_DIR="$$CLAUDE_CONFIG_DIR"} \
 		DGP_REPO="$(CURDIR)" \
 		SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}?sslmode=verify-full&sslrootcert=$(CURDIR)/platform/infra/tls/out/ca.crt" \
-		$(CLAUDE) --settings ai/analyst.settings.json --mcp-config ai/analyst.mcp.json --strict-mcp-config $(ARGS)
+		$(CLAUDE) --settings ai/analyst.settings.json --mcp-config ai/analyst.mcp.json --strict-mcp-config \
+		--append-system-prompt-file ai/analyst-prompt.md $(ARGS)
 
 .PHONY: ai-agent
 ai-agent: $(ENV_FILE) ## Run ONE domain's federated agent: make ai-agent DOMAIN=sales (ADR-0021)
@@ -453,7 +455,7 @@ prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, dete
 
 .PHONY: prove-p21
 prove-p21: $(ENV_FILE) ## Proof P21 — the analyst Claude session reaches data only via the governed MCP tools (P21_LIVE=1 adds a real session)
-	uv run --no-project python proofs/p21_analyst_session.py
+	uv run --no-project --with pyyaml python proofs/p21_analyst_session.py
 
 .PHONY: prove-all
 prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proofs (P2, P5, P12, P21); P3/P6/P7/P10/P11 need the live platform

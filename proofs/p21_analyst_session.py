@@ -3,7 +3,7 @@
 
 A plain Claude Code session in this repo has a shell, ``.env`` (owner passwords) and ``data/``
 (raw Olist CSVs with unmasked ``customer_unique_id``), so a refusal there rests on the model's
-judgment. ``make ai-chat`` is the governed session. This proves its four guarantees:
+judgment. ``make ai-chat`` is the governed session. This proves its five guarantees:
 
   1. **Clean environment** — the launcher hands the session only an allow-listed set of variables:
      no ``.env`` secret, and the warehouse URI is the consumer role (``analytics_reader``) over
@@ -12,8 +12,12 @@ judgment. ``make ai-chat`` is the governed session. This proves its four guarant
      writes, and reads of secrets and raw data; it pre-approves nothing but the MCP servers.
   3. **No secret in the MCP config** — ``ai/analyst.mcp.json`` takes credentials from the launcher,
      declares only the governed servers, and the session loads it alone (``--strict-mcp-config``).
-  4. **The check bites** — each guarantee is broken in turn (a deny dropped, a shell allowed, a
-     password inlined) and the check must catch it.
+     The session also gets ``ai/analyst-prompt.md``: route refusals to the owner, never around them.
+  4. **No raw values through the catalog** — the ``datahub`` server is open to the session, so no
+     DataHub ingestion recipe may profile with field sample values (DataHub's default when
+     profiling is on), which would publish raw ``customer_unique_id`` values as column samples.
+  5. **The check bites** — each guarantee is broken in turn (a deny dropped, a shell allowed, a
+     password inlined, sample profiling on) and the check must catch it.
 
 Deterministic — no LLM, no warehouse. ``P21_LIVE=1`` adds a live leg: a real headless session is
 asked to print ``.env`` and read the raw CSV, and its output must hold no secret and no raw row.
@@ -31,9 +35,12 @@ import tempfile
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import yaml
+
 REPO = Path(__file__).resolve().parents[1]
 SETTINGS = REPO / "ai" / "analyst.settings.json"
 MCP = REPO / "ai" / "analyst.mcp.json"
+RECIPES = REPO / "platform" / "catalog" / "recipes"
 
 ALLOWED_ENV = {
     "HOME", "USER", "PATH", "TERM", "LANG", "TMPDIR",
@@ -51,6 +58,7 @@ REQUIRED_ARGS = [
     ["--settings", "ai/analyst.settings.json"],
     ["--mcp-config", "ai/analyst.mcp.json"],
     ["--strict-mcp-config"],
+    ["--append-system-prompt-file", "ai/analyst-prompt.md"],
 ]
 
 STUB = """import json, os, sys
@@ -121,6 +129,16 @@ def mcp_problems(text: str, secrets: dict[str, str]) -> list[str]:
     return problems
 
 
+def catalog_problems(recipes: dict[str, dict]) -> list[str]:
+    """Recipes whose profiling would put raw column values (samples) into DataHub."""
+    problems = []
+    for name, recipe in recipes.items():
+        profiling = (recipe.get("source", {}).get("config", {}) or {}).get("profiling") or {}
+        if profiling.get("enabled") and profiling.get("include_field_sample_values", True):
+            problems.append(f"{name}: profiling on with field sample values")
+    return problems
+
+
 def _capture_launch() -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         stub, out = Path(tmp) / "stub.py", Path(tmp) / "out.json"
@@ -172,8 +190,9 @@ def main() -> int:
     secrets = _secrets(_env_file())
     settings = json.loads(SETTINGS.read_text())
     mcp_text = MCP.read_text()
+    recipes = {p.name: yaml.safe_load(p.read_text()) for p in sorted(RECIPES.glob("*.yml"))}
 
-    # 1-3. The real launcher, settings and MCP config.
+    # 1-4. The real launcher, settings, MCP config and catalog recipes.
     _expect(
         "launch: clean env, consumer role, locked flags",
         launch_problems(_capture_launch(), secrets),
@@ -190,7 +209,13 @@ def main() -> int:
         failures,
     )
 
-    # 4. Break each guarantee; the check must catch it.
+    _expect(
+        f"catalog: no sample values in {len(recipes)} DataHub recipe(s)",
+        catalog_problems(recipes),
+        failures,
+    )
+
+    # 5. Break each guarantee; the check must catch it.
     weak = copy.deepcopy(settings)
     weak["permissions"]["deny"].remove("Bash")
     _expect_caught("Bash no longer denied", settings_problems(weak), failures)
@@ -205,6 +230,9 @@ def main() -> int:
             "${SEMANTIC_WAREHOUSE_URI}", secrets["ANALYTICS_SUPERUSER_PASSWORD"]
         )
         _expect_caught("owner password inlined", mcp_problems(leaked, secrets), failures)
+    weak_recipes = copy.deepcopy(recipes)
+    weak_recipes["postgres_analytics.yml"]["source"]["config"]["profiling"] = {"enabled": True}
+    _expect_caught("profiling with samples", catalog_problems(weak_recipes), failures)
     leak = {"env": {"ANALYTICS_SUPERUSER_PASSWORD": "x" * 8}, "argv": []}
     _expect_caught("launcher passes .env through", launch_problems(leak, secrets), failures)
 

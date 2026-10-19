@@ -142,10 +142,16 @@ only data path is the two MCP servers:
   keys; it pre-approves the `semantic` and `datahub` tools.
 - [`analyst.mcp.json`](analyst.mcp.json) holds no secrets: the launcher runs `env -i` and passes only
   the repo path and the `analytics_reader` URI, so no other credential reaches the session.
+- [`analyst-prompt.md`](analyst-prompt.md) sets how it answers: every number from `query_metric`
+  with its SQL and caveats, sensitivity from DataHub, and a refusal routed to the owning domain
+  (`request_semantic_model`), never around the controls (another session, a SQL client, a raw file).
+  That is guidance; the deny rules are the enforcement.
+- DataHub ingestion never profiles with sample values, so the `datahub` server can't hand out raw
+  column values either.
 
 No prompt wording needed: "list customer_unique_id values" is refused by `query_metric` (not in the
 semantic layer), and Postgres masking (ADR-0013) still applies to the consumer role underneath.
-Pass flags through with `ARGS`, e.g. `make ai-chat ARGS='-p "total revenue by state"'`. Keep
+`make prove-p21` checks all of this. Pass flags through with `ARGS`, e.g. `make ai-chat ARGS='-p "total revenue by state"'`. Keep
 using plain `claude` for platform development.
 
 ## Example (governed Q&A)
