@@ -20,6 +20,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -35,6 +36,7 @@ from datahub.emitter.rest_emitter import DatahubRestEmitter
 from datahub.metadata.schema_classes import (
     AuditStampClass,
     DatasetLineageTypeClass,
+    DeprecationClass,
     DomainPropertiesClass,
     DomainsClass,
     EditableSchemaFieldInfoClass,
@@ -140,6 +142,33 @@ def _columns_with_classification(contract_path: Path) -> list[tuple[str, str]]:
     return out
 
 
+def _deprecation(contract: Path, port: str) -> DeprecationClass:
+    """The port version's deprecation (ADR-0019 §3): sunset + successor, or not deprecated."""
+    doc = yaml.safe_load(contract.read_text(encoding="utf-8")) or {}
+    actor = "urn:li:corpuser:datahub"
+    if doc.get("status") != "deprecated":
+        return DeprecationClass(deprecated=False, note="", actor=actor)
+    props = {p.get("property"): p.get("value") for p in doc.get("customProperties") or []}
+    sunset = props.get("sunsetDate")
+    successor = next(
+        (
+            p.stem
+            for p in REPO_ROOT.glob("domains/*/data_products/*.yaml")
+            if (yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("version_of") == port
+        ),
+        None,
+    )
+    when = (
+        int(datetime.fromisoformat(f"{sunset}T00:00:00+00:00").timestamp() * 1000)
+        if sunset
+        else None
+    )
+    note = f"Deprecated port version. Migrate to `{successor or 'its successor'}`" + (
+        f" before {sunset}." if sunset else "."
+    )
+    return DeprecationClass(deprecated=True, note=note, actor=actor, decommissionTime=when)
+
+
 def main() -> int:
     emitter = DatahubRestEmitter(gms_server=GMS)
 
@@ -238,6 +267,10 @@ def main() -> int:
             )
         )
         print(f"  data product: {owner}.{name} -> {schema}.{table}")
+        for contract in contracts:
+            if (dep := _deprecation(REPO_ROOT / contract, name)) is not None:
+                for urn in assets:
+                    emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=dep))
 
     # 5. Link each warehouse dataset to the Airflow DAG that builds it — as node metadata, not a
     #    lineage edge (a DataJob and a dbt model can't merge into one node, so an edge would add a

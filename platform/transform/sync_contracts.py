@@ -87,8 +87,34 @@ def main() -> int:
         if proc.returncode != 0:
             print(proc.stdout + proc.stderr, file=sys.stderr)
             return proc.returncode
+        for product, contract in contracts:
+            if (layer := _layer_dir(domain, product)) is not None:
+                _sync_deprecation(layer, product, contract)
         print(f"  {domain}: synced {len(contracts)} output port(s) into _ports.yml")
     return 0
+
+
+def _sync_deprecation(layer_dir: Path, product: str, contract: Path) -> None:
+    """A deprecated port version's sunset becomes dbt's ``deprecation_date`` (ADR-0019 §3), so dbt
+    warns every model that still refs it; an active port carries none."""
+    doc = yaml.safe_load(contract.read_text(encoding="utf-8")) or {}
+    props = {p.get("property"): p.get("value") for p in doc.get("customProperties") or []}
+    sunset = props.get("sunsetDate") if doc.get("status") == "deprecated" else None
+    f = layer_dir / "_ports.yml"
+    ports = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+    changed = False
+    for m in ports.get("models") or []:
+        if m.get("name") != product:
+            continue
+        want = f"{sunset} 00:00:00+00:00" if sunset else None
+        if m.get("deprecation_date") != want:
+            changed = True
+            if want:
+                m["deprecation_date"] = want
+            else:
+                m.pop("deprecation_date", None)
+    if changed:
+        f.write_text(yaml.safe_dump(ports, sort_keys=False), encoding="utf-8")
 
 
 if __name__ == "__main__":
