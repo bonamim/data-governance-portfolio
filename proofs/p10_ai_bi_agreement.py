@@ -8,8 +8,9 @@ Apache Ossie definition:
   * **BI**     — Superset's published metric, executed *through Superset* against the warehouse.
   * **Ossie**  — a direct control: the shared reader's SQL run straight on the warehouse.
 
-It also checks that Superset's stored metric expression is the governed one. Deterministic — no LLM,
-no API key. Needs the live platform: warehouse up and a port published to Superset (``make
+It also checks that Superset's stored metric expression is the governed one, and that the AI path
+refuses an ungoverned/PII column, an invented metric and an ungoverned product. Deterministic — no
+LLM, no API key. Needs the live platform: warehouse up and a port published to Superset (``make
 bi-publish``). Run: ``make prove-p10``.
 """
 
@@ -33,6 +34,14 @@ ADMIN = os.environ.get("SUPERSET_ADMIN", "admin")
 ADMIN_PW = os.environ.get("SUPERSET_ADMIN_PASSWORD", "admin")
 URI = os.environ.get("SEMANTIC_WAREHOUSE_URI")
 TOL = 1e-6
+
+# (product, metrics, dimensions, text the refusal must contain): a PII column as a dimension, an
+# invented metric, and a product with no governed metrics (refused toward its owner).
+REFUSALS = [
+    ("sales_performance", ["total_revenue"], ["customer_unique_id"], "not in the semantic layer"),
+    ("sales_performance", ["avg_email_length"], [], "not in the semantic layer"),
+    ("customers", ["num_customers"], [], "request_semantic_model"),
+]
 
 
 def _superset() -> requests.Session:
@@ -126,12 +135,26 @@ def main() -> int:
                 else:
                     print(f"  OK {table}.{name}: AI=BI=Ossie={ai}")
 
+    # Refusal: the AI path has no route to an ungoverned column, metric or product.
+    for product, metrics, dims, expect in REFUSALS:
+        try:
+            semantic.query_metric(product, metrics, dims)
+            failures.append(f"{product} {metrics} by {dims}: answered, should be refused")
+        except ValueError as e:
+            if expect not in str(e):
+                failures.append(f"{product} {metrics} by {dims}: refused without '{expect}': {e}")
+            else:
+                print(f"  OK refused {product} {metrics} by {dims}: {expect}")
+
     if failures:
         print("\nP10 FAILED — BI and AI do not agree:")
         for f in failures:
             print(f"  - {f}")
         return 1
-    print(f"\nP10 OK: {checked} metric(s) agree across AI, BI and the Ossie definition.")
+    print(
+        f"\nP10 OK: {checked} metric(s) agree across AI, BI and the Ossie definition; "
+        f"{len(REFUSALS)} ungoverned request(s) refused."
+    )
     return 0
 
 

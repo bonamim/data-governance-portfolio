@@ -451,8 +451,12 @@ prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, dete
 	$(AI_MCP_ENV); \
 	uv run --no-project --with 'psycopg[binary]' --with pyyaml python proofs/p11_federated_routing.py
 
+.PHONY: prove-p21
+prove-p21: $(ENV_FILE) ## Proof P21 — the analyst Claude session reaches data only via the governed MCP tools (P21_LIVE=1 adds a real session)
+	uv run --no-project python proofs/p21_analyst_session.py
+
 .PHONY: prove-all
-prove-all: prove-p2 prove-p5 prove-p12 ## Run the self-contained proofs (P2, P5, P12); P3/P6/P7/P10/P11 need the live platform
+prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proofs (P2, P5, P12, P21); P3/P6/P7/P10/P11 need the live platform
 	@echo "Self-contained proofs passed. P3/P6/P7/P10/P11 run against the live platform (see docs/proofs.md)."
 
 .PHONY: check-semantics
