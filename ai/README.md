@@ -84,7 +84,9 @@ Copilot, Cortex); only the wiring differs. Two MCP servers:
 - `query_metric(data_product, metrics, dimensions=[])` — the value **plus** the exact governed SQL
   and the Ossie definitions used, so every answer is traceable to the one definition.
 - `request_semantic_model(data_product, business_need, requested_by)` — file a request to govern an
-  ungoverned product; routed to the owning domain.
+  ungoverned product; routed to the owning domain and announced on its alert webhook
+  (`ALERT_WEBHOOK_<DOMAIN>`). The result says whether the owner was notified
+  ([`governance/requests/`](../governance/requests/README.md)).
 
 ## Works with any MCP client
 

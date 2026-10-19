@@ -293,12 +293,18 @@ CLAUDE ?= claude
 # .env secret (Make exports them all); the session gets just the consumer-role URI, which the semantic
 # server needs. ai/analyst.settings.json denies the shell, edits, and reads of secrets and raw data;
 # ai/analyst-prompt.md tells the model to route refusals to the owner, not around the controls.
+# The owners' alert webhooks go to the semantic server only, which notifies on request_semantic_model.
 .PHONY: ai-chat
 ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no shell, no secrets
 	@env -i HOME="$$HOME" USER="$$USER" PATH="$$PATH" TERM="$$TERM" LANG="$${LANG:-en_US.UTF-8}" TMPDIR="$$TMPDIR" \
 		$${ANTHROPIC_API_KEY:+ANTHROPIC_API_KEY="$$ANTHROPIC_API_KEY"} \
 		$${CLAUDE_CONFIG_DIR:+CLAUDE_CONFIG_DIR="$$CLAUDE_CONFIG_DIR"} \
 		DGP_REPO="$(CURDIR)" \
+		ALERT_WEBHOOK_SALES="$${ALERT_WEBHOOK_SALES}" \
+		ALERT_WEBHOOK_CUSTOMER="$${ALERT_WEBHOOK_CUSTOMER}" \
+		ALERT_WEBHOOK_MARKETPLACE="$${ALERT_WEBHOOK_MARKETPLACE}" \
+		ALERT_WEBHOOK_CUSTOMER_EXPERIENCE="$${ALERT_WEBHOOK_CUSTOMER_EXPERIENCE}" \
+		ALERT_WEBHOOK_REFERENCE="$${ALERT_WEBHOOK_REFERENCE}" \
 		SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}?sslmode=verify-full&sslrootcert=$(CURDIR)/platform/infra/tls/out/ca.crt" \
 		$(CLAUDE) --settings ai/analyst.settings.json --mcp-config ai/analyst.mcp.json --strict-mcp-config \
 		--append-system-prompt-file ai/analyst-prompt.md $(ARGS)

@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.request
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -244,6 +245,41 @@ def query_metric(product: str, metrics: list[str], dimensions: list[str] = ()) -
     }
 
 
+def _notify_owner(domain: str, record: dict, recorded: str) -> dict:
+    """Tell the owning domain about a new request on its alert route (ADR-0016's webhook).
+
+    The server holds the webhook URL (a secret, from the env var the registry names); the agent only
+    learns whether the owner was notified, so it can't claim a notification that never went out.
+    """
+    route = next((d.get("alerts") or {} for d in domains() if d.get("name") == domain), {})
+    channel, env = route.get("channel"), route.get("webhook_env")
+    url = os.environ.get(env) if env else None
+    if not url:
+        return {
+            "notified": False,
+            "channel": channel,
+            "reason": f"no webhook configured ({env or 'no alert route'} unset); the request is "
+            "recorded but the owner has not been told",
+        }
+    body = {
+        "text": f"[{domain}] New semantic model request for {record['data_product']}: "
+        f"{record['business_need']} (requested by {record['requested_by']}; {recorded})",
+        "domain": domain,
+        "kind": "semantic_model_request",
+        "channel": channel,
+        "detail": {**record, "file": recorded},
+    }
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 (configured route)
+            ok = 200 <= resp.status < 300
+    except OSError as exc:  # an unreachable route must not lose the request, which is on disk
+        return {"notified": False, "channel": channel, "reason": f"webhook failed: {exc}"}
+    return {"notified": ok, "channel": channel, **({} if ok else {"reason": "webhook rejected"})}
+
+
 def _slug(text: str) -> str:
     return "".join(c if c.isalnum() else "-" for c in text.lower()).strip("-")
 
@@ -291,9 +327,19 @@ def request_semantic_model(product: str, business_need: str, requested_by: str =
         recorded = str(path.relative_to(REPO_ROOT))
     except ValueError:
         recorded = str(path)
+    notification = _notify_owner(known["domain"], record, recorded)
+    _audit(
+        "request_semantic_model",
+        "recorded",
+        product=product,
+        file=recorded,
+        notified=notification["notified"],
+        reason=notification.get("reason"),
+    )
     return {
         "recorded": recorded,
         "routed_to": f"{known['domain']} ({known.get('owner_contact') or 'owner'})",
+        "owner_notification": notification,
         "next": "the owning domain authors the Ossie semantic model; then the metric is governed.",
         **record,
     }

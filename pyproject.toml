@@ -33,5 +33,5 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-testpaths = ["platform", "governance"]
+testpaths = ["platform", "governance", "ai"]
 addopts = "-q"

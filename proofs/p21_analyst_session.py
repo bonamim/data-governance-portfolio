@@ -46,6 +46,9 @@ ALLOWED_ENV = {
     "HOME", "USER", "PATH", "TERM", "LANG", "TMPDIR",
     "ANTHROPIC_API_KEY", "CLAUDE_CONFIG_DIR", "DGP_REPO", "SEMANTIC_WAREHOUSE_URI",
     "__CF_USER_TEXT_ENCODING",  # macOS sets this text-encoding hint on every process
+    # Owners' alert webhooks, for the semantic server's request notification (not a data path).
+    "ALERT_WEBHOOK_SALES", "ALERT_WEBHOOK_CUSTOMER", "ALERT_WEBHOOK_MARKETPLACE",
+    "ALERT_WEBHOOK_CUSTOMER_EXPERIENCE", "ALERT_WEBHOOK_REFERENCE",
 }  # fmt: skip
 # Tools that run commands, write, spawn an unrestricted helper or fetch arbitrary URLs.
 MUST_DENY_TOOLS = {"Bash", "Monitor", "Edit", "Write", "NotebookEdit", "Agent", "WebFetch"}

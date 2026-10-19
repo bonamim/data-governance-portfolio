@@ -1,5 +1,5 @@
 {
-  "_comment": "MCP servers for the governed analyst session (make ai-chat). No secrets here: the launcher passes DGP_REPO and the consumer-role SEMANTIC_WAREHOUSE_URI (analytics_reader) and nothing else from .env. See ai/README.md.",
+  "_comment": "MCP servers for the governed analyst session (make ai-chat). No secrets here: the launcher passes DGP_REPO, the consumer-role SEMANTIC_WAREHOUSE_URI (analytics_reader) and the owners' alert webhooks (so request_semantic_model can notify the owner) and nothing else from .env. See ai/README.md.",
   "mcpServers": {
     "datahub": {
       "command": "uvx",
@@ -18,7 +18,12 @@
         "python", "${DGP_REPO}/ai/semantic-mcp/server.py"
       ],
       "env": {
-        "SEMANTIC_WAREHOUSE_URI": "${SEMANTIC_WAREHOUSE_URI}"
+        "SEMANTIC_WAREHOUSE_URI": "${SEMANTIC_WAREHOUSE_URI}",
+        "ALERT_WEBHOOK_SALES": "${ALERT_WEBHOOK_SALES:-}",
+        "ALERT_WEBHOOK_CUSTOMER": "${ALERT_WEBHOOK_CUSTOMER:-}",
+        "ALERT_WEBHOOK_MARKETPLACE": "${ALERT_WEBHOOK_MARKETPLACE:-}",
+        "ALERT_WEBHOOK_CUSTOMER_EXPERIENCE": "${ALERT_WEBHOOK_CUSTOMER_EXPERIENCE:-}",
+        "ALERT_WEBHOOK_REFERENCE": "${ALERT_WEBHOOK_REFERENCE:-}"
       }
     }
   }
