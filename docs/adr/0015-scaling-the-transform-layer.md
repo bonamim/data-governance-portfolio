@@ -164,6 +164,15 @@ plus the lookback; `make backfill DOMAIN=… START=… END=…` or the DAG's `ev
 audit; `full_refresh` rebuilds in full. Guardrails: `max_active_runs=1` per transform DAG, and the
 merge replaces the window (never appends).
 
+**Two fixes from proof P1/P4 (2026-10-19).** A transform DAG is scheduled on ANY of its inputs
+(`raw/<d> | published/<dep> …`); a list waited for all of them, so a new upstream port alone never
+rebuilt its consumers. And dbt-postgres rebuilds a view by swapping a new one in and dropping the
+old one with `CASCADE`, which dropped every view built on it — the next layer, output ports, masking
+views and their grants — until those were rebuilt, and for good if that rebuild failed. Views are
+now rebuilt in place with `CREATE OR REPLACE VIEW` when the columns keep their names, types and
+order (checked exactly against a temporary view); a change of shape falls back to the swap
+(`dgp_dbt/macros/view.sql`, a one-line root `view` materialization per project).
+
 **Known limits.** Backfill params apply to opted-in microbatch models; a non-microbatch
 incremental model opted in to WAP is rebuilt in full into its candidate. In Airflow, the
 `quarantine` task of a WAP model that was skipped because an upstream audit failed also runs

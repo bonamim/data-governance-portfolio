@@ -69,6 +69,8 @@ are built; `make prove-all` runs them:
 | **P10** — governed AI == BI | `make prove-p10` | ✅ packaged (needs the live platform + `make bi-publish`): asserts AI = Superset = direct-Ossie per metric |
 | **P11** — agentic mesh | `make prove-p11` | ✅ packaged: domain isolation + deterministic routing run anywhere; the routed-number check uses the live platform |
 | **P12** — output-port completeness | `make prove-p12` | ✅ strips documentation from the real contract + Ossie model, asserts each CI gate blocks, reverts |
+| **P1** — domain isolation | `make prove-p1` | ✅ packaged (live + Airflow): a domain's broken DAG code shows import errors only in its bundle; its broken model fails only its transform, its port keeps the last good version, its consumer still builds; it recovers |
+| **P4** — cross-domain automation | `make prove-p4` | ✅ packaged (live + Airflow): republishing `customer` triggers `sales_transform` through `published/customer`, which rebuilds `sales_performance`; no other domain DAG runs |
 | **P6** — state and idempotency | `make prove-p6` | ✅ packaged (live): a backfill rewrites exactly its window (by row version), nothing else; a rerun is idempotent; file dedup in P14 |
 | **P15** — per-model WAP | `make prove-p15` | ✅ packaged (live): in-place promote keeps dependents + grants; null key and cross-batch duplicate quarantined; the Airflow DAG quarantines and emits no `published/sales` |
 | **P16** — dbt state + Slim CI | `make prove-p16` | ✅ packaged (live): plans + builds only `state:modified+` in a sandbox with `--defer`; the git-baseline plan CI runs |
@@ -97,5 +99,6 @@ these commands exercise the mechanisms today (platform up — `make up`; catalog
 
 **P8** (access control + PII masking), **P9** (restore drill with PITR) and **P13** (hardening) are
 done (`make prove-p8`, `make prove-p9`, `make prove-p13`, M8). P11 now also asserts agent isolation in
-the warehouse (each `agent_<domain>` role is denied other domains' ports). **P1** (domain isolation) and **P4** (cross-domain asset trigger) are packaged as
-`prove-*` once the harness drives full Airflow (README backlog).
+the warehouse (each `agent_<domain>` role is denied other domains' ports). **P1** (domain isolation)
+and **P4** (cross-domain asset trigger) are packaged too (`make prove-p1`, `make prove-p4`); every
+proof in the scenario table now has a command.

@@ -359,8 +359,10 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   Views. Apache **Ossie is the standard underpinning it**, so when it ships: upgrade Superset and add
   an Ossie `.supx` extension → Superset reads the definitions **live** (no projection, no drift,
   `bi-check-drift` retires). "Connect, don't copy."
-- **Proof packaging** — `make prove-*` for P1 (domain isolation) and P4 (cross-domain asset trigger)
-  once the proof harness drives full Airflow (P8, P9 and P13 are packaged — M8).
+- [x] **Proof packaging** — `make prove-p1` (domain isolation) and `make prove-p4` (cross-domain
+  asset trigger) drive the live Airflow; every scenario P1–P18 now has a command. Building them
+  fixed two real defects: transforms waited for *all* their inputs instead of *any*, and a view
+  rebuild dropped the views built on it (ports, masking) until they were rebuilt.
 
 ---
 
