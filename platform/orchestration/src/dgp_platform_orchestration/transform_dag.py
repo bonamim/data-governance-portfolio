@@ -1,7 +1,7 @@
 """Airflow 3 DAG factory for the transform stage: dbt rendered per model by Cosmos, with
 per-model write-audit-publish (ADR-0015).
 
-``build_transform_dag(domain)`` returns one DAG per domain, scheduled on the domain's
+``build_transform_dag(domain)`` returns one DAG per domain, scheduled on ANY of the domain's
 ``raw/<domain>`` asset and the ``published/<dep>`` asset of every domain it consumes, emitting
 ``published/<domain>`` when everything published. The graph, rendered from the dbt manifest
 (``LoadMode.DBT_MANIFEST``: no ``dbt ls`` at parse time):
@@ -80,7 +80,12 @@ def build_transform_dag(
         "retry_delay": retry_delay or pendulum.duration(minutes=1),
         **(default_args or {}),
     }
-    schedule = [raw_asset(domain)] + [published_asset(d) for d in _upstream_domains(domain)]
+    # ANY input changing rebuilds the domain (a list would wait for ALL of them): new raw data, or a
+    # new version of an upstream domain's port it consumes (proof P4). max_active_runs=1 folds a
+    # burst of upstream events into one rebuild.
+    schedule = raw_asset(domain)
+    for upstream in _upstream_domains(domain):
+        schedule = schedule | published_asset(upstream)
 
     root = runtime.repo_root()
     pdir = wap.project_dir(root, domain)
