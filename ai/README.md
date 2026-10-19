@@ -118,10 +118,13 @@ Wiring per client (all point at the *same* server and tools):
 
 1. Platform + warehouse up and a port published to Superset (so the agreement proof has a BI side):
    `make up && make bi-up && make bi-publish`. DataHub for discovery: `make catalog-up`.
-2. **DataHub PAT** (for the `datahub` server): DataHub → Settings → Access Tokens → generate; set it
-   in `.mcp.json` as `DATAHUB_GMS_TOKEN`. Quickstart DataHub may need
-   `METADATA_SERVICE_AUTH_ENABLED=true`; without it, the `semantic` server and P10 still work.
-3. Edit [`.mcp.json`](.mcp.json): repo path, the PAT, and the **consumer-role** warehouse URI
+2. **DataHub token** (for the `datahub` server): **none locally.** The local stack runs GMS with
+   `METADATA_SERVICE_AUTH_ENABLED=false`, so tokenless calls are served (as the system user) and the
+   UI's Access Tokens page shows "Token based authentication is currently disabled". `.mcp.json`
+   keeps the token parked as `_PROD_DATAHUB_GMS_TOKEN`, which the server ignores. **In production**
+   auth is on (docs/production-readiness.md): generate a service-account PAT (DataHub → Settings →
+   Access Tokens) and rename the key to `DATAHUB_GMS_TOKEN`.
+3. Edit [`.mcp.json`](.mcp.json): repo path and the **consumer-role** warehouse URI
    (`SEMANTIC_WAREHOUSE_URI`, as `analytics_reader`). A domain-scoped agent connects as its own
    `agent_<domain>` role through `SEMANTIC_WAREHOUSE_URI_<DOMAIN>` (the Make targets set both).
    Postgres is TLS-only, so add `?sslmode=verify-full&sslrootcert=<repo>/platform/infra/tls/out/ca.crt`

@@ -1,12 +1,13 @@
 {
-  "_comment": "Governed-AI wiring for M7 (ADR-0020). Two MCP servers: 'datahub' for catalog/governance discovery (what exists, owner, PII class, lineage) and 'semantic' for the governed metric number (compiled from the same Apache Ossie specs Superset uses). Replace /ABSOLUTE/PATH/TO/REPO, the DataHub PAT, and the warehouse password/port. See ai/README.md.",
+  "_comment": "Governed-AI wiring for M7 (ADR-0020). Two MCP servers: 'datahub' for catalog/governance discovery (what exists, owner, PII class, lineage) and 'semantic' for the governed metric number (compiled from the same Apache Ossie specs Superset uses). Replace /ABSOLUTE/PATH/TO/REPO and the warehouse password/port. Local DataHub needs no token; for prod see the _comment in the datahub env. See ai/README.md.",
   "mcpServers": {
     "datahub": {
       "command": "uvx",
       "args": ["mcp-server-datahub"],
       "env": {
         "DATAHUB_GMS_URL": "http://localhost:8081",
-        "DATAHUB_GMS_TOKEN": "REPLACE_WITH_DATAHUB_PAT"
+        "_comment": "Local dev: no token -- GMS runs with METADATA_SERVICE_AUTH_ENABLED=false and serves tokenless calls as the system user. Prod: rename _PROD_DATAHUB_GMS_TOKEN to DATAHUB_GMS_TOKEN and set a service-account PAT (docs/production-readiness.md).",
+        "_PROD_DATAHUB_GMS_TOKEN": "REPLACE_WITH_DATAHUB_PAT"
       }
     },
     "semantic": {
