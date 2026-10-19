@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__semantic",
+      "mcp__datahub"
+    ],
+    "deny": [
+      "Bash",
+      "Monitor",
+      "RemoteTrigger",
+      "EnterWorktree",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Agent",
+      "WebFetch",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(./.mcp.json)",
+      "Read(./.claude/**)",
+      "Read(./data/**)",
+      "Read(**/*.csv)",
+      "Read(**/*.parquet)",
+      "Read(./platform/infra/tls/out/**)",
+      "Read(**/*.key)",
+      "Read(~/.pgpass)",
+      "Read(~/.ssh/**)",
+      "Read(~/.docker/**)",
+      "Read(~/.aws/**)"
+    ]
+  }
+}

@@ -29,3 +29,6 @@ platform/infra/tls/out/
 # SQLMesh (portability check) run artifacts
 portability/sqlmesh/logs/
 portability/sqlmesh/.cache/
+
+# Local MCP wiring (holds the warehouse password; template is ai/.mcp.json)
+/.mcp.json

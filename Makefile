@@ -287,6 +287,20 @@ ai-mcp-http: $(ENV_FILE) ## Run it as a remote MCP server over streamable-HTTP (
 	export MCP_TRANSPORT=streamable-http MCP_HOST=$${MCP_HOST:-127.0.0.1} MCP_PORT=$${MCP_PORT:-8900}; \
 	$(AI_MCP)
 
+CLAUDE ?= claude
+
+# Governed analyst session: Claude Code whose only data path is the MCP servers. env -i drops every
+# .env secret (Make exports them all); the session gets just the consumer-role URI, which the semantic
+# server needs. ai/analyst.settings.json denies the shell, edits, and reads of secrets and raw data.
+.PHONY: ai-chat
+ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no shell, no secrets
+	@env -i HOME="$$HOME" USER="$$USER" PATH="$$PATH" TERM="$$TERM" LANG="$${LANG:-en_US.UTF-8}" TMPDIR="$$TMPDIR" \
+		$${ANTHROPIC_API_KEY:+ANTHROPIC_API_KEY="$$ANTHROPIC_API_KEY"} \
+		$${CLAUDE_CONFIG_DIR:+CLAUDE_CONFIG_DIR="$$CLAUDE_CONFIG_DIR"} \
+		DGP_REPO="$(CURDIR)" \
+		SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}?sslmode=verify-full&sslrootcert=$(CURDIR)/platform/infra/tls/out/ca.crt" \
+		$(CLAUDE) --settings ai/analyst.settings.json --mcp-config ai/analyst.mcp.json --strict-mcp-config $(ARGS)
+
 .PHONY: ai-agent
 ai-agent: $(ENV_FILE) ## Run ONE domain's federated agent: make ai-agent DOMAIN=sales (ADR-0021)
 	@test -n "$(DOMAIN)" || { echo "set DOMAIN=<domain> (see make ai-agents)"; exit 2; }

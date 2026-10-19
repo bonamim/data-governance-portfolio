@@ -1,0 +1,25 @@
+{
+  "_comment": "MCP servers for the governed analyst session (make ai-chat). No secrets here: the launcher passes DGP_REPO and the consumer-role SEMANTIC_WAREHOUSE_URI (analytics_reader) and nothing else from .env. See ai/README.md.",
+  "mcpServers": {
+    "datahub": {
+      "command": "uvx",
+      "args": ["mcp-server-datahub"],
+      "env": {
+        "DATAHUB_GMS_URL": "http://localhost:8081"
+      }
+    },
+    "semantic": {
+      "command": "uv",
+      "args": [
+        "run", "--no-project",
+        "--with", "mcp",
+        "--with", "psycopg[binary]",
+        "--with", "pyyaml",
+        "python", "${DGP_REPO}/ai/semantic-mcp/server.py"
+      ],
+      "env": {
+        "SEMANTIC_WAREHOUSE_URI": "${SEMANTIC_WAREHOUSE_URI}"
+      }
+    }
+  }
+}

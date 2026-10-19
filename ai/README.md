@@ -132,6 +132,22 @@ Wiring per client (all point at the *same* server and tools):
 4. Start the semantic server: `make ai-mcp` (stdio) or `make ai-mcp-http` (remote), then wire your
    client from the table above.
 
+**Analysts in Claude Code: `make ai-chat`.** A plain Claude Code session in this repo also has a
+shell and can read `.env` (owner passwords) and `data/` (raw Olist CSVs), so it can bypass the
+semantic layer and leave the refusal to the model's judgment. `make ai-chat` starts a session whose
+only data path is the two MCP servers:
+
+- [`analyst.settings.json`](analyst.settings.json) denies the shell (`Bash`, `Monitor`), edits,
+  subagents and web fetches, and reads of `.env*`, `.mcp.json`, `data/`, CSV/Parquet files and TLS
+  keys; it pre-approves the `semantic` and `datahub` tools.
+- [`analyst.mcp.json`](analyst.mcp.json) holds no secrets: the launcher runs `env -i` and passes only
+  the repo path and the `analytics_reader` URI, so no other credential reaches the session.
+
+No prompt wording needed: "list customer_unique_id values" is refused by `query_metric` (not in the
+semantic layer), and Postgres masking (ADR-0013) still applies to the consumer role underneath.
+Pass flags through with `ARGS`, e.g. `make ai-chat ARGS='-p "total revenue by state"'`. Keep
+using plain `claude` for platform development.
+
 ## Example (governed Q&A)
 
 > **Ask:** "What's total revenue by state, and is it sensitive?"
