@@ -368,6 +368,14 @@ prove-p17: $(ENV_FILE) ## Proof P17 — an upload alone runs ingestion; a burst 
 prove-p18: $(ENV_FILE) ## Proof P18 — batch completion signals, delivery deadlines, alerts to the owner (M10, live)
 	uv run python proofs/p18_completion_and_sla.py
 
+.PHONY: prove-p1
+prove-p1: $(ENV_FILE) ## Proof P1 — a domain's broken code or model fails only that domain (live + Airflow)
+	uv run python proofs/p1_domain_isolation.py
+
+.PHONY: prove-p4
+prove-p4: $(ENV_FILE) ## Proof P4 — a producer's new port version rebuilds its consumers via assets, nothing else (live + Airflow)
+	uv run python proofs/p4_cross_domain.py
+
 .PHONY: prove-p14
 prove-p14: ## Proof P14 — landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)
 	uv run python proofs/p14_landing_lifecycle.py
