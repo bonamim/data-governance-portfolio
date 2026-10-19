@@ -354,7 +354,9 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   port has such a consumer yet. Originally: dbt model versions (`v1`/`v2`) for a port that gains a
   consumer which can't migrate atomically (external team / BI / ad-hoc SQL). Opt-in per port; the
   approval gate already handles internal consumers.
-- **SQLMesh portability check** — re-run the same ODCS contracts and data products on **SQLMesh** to
+- [x] **SQLMesh portability check** (ADR-0026, `make prove-p20`) — the four ports rebuilt natively in
+  SQLMesh pass the same contracts with identical data; it found a type defect dbt hid, and SQLMesh
+  audits restated data only after writing it. Originally: re-run the same ODCS contracts and data products on **SQLMesh** to
   validate the engine-portability thesis against a natively stateful framework (ADR-0006 comparison).
 - **Superset native semantic-layer connection (Ossie)** — Superset's external semantic-layer support
   (SIP-182: a first-class `SemanticLayer` connection — `get_metrics()`/`get_dimensions()`/`get_table()`

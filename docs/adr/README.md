@@ -27,3 +27,4 @@
 | [0023](0023-local-hardening-stand-ins.md) | Prove hardening locally where possible; specify the rest as desired controls | Accepted |
 | [0024](0024-landing-zone-layout-access-and-lifecycle.md) | Landing-zone layout, access and lifecycle (inbox + archive, contract-derived partitions) | Accepted (§7 amended by 0025) |
 | [0025](0025-separate-contract-gate-and-raw-load.md) | Separate the contract gate from the raw load (two tasks, ledger hand-off) | Accepted |
+| [0026](0026-sqlmesh-portability-check.md) | SQLMesh portability check — the contracts are the portable interface | Accepted |
