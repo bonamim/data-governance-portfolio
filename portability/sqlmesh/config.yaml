@@ -1,0 +1,21 @@
+# SQLMesh portability check (ADR-0026): the same data products, on a second, natively stateful
+# engine. Connects as sqlmesh_role (reads the domains' raw schemas, owns only its sqlmesh* schemas;
+# platform/infra/postgres/analytics/10-hardening-roles.sh). TLS comes from PGSSLMODE/PGSSLROOTCERT.
+gateways:
+  local:
+    connection:
+      type: postgres
+      host: {{ env_var('ANALYTICS_HOST', 'localhost') }}
+      port: {{ env_var('ANALYTICS_PORT', '5433') }}
+      database: {{ env_var('ANALYTICS_DB', 'analytics') }}
+      user: sqlmesh_role
+      password: {{ env_var('SQLMESH_ROLE_PASSWORD') }}
+    # SQLMesh's own state (intervals, snapshots, environments) lives in the same warehouse.
+    state_schema: sqlmesh_state
+
+default_gateway: local
+
+model_defaults:
+  dialect: postgres
+  start: '2016-09-01'
+  cron: '@daily'

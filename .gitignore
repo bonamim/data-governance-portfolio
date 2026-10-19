@@ -25,3 +25,7 @@ logs/
 
 .DS_Store
 platform/infra/tls/out/
+
+# SQLMesh (portability check) run artifacts
+portability/sqlmesh/logs/
+portability/sqlmesh/.cache/
