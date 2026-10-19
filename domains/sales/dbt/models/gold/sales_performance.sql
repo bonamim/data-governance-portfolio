@@ -26,8 +26,9 @@ review as (
 
 select
     c.customer_state,
-    count(distinct o.order_id)         as num_orders,
-    count(distinct o.customer_id)      as num_customers,
+    -- COUNT is bigint in Postgres; the contract promises integer (found by the portability check).
+    count(distinct o.order_id)::int    as num_orders,
+    count(distinct o.customer_id)::int as num_customers,
     round(sum(r.order_revenue), 2)     as total_revenue,
     round(avg(rv.avg_review_score), 3) as avg_review_score
 from orders o
