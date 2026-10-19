@@ -277,8 +277,16 @@ def request_semantic_model(product: str, business_need: str, requested_by: str =
         "requested_at": now,
         "status": "open",
     }
-    path = REQUESTS_DIR / f"{known['domain']}.{_slug(product)}.yaml"
-    path.write_text(yaml.safe_dump(record, sort_keys=False), encoding="utf-8")
+    # One file per request: a second request on the same product must not overwrite an open one.
+    stamp = now.replace("-", "").replace(":", "")
+    path = REQUESTS_DIR / f"{known['domain']}.{_slug(product)}.{stamp}.yaml"
+    n = 1
+    while path.exists():
+        n += 1
+        path = REQUESTS_DIR / f"{known['domain']}.{_slug(product)}.{stamp}-{n}.yaml"
+    path.write_text(
+        yaml.safe_dump(record, sort_keys=False, allow_unicode=True, width=100), encoding="utf-8"
+    )
     try:
         recorded = str(path.relative_to(REPO_ROOT))
     except ValueError:
