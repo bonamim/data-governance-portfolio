@@ -17,18 +17,27 @@ clients like ChatGPT connectors and Cortex Agents; set ``MCP_HOST``/``MCP_PORT``
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import semantic  # pure computation + governance checks (same directory)
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 
 TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
 HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MCP_PORT", "8000"))
+# A remote client reaches the server through a proxy or tunnel under another hostname, which the
+# SDK's DNS-rebinding protection rejects unless it is named here (comma-separated hostnames).
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("MCP_ALLOWED_HOSTS", "").split(",") if h.strip()]
+
+# How to answer, sent to every client at connect time (ChatGPT, Copilot, Cortex as well as Claude):
+# numbers only from query_metric, refusals routed to the owner, never around the controls.
+INSTRUCTIONS = (Path(__file__).resolve().parents[1] / "analyst-prompt.md").read_text()
 
 # A domain-scoped instance (DGP_SEMANTIC_DOMAIN) is that domain's federated agent (ADR-0021); the
 # name reflects the scope so a client/registry can tell the Sales agent from the platform-wide one.
 _scope = semantic.DOMAIN
-mcp = MCPServer(f"dgp-semantic-{_scope}" if _scope else "dgp-semantic")
+mcp = MCPServer(f"dgp-semantic-{_scope}" if _scope else "dgp-semantic", instructions=INSTRUCTIONS)
 
 
 @mcp.tool()
@@ -71,4 +80,17 @@ def request_semantic_model(data_product: str, business_need: str, requested_by: 
 
 
 if __name__ == "__main__":
-    mcp.run(transport=TRANSPORT)
+    if TRANSPORT == "stdio":
+        mcp.run(transport=TRANSPORT)
+    else:
+        security = None
+        if ALLOWED_HOSTS:
+            security = TransportSecuritySettings(
+                allowed_hosts=["127.0.0.1:*", "localhost:*", *ALLOWED_HOSTS],
+                allowed_origins=[
+                    "http://127.0.0.1:*",
+                    "http://localhost:*",
+                    *(f"https://{h}" for h in ALLOWED_HOSTS),
+                ],
+            )
+        mcp.run(transport=TRANSPORT, host=HOST, port=PORT, transport_security=security)

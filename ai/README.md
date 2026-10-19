@@ -105,7 +105,7 @@ Wiring per client (all point at the *same* server and tools):
 | **Claude Code** | stdio | copy/symlink [`ai/.mcp.json`](.mcp.json) to the repo root, or `claude mcp add` |
 | **Claude Desktop** | stdio | merge the `.mcp.json` entries into `claude_desktop_config.json` (absolute paths) |
 | **GitHub Copilot** (VS Code) | stdio | add the same `command`/`args` to `.vscode/mcp.json` (`servers:` block) |
-| **ChatGPT** | streamable-http | run `make ai-mcp-http`, add it as a **connector**/custom MCP server by URL (`http://host:8900/mcp`) |
+| **ChatGPT** | streamable-http | `make ai-mcp-http` behind a public HTTPS URL, added as a custom connector (see [Test it from ChatGPT](#test-it-from-chatgpt)) |
 | **Snowflake Cortex Agents** | streamable-http | register the remote MCP server URL in the agent's tool config |
 
 > **Cortex, the native alternative.** Cortex Analyst also has its *own* semantic model (Snowflake
@@ -153,6 +153,31 @@ No prompt wording needed: "list customer_unique_id values" is refused by `query_
 semantic layer), and Postgres masking (ADR-0013) still applies to the consumer role underneath.
 `make prove-p21` checks all of this. Pass flags through with `ARGS`, e.g. `make ai-chat ARGS='-p "total revenue by state"'`. Keep
 using plain `claude` for platform development.
+
+## Test it from ChatGPT
+
+ChatGPT runs in OpenAI's cloud, so it can't launch a local process or reach `localhost`. It needs the
+streamable-HTTP server on a public HTTPS URL. It also has no shell or files on this machine, so the
+server is the whole boundary: there is no `make ai-chat`-style lockdown to apply. The how-to-answer
+guidance in [`analyst-prompt.md`](analyst-prompt.md) reaches it as the server's MCP `instructions`.
+
+1. Tunnel a public URL to the port: `ngrok http 8900` (or `cloudflared tunnel --url
+   http://127.0.0.1:8900`). Note the hostname, e.g. `abc123.ngrok-free.app`.
+2. Start the server, naming that host (the SDK's DNS-rebinding protection rejects any other Host
+   header with `421`): `MCP_ALLOWED_HOSTS=abc123.ngrok-free.app make ai-mcp-http`.
+3. In ChatGPT, turn on developer mode for connectors (Settings → Apps & Connectors → Advanced) and
+   create a connector with the URL `https://abc123.ngrok-free.app/mcp` and no authentication. Then
+   enable it in a new chat. The menu names change between ChatGPT releases, and developer mode
+   needs a plan that offers it.
+4. Ask the same questions as below, and compare with `make prove-p10`.
+
+Only the `semantic` server is exposed this way; `mcp-server-datahub` speaks stdio and SSE, and the
+local GMS runs without auth, so keep DataHub off the public URL.
+
+> **The URL has no auth.** Anyone who has it can query the governed metrics and file
+> `request_semantic_model` requests into `governance/requests/`. Use it only for a short test and
+> stop the tunnel afterwards. A real deployment puts the server behind OAuth 2.1
+> (docs/production-readiness.md).
 
 ## Example (governed Q&A)
 
