@@ -204,6 +204,10 @@ check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
 check-data-products: ## Enforce the data product standard on every definition
 	uv run python governance/policies/check_data_products.py
 
+.PHONY: check-port-versions
+check-port-versions: ## Versioned output ports: successor -> deprecated + sunset; fail after the sunset (ADR-0019)
+	uv run python governance/policies/check_port_versions.py
+
 .PHONY: check-output-ports
 check-output-ports: ## Publishing guardrail: output-port contract <-> model <-> definition
 	uv run python governance/policies/check_output_ports.py
@@ -376,6 +380,10 @@ prove-p1: $(ENV_FILE) ## Proof P1 — a domain's broken code or model fails only
 prove-p4: $(ENV_FILE) ## Proof P4 — a producer's new port version rebuilds its consumers via assets, nothing else (live + Airflow)
 	uv run python proofs/p4_cross_domain.py
 
+.PHONY: prove-p19
+prove-p19: $(ENV_FILE) ## Proof P19 — a versioned port: v2 beside v1, sunset, migrate, retire with sign-off (live)
+	uv run --group dbt python proofs/p19_versioned_port.py
+
 .PHONY: prove-p14
 prove-p14: ## Proof P14 — landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)
 	uv run python proofs/p14_landing_lifecycle.py
@@ -430,4 +438,4 @@ check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, 
 	uv run python governance/policies/check_ai_agents.py
 
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks
