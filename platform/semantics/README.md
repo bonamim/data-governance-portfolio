@@ -14,6 +14,17 @@ through it: this Superset adapter and the M7 governed AI (`ai/semantic-mcp`, ADR
 is no second parser, "one governed definition per metric" holds in code, and proof P10
 (`make prove-p10`) shows BI and AI return the same number.
 
+## Fields: contract columns or derived from them
+
+A field (dimension) is either a column of the port's ODCS contract, named as that column, or a
+**derived** field with its own name whose expression references only contract columns as
+`<dataset>.<column>`, e.g. `order_purchase_month` =
+`DATE_TRUNC('month', orders.order_purchase_timestamp)` in `domains/sales/semantics/orders`.
+`check-semantics` enforces this, and `check-ai-agents` blocks a derived field (or metric) that
+references a PII column, so a new grain never needs a physical column and never wraps PII. In
+Superset, group such a dataset by the source column with Superset's own time grain; the AI path
+compiles the derived expression.
+
 ## Commands
 
 | Command | What it does |

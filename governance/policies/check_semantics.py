@@ -6,6 +6,10 @@ on **governed output-port columns**: each dataset's ``source`` resolves to an ou
 contract), and every field and metric references a column that exists in that contract. So the
 business semantics that Superset and the AI agent compute can't drift from the data contract.
 
+A field is either a contract column (named as the column) or a **derived** field: any other name,
+whose expression references only contract columns as ``<dataset>.<column>`` — e.g.
+``order_purchase_month`` = ``DATE_TRUNC('month', orders.order_purchase_timestamp)``.
+
 Every dataset, field and metric must also carry a ``description``: the semantic MCP hands these
 to the AI agent verbatim (``list_metrics``), and an agent with no description guesses the meaning
 from the name — e.g. counting ``customer_id`` (per order) as people.
@@ -36,7 +40,7 @@ def _port_columns(product: str) -> set[str] | None:
 
 
 def _metric_refs(metric: dict) -> set[str]:
-    """Column names referenced by a metric expression (``<dataset>.<column>`` -> ``column``)."""
+    """Columns referenced by a metric or field expression (``<dataset>.<column>`` -> ``column``)."""
     refs: set[str] = set()
     for d in (metric.get("expression") or {}).get("dialects") or []:
         refs |= set(re.findall(r"\b\w+\.(\w+)\b", d.get("expression") or ""))
@@ -73,10 +77,17 @@ def main() -> int:
             for f in ds.get("fields") or []:
                 if not str(f.get("description") or "").strip():
                     errors.append(f"{rel}: field '{f.get('name')}' has no description")
-            bad_fields = {f.get("name") for f in ds.get("fields") or []} - cols - {None}
+            bad_fields: set[str] = set()
+            for f in ds.get("fields") or []:
+                if f.get("name") in cols:
+                    continue
+                refs = _metric_refs(f)  # derived: built only from contract columns
+                if not f.get("name") or not refs or refs - cols:
+                    bad_fields.add(str(f.get("name")))
             if bad_fields:
                 errors.append(
-                    f"{rel}: dataset '{ds.get('name')}' has fields not in the contract: "
+                    f"{rel}: dataset '{ds.get('name')}' has fields neither in the contract nor "
+                    "derived only from contract columns: "
                     f"{sorted(bad_fields)}"
                 )
 

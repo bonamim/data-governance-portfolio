@@ -90,8 +90,24 @@ def main() -> int:
         for product, contract in contracts:
             if (layer := _layer_dir(domain, product)) is not None:
                 _sync_deprecation(layer, product, contract)
+            _prune_stale_tests(domain, contract)
         print(f"  {domain}: synced {len(contracts)} output port(s) into _ports.yml")
     return 0
+
+
+def _prune_stale_tests(domain: str, contract: Path) -> None:
+    """Drop generated contract tests of a superseded version. ``datacontract dbt sync`` names each
+    file ``<id>__<version>__...`` and never removes the old version's, so a bump would run the
+    same check twice (once per version)."""
+    doc = yaml.safe_load(contract.read_text(encoding="utf-8")) or {}
+    slug, version = str(doc.get("id", "")).replace(".", "_"), str(doc.get("version", ""))
+    tests = REPO_ROOT / "domains" / domain / "dbt" / "tests" / "datacontract_cli" / slug
+    current = f"{slug}__{version.replace('.', '_')}__"
+    for f in tests.glob(f"{slug}__*__*.sql") if slug and version else []:
+        generated = '"generated": true' in f.read_text(encoding="utf-8")
+        if generated and not f.name.startswith(current):
+            f.unlink()
+            print(f"  {domain}: removed stale generated test {f.name}")
 
 
 def _sync_deprecation(layer_dir: Path, product: str, contract: Path) -> None:

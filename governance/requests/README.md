@@ -27,6 +27,6 @@ configured, or the webhook failed), so the agent reports what actually happened.
 notification never loses the request; the file is written first.
 
 The owning domain authors `domains/<domain>/semantics/<product>.semantic_model.yaml` to satisfy the
-request (CI's `check-semantics` keeps it on the contract's columns), then resolves/removes the file.
+request (CI's `check-semantics` keeps it on the contract's columns, or fields derived only from them), then resolves/removes the file.
 This mirrors `governance/approvals/` for breaking changes: governance decisions live in git, not in
 a tool's UI.

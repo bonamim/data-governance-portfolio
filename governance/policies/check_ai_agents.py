@@ -106,6 +106,8 @@ def main() -> int:
             pii = _pii_columns(product, pii_values)
             if pii:
                 exposed = {f.get("name") for f in ds.get("fields") or []} & pii
+                for field in ds.get("fields") or []:  # a derived field must not wrap PII either
+                    exposed |= _metric_refs(field) & pii
                 for metric in spec.get("metrics") or []:
                     exposed |= _metric_refs(metric) & pii
                 if exposed:

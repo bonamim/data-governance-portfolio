@@ -101,5 +101,6 @@ def metric_sql(
         selects.append(f"{ansi_metric_expr(metric)} AS {mname}")
     sql = f"SELECT {', '.join(selects)} FROM {source} AS {name}"
     if group:
-        sql += f" GROUP BY {', '.join(group)}"
+        # Ordered by the dimensions, so a monthly breakdown reads in calendar order.
+        sql += f" GROUP BY {', '.join(group)} ORDER BY {', '.join(group)}"
     return sql
