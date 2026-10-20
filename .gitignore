@@ -32,3 +32,6 @@ portability/sqlmesh/.cache/
 
 # Local MCP wiring (holds the warehouse password; template is ai/.mcp.json)
 /.mcp.json
+
+# AI evaluation runs (make ai-eval)
+ai/eval/results/

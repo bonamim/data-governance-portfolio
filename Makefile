@@ -309,6 +309,12 @@ ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no
 		$(CLAUDE) --settings ai/analyst.settings.json --mcp-config ai/analyst.mcp.json --strict-mcp-config \
 		--append-system-prompt-file ai/analyst-prompt.md $(ARGS)
 
+.PHONY: ai-eval
+ai-eval: $(ENV_FILE) ## Same questions with and without the governed MCP, graded, uncached (REPS=, QUESTIONS=, RESUME=)
+	uv run --no-project --with 'psycopg[binary]' --with pyyaml python ai/eval/run_eval.py \
+		--reps $(or $(REPS),1) $(if $(QUESTIONS),--questions $(QUESTIONS)) \
+		$(if $(RESUME),--resume $(RESUME)) $(EVAL_ARGS)
+
 .PHONY: ai-agent
 ai-agent: $(ENV_FILE) ## Run ONE domain's federated agent: make ai-agent DOMAIN=sales (ADR-0021)
 	@test -n "$(DOMAIN)" || { echo "set DOMAIN=<domain> (see make ai-agents)"; exit 2; }
