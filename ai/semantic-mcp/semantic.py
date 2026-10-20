@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import urllib.request
 from datetime import UTC, datetime
@@ -106,6 +107,21 @@ def _owner_contact(team: str | None) -> str | None:
     return None
 
 
+def _column_classes(domain: str | None, product: str | None) -> dict[str, str]:
+    """{column: classification} for a product's output port, from its ODCS contract."""
+    path = REPO_ROOT / "domains" / str(domain) / "contracts" / f"{product}.odcs.yaml"
+    if not path.exists():
+        return {}
+    defn = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {
+        p["name"]: p.get("classification", "unclassified")
+        for obj in defn.get("schema") or []
+        if "output_port" in (obj.get("tags") or [])
+        for p in obj.get("properties") or []
+        if p.get("name")
+    }
+
+
 def _catalog_products() -> list[dict]:
     """Every data product in the mesh (from domains/*/data_products/*.yaml), with its owner and
     whether it is governed by a semantic model yet. This is the open discovery plane."""
@@ -124,6 +140,7 @@ def _catalog_products() -> list[dict]:
                 "purpose": defn.get("purpose", ""),
                 "owner_contact": _owner_contact(team),
                 "governed": name in governed,
+                "column_classification": _column_classes(team, name),
             }
         )
     return out
@@ -146,8 +163,18 @@ def _resolve(product: str) -> tuple[dict, dict]:
 
 
 def list_data_products() -> list[dict]:
-    """Every data product in the mesh, flagged governed/ungoverned with its owner (discovery)."""
-    return _catalog_products()
+    """Every data product in the mesh, flagged governed/ungoverned, with its owner and each column's
+    classification; a governed product also lists its metrics and dimensions, so one call is
+    enough to go straight to ``query_metric`` (discovery)."""
+    out = _catalog_products()
+    for product in out:
+        if product["governed"]:
+            listing = list_metrics(product["data_product"])
+            product["metrics"] = [
+                {"name": m["name"], "description": m["description"]} for m in listing["metrics"]
+            ]
+            product["dimensions"] = listing["dimensions"]
+    return out
 
 
 def list_metrics(product: str) -> dict:
@@ -232,8 +259,18 @@ def query_metric(product: str, metrics: list[str], dimensions: list[str] = ()) -
         cur.execute(sql)
         columns = [d.name for d in cur.description]
         rows = [{c: _coerce(v) for c, v in zip(columns, r, strict=True)} for r in cur.fetchall()]
+    known = next((p for p in _catalog_products() if p["data_product"] == ds.get("name")), {})
+    used = {
+        c: cls
+        for c, cls in (known.get("column_classification") or {}).items()
+        if re.search(rf"\b{re.escape(c)}\b", sql)
+    }
     return {
         "data_product": ds.get("name"),
+        "owner_domain": known.get("domain"),
+        "owner_contact": known.get("owner_contact"),
+        # Sensitivity of every column the number was computed from, from the port's contract.
+        "column_classification": used,
         "sql": sql,
         "columns": columns,
         "rows": rows,

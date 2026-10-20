@@ -43,15 +43,18 @@ mcp = MCPServer(f"dgp-semantic-{_scope}" if _scope else "dgp-semantic", instruct
 @mcp.tool()
 def list_data_products() -> list[dict]:
     """List EVERY data product in the mesh, each flagged ``governed`` (has metrics) or not, with its
-    owning domain. Discovery is open: ungoverned products are visible so a user can explore and ask
-    the owner (``request_semantic_model``) to define metrics. Only governed ones are queryable."""
+    owning domain, owner contact and each column's classification (public/internal/pii). A governed
+    product also lists its metrics and dimensions, so call ``query_metric`` next — no need for
+    ``list_metrics``. Discovery is open: ungoverned products are visible so a user can ask the
+    owner (``request_semantic_model``) to define metrics. Only governed ones are queryable."""
     return semantic.list_data_products()
 
 
 @mcp.tool()
 def list_metrics(data_product: str) -> dict:
-    """List the governed metrics and dimensions for a data product (from its Ossie spec). If the
-    product exists but isn't governed yet, this explains who owns it and how to request a model."""
+    """List one data product's governed metrics and dimensions (Ossie spec) with the metric
+    expressions. ``list_data_products`` already includes names and descriptions; use this only when
+    you need the expressions. For an ungoverned product it names the owner and the next step."""
     return semantic.list_metrics(data_product)
 
 
@@ -61,9 +64,10 @@ def query_metric(
 ) -> dict:
     """Compute governed metric(s) for a data product, optionally broken down by dimension(s).
 
-    ``metrics`` and ``dimensions`` must be names from ``list_metrics`` — anything else is refused as
-    "not in the semantic layer". Returns the value rows, the exact governed SQL, and the Ossie
-    definitions used, so the answer is fully traceable to the one governed definition.
+    ``metrics`` and ``dimensions`` must be names from ``list_data_products`` — anything else is
+    refused as "not in the semantic layer". Returns the value rows, the exact governed SQL, the
+    Ossie definitions used, the owner, and the classification of every column the number came from
+    (so sensitivity needs no extra lookup).
     """
     return semantic.query_metric(data_product, metrics, dimensions or [])
 
