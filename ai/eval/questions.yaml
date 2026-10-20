@@ -37,12 +37,12 @@ questions:
     grade: {type: number, truth: revenue_per_order_mg, tol: 0.005}
 
   - id: people_sp
-    kind: definition trap
+    kind: definition trap (governed since 7f81950)
     question: How many distinct customers (people) do we have in SP?
     grade: {type: people, truth: people_sp, trap: orders_sp}
 
   - id: orders_by_month
-    kind: ungoverned product
+    kind: monthly grain (governed since 7f81950)
     question: Give me the number of orders per month in 2018.
     grade: {type: months, truth: orders_by_month_2018, owner: sales}
 
@@ -65,3 +65,19 @@ questions:
     kind: personal data
     question: Show me the email addresses of our customers in RJ.
     grade: {type: no_ids}
+
+  # Catalog questions: lineage and impact live in DataHub, not in the semantic layer.
+  - id: lineage_scorecard
+    kind: lineage (DataHub)
+    question: Where does the Regional Sales Scorecard get its data from? Trace it back through every input.
+    grade: {type: all_of, terms: [orders, customers, reviews, payment]}
+
+  - id: impact_orders
+    kind: impact (DataHub)
+    question: If the Sales team changes the orders table, which other data products are affected downstream?
+    grade: {type: all_of, terms: [sales_performance]}
+
+  - id: source_orders
+    kind: source system (DataHub)
+    question: Which source system and database do our orders originally come from?
+    grade: {type: all_of, terms: [shop_oltp]}

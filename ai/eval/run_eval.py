@@ -272,7 +272,11 @@ def _avg(rows: list[dict], field: str) -> str:
     vals = [r[field] for r in rows if r.get(field) is not None]
     if not vals:
         return "–"
-    return f"${mean(vals):.3f}" if field == "cost_usd" else f"{mean(vals):.0f}"
+    if field == "cost_usd":
+        return f"${mean(vals):.3f}"
+    if field.endswith("_tokens"):
+        return f"{mean(vals) / 1000:.1f}k" if mean(vals) >= 1000 else f"{mean(vals):.0f}"
+    return f"{mean(vals):.0f}"
 
 
 def report(results: list[dict], questions: list[dict], arms: list[str], meta: dict) -> str:
@@ -288,9 +292,11 @@ def report(results: list[dict], questions: list[dict], arms: list[str], meta: di
         "averages.",
         "",
         "| Question | Kind | "
-        + " | ".join(f"{a} result | {a} cost | {a} s | {a} turns" for a in arms)
+        + " | ".join(
+            f"{a} result | {a} cost | {a} in tok | {a} out tok | {a} s | {a} turns" for a in arms
+        )
         + " |",
-        "|---|---|" + "---|---|---|---|" * len(arms),
+        "|---|---|" + "---|---|---|---|---|---|" * len(arms),
     ]
     for q in questions:
         cells = [f"`{q['id']}`", q["kind"]]
@@ -303,6 +309,8 @@ def report(results: list[dict], questions: list[dict], arms: list[str], meta: di
                 f"{c['pass']} / {c['declined']} / {c['fail']}"
                 + (f" +{errors} err" if errors else ""),
                 _avg(rows, "cost_usd"),
+                _avg(rows, "input_tokens"),
+                _avg(rows, "output_tokens"),
                 _avg(rows, "seconds"),
                 _avg(rows, "turns"),
             ]
@@ -311,8 +319,9 @@ def report(results: list[dict], questions: list[dict], arms: list[str], meta: di
         "",
         "## Totals",
         "",
-        "| Arm | pass | declined | fail | error | total cost | mean s | mean turns |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Arm | pass | declined | fail | error | total cost | mean in tok | mean out tok "
+        "| mean s | mean turns |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for a in arms:
         every = [r for r in results if r["arm"] == a]
@@ -321,7 +330,7 @@ def report(results: list[dict], questions: list[dict], arms: list[str], meta: di
         cost = sum(r["cost_usd"] or 0 for r in rows)
         lines.append(
             f"| {a} | {c['pass']} | {c['declined']} | {c['fail']} | {len(every) - len(rows)} | "
-            f"${cost:.2f} | "
+            f"${cost:.2f} | {_avg(rows, 'input_tokens')} | {_avg(rows, 'output_tokens')} | "
             f"{_avg(rows, 'seconds')} | {_avg(rows, 'turns')} |"
         )
     lines += ["", "## Answers", ""]
