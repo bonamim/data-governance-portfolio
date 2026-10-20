@@ -15,7 +15,8 @@ revenue as (
 ),
 
 customers as (
-    select customer_id, customer_state from {{ ref('dgp_customer', 'customers') }}
+    -- customer_unique_id arrives pseudonymised (ADR-0013); counting distinct hashes counts people.
+    select customer_id, customer_unique_id, customer_state from {{ ref('dgp_customer', 'customers') }}
 ),
 
 review as (
@@ -29,6 +30,7 @@ select
     -- COUNT is bigint in Postgres; the contract promises integer (found by the portability check).
     count(distinct o.order_id)::int    as num_orders,
     count(distinct o.customer_id)::int as num_customers,
+    count(distinct c.customer_unique_id)::int as num_people,
     round(sum(r.order_revenue), 2)     as total_revenue,
     round(avg(rv.avg_review_score), 3) as avg_review_score
 from orders o

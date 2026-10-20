@@ -1,7 +1,7 @@
 # ODCS contract for the sales.sales_performance OUTPUT PORT (consumer-aligned).
 # Source of truth for the schema and contractual quality; the dbt model YAML and
 # tests are generated from this file by `datacontract dbt sync`.
-version: 1.0.0
+version: 1.1.0
 kind: DataContract
 apiVersion: v3.2.0
 id: sales.sales_performance
@@ -12,7 +12,7 @@ description:
 domain: sales
 schema:
   - name: sales_performance
-    description: "One row per customer state: distinct orders and customers, total revenue and average review score."
+    description: "One row per customer state: distinct orders, customer keys and people, total revenue and average review score."
     physicalType: table
     tags: [output_port]
     properties:
@@ -31,6 +31,12 @@ schema:
         classification: public
       - name: num_customers
         description: "Distinct customer keys (customer_id) in the state. customer_id is issued per order, so this counts order-level buyers, not distinct people."
+        logicalType: integer
+        physicalType: integer
+        required: true
+        classification: public
+      - name: num_people
+        description: "Distinct people (customer_unique_id, read pseudonymised) with an order delivered in the state. A person with orders in several states counts in each, so states don't add up to the platform total."
         logicalType: integer
         physicalType: integer
         required: true

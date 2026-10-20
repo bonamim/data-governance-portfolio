@@ -13,6 +13,8 @@ consumers:
     use_case: "Attach each review to the order it refers to."
   - team: sales
     use_case: "Aggregate order and revenue performance (sales_performance)."
+  - team: marketplace
+    use_case: "Monthly order volume in BI (the governed orders semantic model in Superset)."
 output_ports:
   - kind: table
     contract: domains/sales/contracts/orders.odcs.yaml

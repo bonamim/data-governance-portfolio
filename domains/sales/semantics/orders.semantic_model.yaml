@@ -1,0 +1,37 @@
+# Apache Ossie semantic model for the sales.orders output port (ADR-0010).
+# Owned by the Sales domain. Answers the semantic-model request for monthly order volume: the order
+# count by purchase month and by status, with the "valid orders" definition made explicit so BI and
+# the AI agent don't each pick their own. Validated by governance/policies/check_semantics.py.
+version: "1.0"
+name: orders
+datasets:
+  - name: orders
+    source: analytics.sales_silver.orders
+    description: "Order Book — one row per customer order, with its status and lifecycle timestamps."
+    primary_key: [order_id]
+    fields:
+      - name: order_purchase_month
+        description: "Calendar month the order was placed (first day of the month, from order_purchase_timestamp). The data ends in October 2018."
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: "DATE_TRUNC('month', orders.order_purchase_timestamp)"
+      - name: order_status
+        description: "Lifecycle status of the order (delivered, shipped, canceled, unavailable, ...)."
+        expression:
+          dialects: [{ dialect: ANSI_SQL, expression: order_status }]
+metrics:
+  - name: order_count
+    description: "Orders placed, whatever their status (one per order_id). Use valid_order_count to leave out canceled and unavailable orders."
+    datatype: Integer
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "COUNT(DISTINCT orders.order_id)"
+  - name: valid_order_count
+    description: "Orders placed, excluding those canceled or unavailable — the orders that could turn into revenue."
+    datatype: Integer
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "COUNT(DISTINCT CASE WHEN orders.order_status NOT IN ('canceled', 'unavailable') THEN orders.order_id END)"
