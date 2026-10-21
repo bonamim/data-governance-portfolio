@@ -9,11 +9,14 @@ Two arms, identical except for the MCP:
     Ossie specs) and runs SQL as the **same** ``analytics_reader`` role, with the same answering
     guidance rewritten for SQL (``ai/eval/baseline-prompt.md``).
 
-Every run is a fresh, uncached session: ``--no-session-persistence``, ``DISABLE_PROMPT_CACHING=1``,
-auto-memory off, nothing but an allow-listed environment. Both arms work in a throwaway export of
-the committed repo outside this checkout (no ``.env``, no ``data/``), so neither can reach secrets
-or raw files, and anything they write is discarded. Answers are graded against truths computed from
-the warehouse at run time (``ai/eval/questions.yaml``); cost, time and turns are recorded.
+Every run is a fresh session: ``--no-session-persistence``, auto-memory off, nothing but an
+allow-listed environment. Prompt caching stays on: it only bills repeated input text cheaper and
+never reuses an answer, so runs stay independent at a fraction of the cost.
+
+Both arms work in a throwaway export of the committed repo outside this checkout (no ``.env``, no
+``data/``), so neither can reach secrets or raw files, and anything they write is discarded.
+Answers are graded against truths computed from the warehouse at run time
+(``ai/eval/questions.yaml``); cost, tokens, time, turns and tool calls are recorded.
 
 Run: ``make ai-eval`` (``REPS=3`` for consistency, ``QUESTIONS=total_revenue,people_sp``).
 Results: ``ai/eval/results/<timestamp>/`` (``report.md``, ``runs.jsonl``). Once a run hits a usage
@@ -153,7 +156,7 @@ def _workspace() -> Path:
 
 def _command(arm: str, question: str, ws: Path, reader_uri: str, model: str | None) -> tuple:
     env = {k: os.environ[k] for k in BASE_ENV if k in os.environ}
-    env |= {"DISABLE_PROMPT_CACHING": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+    env |= {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
     cmd = ["claude", "-p", question, "--output-format", "stream-json", "--verbose"]
     cmd += ["--no-session-persistence"]
     cmd += ["--model", model] if model else []
@@ -284,7 +287,7 @@ def report(results: list[dict], questions: list[dict], arms: list[str], meta: di
         "# MCP vs no-MCP evaluation",
         "",
         f"{meta['when']} · reps {meta['reps']} · model {meta['models'] or 'default'} · "
-        "fresh session per run, prompt caching off, auto-memory off",
+        "fresh session per run, auto-memory off",
         "",
         "Status per arm as pass / declined / fail over the reps. *Declined* = answered that no "
         "governed definition exists and routed to the owner, instead of computing a number. "

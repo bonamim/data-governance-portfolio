@@ -310,7 +310,7 @@ ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no
 		--append-system-prompt-file ai/analyst-prompt.md $(ARGS)
 
 .PHONY: ai-eval
-ai-eval: $(ENV_FILE) ## Same questions with and without the governed MCP, graded, uncached (REPS=, QUESTIONS=, RESUME=)
+ai-eval: $(ENV_FILE) ## Same questions with and without the governed MCP, graded, fresh sessions (REPS=, QUESTIONS=, RESUME=)
 	uv run --no-project --with 'psycopg[binary]' --with pyyaml python ai/eval/run_eval.py \
 		--reps $(or $(REPS),1) $(if $(QUESTIONS),--questions $(QUESTIONS)) \
 		$(if $(RESUME),--resume $(RESUME)) $(EVAL_ARGS)
