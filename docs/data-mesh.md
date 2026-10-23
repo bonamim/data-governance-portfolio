@@ -11,13 +11,24 @@ The Olist dataset contains nine files. Each one is assigned to exactly one ownin
 
 | Domain | Owns (source datasets) | Source system | Data products (output ports) |
 |---|---|---|---|
-| **Sales** | `orders`, `order_items`, `order_payments` | Postgres `shop_oltp` | `sales.orders`, `sales.order_items`, `sales.sales_performance` |
+| **Sales** | `orders`, `order_items`, `order_payments` | Postgres `shop_oltp` | `sales.orders`, `sales.sales_performance`, `sales.seller_performance` |
 | **Customer** | `customers` | Postgres `shop_oltp` | `customer.customers` |
-| **Marketplace** | `products`, `product_category_name_translation`, `sellers` | `shop_oltp` + landing zone (sellers file) | `marketplace.products`, `marketplace.sellers` |
-| **Customer Experience** | `order_reviews` | Landing zone (reviews files) | `customer_experience.reviews`, `customer_experience.review_scores` |
-| *Reference (platform)* | `geolocation` | Landing zone | `reference.geolocation` |
+| **Marketplace** | `products`, `product_category_name_translation`, `sellers` | `shop_oltp` + landing zone (sellers file) | none yet |
+| **Customer Experience** | `order_reviews` | Landing zone (reviews files) | `customer_experience.reviews` |
+| **Reference** | `geolocation` | Landing zone | none yet |
+
+A domain publishes an output port only for a named consumer with a use case
+([data-product standard](../governance/standards/data-product.md)): marketplace and reference ingest
+and govern their data (landing contracts, raw tables) but publish nothing until someone needs it. A
+landing contract is not an output port either way — it governs what a partner delivers; consumers
+read the owning domain's published port, never the landing file or its raw table.
 
 Each domain is registered in `governance/domains/` with its owner, team, and contact channel.
+
+**Reference** is a domain like the others, in `domains/reference/` with its own team: its data
+products are the reference data many domains share (geolocation), and it owns the shared value types
+of the ontology that describe places (zip-code prefix, city, state). Being shared does not make data
+the platform's: the platform runs the tools, a domain owns the data and its meaning.
 
 ### Cross-domain consumption
 

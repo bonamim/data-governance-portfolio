@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 import psycopg
-import yaml
+from dgp_platform_quality import odcs
 from psycopg import sql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -48,6 +48,17 @@ def _mask_expr(column: str, method: str) -> sql.Composable:
 
 def _port_contracts() -> list[Path]:
     return sorted(REPO_ROOT.glob("domains/*/contracts/*.odcs.yaml"))
+
+
+def masking_plan() -> list[tuple[Path, dict, dict[str, dict]]]:
+    """(contract, resolved contract, {column: policy}) for every output port that masks a column.
+    Read resolved, so a column that inherits its maskingPolicy from a definition is masked too."""
+    out = []
+    for contract in _port_contracts():
+        defn = odcs.load(contract)
+        if policies := _masked_columns(defn):
+            out.append((contract, defn, policies))
+    return out
 
 
 def _masked_columns(defn: dict) -> dict[str, dict]:
@@ -110,11 +121,7 @@ def main() -> int:
     applied = 0
     with psycopg.connect(_conninfo(), autocommit=False) as conn:
         _ensure_roles(conn)
-        for contract in _port_contracts():
-            defn = yaml.safe_load(contract.read_text(encoding="utf-8")) or {}
-            policies = _masked_columns(defn)
-            if not policies:
-                continue
+        for contract, defn, policies in masking_plan():
             owner = (defn.get("team") or {}).get("name") or defn.get("domain")
             product = contract.stem.split(".")[0]
             location = port_location(owner, product) if owner else None

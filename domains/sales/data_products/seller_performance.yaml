@@ -1,0 +1,16 @@
+# Data product definition for sales.seller_performance (consumer-aligned).
+name: seller_performance
+display_name: "Seller Sales Scorecard"
+type: consumer-aligned
+purpose: "Report the sales of each seller to review seller performance and commercial terms."
+owner:
+  team: sales
+  accountable: "Sales data product owner"
+consumers:
+  - team: marketplace
+    use_case: "Review seller performance and the value each seller brings, net of freight."
+output_ports:
+  - kind: table
+    contract: domains/sales/contracts/seller_performance.odcs.yaml
+# Built from the sales domain's own order items; reuses the marketplace domain's seller id meaning.
+inputs: []

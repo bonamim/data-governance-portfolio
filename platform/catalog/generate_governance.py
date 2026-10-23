@@ -29,6 +29,8 @@ from datahub.emitter.mce_builder import (
     make_dataset_urn,
     make_domain_urn,
     make_group_urn,
+    make_schema_field_urn,
+    make_tag_urn,
     make_term_urn,
 )
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
@@ -41,18 +43,45 @@ from datahub.metadata.schema_classes import (
     DomainsClass,
     EditableSchemaFieldInfoClass,
     EditableSchemaMetadataClass,
+    GlobalTagsClass,
+    GlossaryNodeInfoClass,
+    GlossaryRelatedTermsClass,
     GlossaryTermAssociationClass,
     GlossaryTermInfoClass,
     GlossaryTermsClass,
     InstitutionalMemoryClass,
     InstitutionalMemoryMetadataClass,
+    OwnerClass,
+    OwnershipClass,
+    OwnershipTypeClass,
+    PropertyCardinalityClass,
+    PropertyValueClass,
+    StructuredPropertiesClass,
+    StructuredPropertyDefinitionClass,
+    StructuredPropertyValueAssignmentClass,
+    TagAssociationClass,
+    TagPropertiesClass,
     UpstreamClass,
     UpstreamLineageClass,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
-from governance.registry import classification_terms, domains  # noqa: E402
+sys.path.insert(0, str(REPO_ROOT / "platform" / "quality" / "src"))
+from dgp_platform_quality import odcs  # noqa: E402  (the one contract reader: links inlined)
+
+from governance.registry import (  # noqa: E402
+    column_tags,
+    concept_entities,
+    concept_of,
+    concept_owners,
+    concepts,
+    domains,
+    entity_of_table,
+    entity_types,
+    ontology,
+    tags,
+)
 
 GMS = os.environ.get("DATAHUB_GMS", "http://localhost:8080")
 DB = os.environ.get("ANALYTICS_DB", "analytics")
@@ -61,12 +90,12 @@ WAREHOUSE_PLATFORM = os.environ.get("WAREHOUSE_PLATFORM", "postgres")
 AIRFLOW_URL = os.environ.get(
     "AIRFLOW_BASE_URL", f"http://localhost:{os.environ.get('AIRFLOW_API_PORT', '8080')}"
 )
-# Single source of truth: the domain registry (governance/domains/) and the glossary
-# (governance/glossary/). Nothing here is hardcoded.
+# Single source of truth: the domain registry (governance/domains/), the ontology
+# (governance/ontology/) and the governed tags (governance/tags/). Nothing here is hardcoded.
 REGISTRY = {d["name"]: d for d in domains()}
 DOMAINS = list(REGISTRY)
-# ODCS classification value -> glossary term dict (id, name, definition).
-CLASSIFICATIONS = classification_terms()
+# Governed tags (governance/tags/): name -> its definition, warehouse tag and allowed values.
+GOVERNED_TAGS = tags()
 
 
 def _domain_of(schema: str) -> str | None:
@@ -130,21 +159,156 @@ def _port_location(owner: str, product: str) -> tuple[str, str] | None:
     return None
 
 
-def _columns_with_classification(contract_path: Path) -> list[tuple[str, str]]:
-    """(column, classification) for every classified column in an ODCS output-port contract."""
-    defn = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
-    out: list[tuple[str, str]] = []
-    for obj in defn.get("schema") or []:
-        for prop in obj.get("properties") or []:
-            cls = prop.get("classification")
-            if prop.get("name") and cls in CLASSIFICATIONS:
-                out.append((prop["name"], cls))
+BUSINESS_NODE = "urn:li:glossaryNode:BusinessGlossary"
+DATA_ELEMENT = "urn:li:structuredProperty:dgp.data_element"
+# A warehouse with native tags carries the governed tags itself (the dbt build sets them) and
+# DataHub ingests it from there; only a warehouse without tags (Postgres) gets it from here.
+NATIVE_TAGS = WAREHOUSE_PLATFORM in {"snowflake", "databricks", "bigquery"}
+
+
+def _governed_tag(tag: str, value: str) -> str:
+    return make_tag_urn(f"{tag}.{value}")
+
+
+def _concept_term(concept_id: str) -> str:
+    return make_term_urn(f"Ontology.{concept_id}")
+
+
+def _identified_entities() -> dict[str, str]:
+    """Value type -> the entity type it identifies (it plays a role in an ``identify_by``)."""
+    out: dict[str, str] = {}
+    defined = concepts()
+    for e in entity_types():
+        rels = {r["name"]: r for r in e.get("relationships") or []}
+        for ident in e.get("identify_by") or []:
+            for role in rels.get(ident, {}).get("roles") or []:
+                if role["concept"] in defined:
+                    out.setdefault(role["concept"], e["concept"])
     return out
+
+
+def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
+    """The business glossary and the data dictionary (ADR-0027).
+
+    * Business glossary (glossary terms, grouped by the responsible domain, which owns each term):
+      every entity type, and every value type the ontology gives a business definition.
+    * Data dictionary (the ``Data element`` structured property): its allowed values are the data
+      elements, each with its definition; every linked column carries the one it is. A data element
+      is not a business term, so it is not a glossary term.
+    """
+    defined = {c["concept"]: c for c in ontology().get("ontology") or []}
+    meaning, value_owner, entity_of = concepts(), concept_owners(), concept_entities()
+    entities = {e["concept"]: e for e in entity_types()}
+    business_values = {v for v in meaning if defined.get(v, {}).get("description")}
+    mcps = [
+        MetadataChangeProposalWrapper(
+            entityUrn=BUSINESS_NODE,
+            aspect=GlossaryNodeInfoClass(
+                name="Business glossary",
+                definition="Business terms: what the business means, the rule behind it, what it "
+                "is used for, and the domain responsible for it.",
+            ),
+        )
+    ]
+    for domain in sorted(
+        {e["owner"] for e in entities.values()} | {value_owner[v] for v in business_values}
+    ):
+        title = REGISTRY.get(domain, {}).get("display_name", domain)
+        mcps.append(
+            MetadataChangeProposalWrapper(
+                entityUrn=f"{BUSINESS_NODE}.{domain}",
+                aspect=GlossaryNodeInfoClass(
+                    name=title,
+                    definition=f"Business terms {title} is responsible for.",
+                    parentNode=BUSINESS_NODE,
+                ),
+            )
+        )
+
+    def term(concept: str, name: str, definition: str, owner: str, related: list[str]) -> None:
+        urn = _concept_term(concept)
+        info = GlossaryTermInfoClass(
+            name=name,
+            definition=definition,
+            parentNode=f"{BUSINESS_NODE}.{owner}",
+            termSource="INTERNAL",
+            customProperties={"concept": concept, "responsible_domain": owner},
+        )
+        owners = OwnershipClass(
+            owners=[OwnerClass(owner=make_group_urn(owner), type=OwnershipTypeClass.BUSINESS_OWNER)]
+        )
+        mcps.append(MetadataChangeProposalWrapper(entityUrn=urn, aspect=info))
+        mcps.append(MetadataChangeProposalWrapper(entityUrn=urn, aspect=owners))
+        if related:
+            links = GlossaryRelatedTermsClass(relatedTerms=[_concept_term(r) for r in related])
+            mcps.append(MetadataChangeProposalWrapper(entityUrn=urn, aspect=links))
+
+    for name, e in entities.items():
+        related = [v for v, owner in entity_of.items() if owner == name and v in business_values]
+        term(name, name, " ".join(e["description"].split()), e["owner"], related)
+    for value in sorted(business_values):
+        title = meaning[value].get("businessName", value)
+        definition = " ".join(str(defined[value]["description"]).split())
+        term(
+            value,
+            title,
+            definition,
+            value_owner[value],
+            [entity_of[value]] if value in entity_of else [],
+        )
+
+    mcps.append(
+        MetadataChangeProposalWrapper(
+            entityUrn=DATA_ELEMENT,
+            aspect=StructuredPropertyDefinitionClass(
+                qualifiedName="dgp.data_element",
+                displayName="Data element",
+                description="The data element a column holds — its definition in the data "
+                "dictionary (domains/<domain>/contracts/definitions/), linked from the column's "
+                "contract and inherited by it (ADR-0027).",
+                valueType="urn:li:dataType:datahub.string",
+                cardinality=PropertyCardinalityClass.SINGLE,
+                entityTypes=["urn:li:entityType:datahub.schemaField"],
+                allowedValues=[
+                    PropertyValueClass(
+                        value=name,
+                        description=f"{element.get('businessName', name)} ({value_owner[name]}): "
+                        + " ".join(str(element.get("description", "")).split()),
+                    )
+                    for name, element in sorted(meaning.items())
+                ],
+            ),
+        )
+    )
+    return mcps
+
+
+def _column_concepts(contract_path: Path) -> dict[str, str]:
+    """{column: concept id} for every column of a contract that links an ontology concept."""
+    defn = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    return {
+        prop["name"]: concept
+        for obj in defn.get("schema") or []
+        for prop in obj.get("properties") or []
+        if prop.get("name") and (concept := concept_of(prop, contract_path))
+    }
+
+
+def _columns_with_tags(contract_path: Path) -> list[tuple[str, dict[str, str]]]:
+    """(column, {governed tag: value}) for every column of a resolved ODCS output-port contract —
+    sensitivity from ``classification``, privacy category from ``privacyCategory``."""
+    defn = odcs.load(contract_path)
+    return [
+        (prop["name"], column_tags(prop))
+        for obj in defn.get("schema") or []
+        for prop in obj.get("properties") or []
+        if prop.get("name")
+    ]
 
 
 def _deprecation(contract: Path, port: str) -> DeprecationClass:
     """The port version's deprecation (ADR-0019 §3): sunset + successor, or not deprecated."""
-    doc = yaml.safe_load(contract.read_text(encoding="utf-8")) or {}
+    doc = odcs.load(contract)
     actor = "urn:li:corpuser:datahub"
     if doc.get("status") != "deprecated":
         return DeprecationClass(deprecated=False, note="", actor=actor)
@@ -200,20 +364,36 @@ def main() -> int:
         filed += 1
     print(f"  datasets filed under a domain: {filed}")
 
-    # 3. Data-classification glossary terms (from governance/glossary/)
-    for term in CLASSIFICATIONS.values():
-        emitter.emit(
-            MetadataChangeProposalWrapper(
-                entityUrn=make_term_urn(term["id"]),
-                aspect=GlossaryTermInfoClass(
-                    name=term["name"], definition=term.get("definition"), termSource="INTERNAL"
-                ),
+    # 3. The governed tags (governance/tags/: sensitivity, privacy category) as DataHub tags — a
+    #    governance label, like the warehouse tag each mirrors — and the business glossary.
+    for name, tag in {} if NATIVE_TAGS else GOVERNED_TAGS.items():
+        for value in tag["values"]:
+            emitter.emit(
+                MetadataChangeProposalWrapper(
+                    entityUrn=_governed_tag(name, value["value"]),
+                    aspect=TagPropertiesClass(
+                        name=f"{name}: {value['value']}", description=value.get("description")
+                    ),
+                )
             )
-        )
-    print(f"  glossary terms: {', '.join(t['name'] for t in CLASSIFICATIONS.values())}")
+    print(
+        "  governed tags: from the warehouse (native tags)"
+        if NATIVE_TAGS
+        else f"  governed tags: {', '.join(GOVERNED_TAGS)}"
+    )
+    ontology_mcps = _ontology_aspects()
+    for mcp in ontology_mcps:
+        emitter.emit(mcp)
+    print(f"  business glossary + data dictionary: {len(ontology_mcps)} aspects")
 
-    # 4. Data products + per-column classification on their output ports
+    # 4. Data products + per-column meaning and governed tags on their output ports
     audit = AuditStampClass(time=0, actor="urn:li:corpuser:datahub")
+    identified = _identified_entities()
+    business = {
+        c["concept"]
+        for c in ontology().get("ontology") or []
+        if c.get("type") == "ValueType" and c.get("description")
+    }
     for path in REPO_ROOT.glob("domains/*/data_products/*.yaml"):
         defn = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         owner = (defn.get("owner") or {}).get("team")
@@ -224,21 +404,61 @@ def main() -> int:
         schema, table = loc
         pg_urn = make_dataset_urn("postgres", f"{DB}.{schema}.{table}", "PROD")
 
-        # Attach the classification term to each classified column of the output port.
+        # Meaning on the output port (ADR-0027): the table carries the business term of the entity
+        # one row is; each column its data element (structured property), the business term its
+        # data element represents, or — an identifier — the entity it identifies; and, without
+        # native warehouse tags, its governed tags (sensitivity, privacy category).
         ports = defn.get("output_ports") or []
         contracts = [op.get("contract") for op in ports if op.get("contract")]
         fields = []
+        table_terms: list[str] = []
         for contract in contracts:
-            for col, cls in _columns_with_classification(REPO_ROOT / contract):
-                term = make_term_urn(CLASSIFICATIONS[cls]["id"])
+            linked = _column_concepts(REPO_ROOT / contract)
+            doc = yaml.safe_load((REPO_ROOT / contract).read_text(encoding="utf-8")) or {}
+            table_terms += [
+                _concept_term(e) for o in doc.get("schema") or [] if (e := entity_of_table(o))
+            ]
+            for col, governed in _columns_with_tags(REPO_ROOT / contract):
+                element = linked.get(col)
+                terms = [_concept_term(element)] if element in business else []
+                if element in identified:
+                    terms.append(_concept_term(identified[element]))
+                if element:
+                    emitter.emit(
+                        MetadataChangeProposalWrapper(
+                            entityUrn=make_schema_field_urn(pg_urn, col),
+                            aspect=StructuredPropertiesClass(
+                                properties=[
+                                    StructuredPropertyValueAssignmentClass(
+                                        propertyUrn=DATA_ELEMENT, values=[element]
+                                    )
+                                ]
+                            ),
+                        )
+                    )
+                tags = [
+                    TagAssociationClass(tag=_governed_tag(name, value))
+                    for name, value in ({} if NATIVE_TAGS else governed).items()
+                ]
                 fields.append(
                     EditableSchemaFieldInfoClass(
                         fieldPath=col,
+                        globalTags=GlobalTagsClass(tags=tags),
                         glossaryTerms=GlossaryTermsClass(
-                            terms=[GlossaryTermAssociationClass(urn=term)], auditStamp=audit
+                            terms=[GlossaryTermAssociationClass(urn=t) for t in terms],
+                            auditStamp=audit,
                         ),
                     )
                 )
+        emitter.emit(
+            MetadataChangeProposalWrapper(
+                entityUrn=pg_urn,
+                aspect=GlossaryTermsClass(
+                    terms=[GlossaryTermAssociationClass(urn=t) for t in table_terms],
+                    auditStamp=audit,
+                ),
+            )
+        )
         if fields:
             emitter.emit(
                 MetadataChangeProposalWrapper(

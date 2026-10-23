@@ -27,11 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _source_files() -> list[Path]:
-    paths = sorted(REPO_ROOT.glob("domains/*/ingestion/sources.yml"))
-    reference = REPO_ROOT / "reference" / "ingestion" / "sources.yml"
-    if reference.exists():
-        paths.append(reference)
-    return paths
+    return sorted(REPO_ROOT.glob("domains/*/ingestion/sources.yml"))
 
 
 def _landing_datasets() -> list[tuple[str, str]]:
@@ -47,7 +43,7 @@ def _landing_datasets() -> list[tuple[str, str]]:
 
 
 def _contract_path(domain: str, dataset: str) -> Path:
-    base = (REPO_ROOT / "reference") if domain == "reference" else REPO_ROOT / "domains" / domain
+    base = REPO_ROOT / "domains" / domain
     # Landing (ingress) contracts live under contracts/landing/; output-port
     # contracts live directly under contracts/.
     return base / "contracts" / "landing" / f"{dataset}.odcs.yaml"

@@ -6,7 +6,7 @@ Boundaries are encoded in import names by convention:
   - domain packages import as                dgp_domain_<domain>[_<suffix>]
 
 Rules (a violation fails CI):
-  1. platform/** and reference/** must not import any dgp_domain_* package
+  1. platform/** must not import any dgp_domain_* package
      (the platform must never depend on a domain).
   2. domains/<A>/** must not import dgp_domain_<B>_* for any other domain B
      (domains integrate only through data products and contracts, never code).
@@ -28,7 +28,7 @@ DOMAINS = domain_names()  # single source of truth: governance/domains/
 # Longest first so "customer_experience" matches before "customer".
 DOMAINS_BY_LEN = sorted(DOMAINS, key=len, reverse=True)
 
-SCAN_DIRS = ["platform", "domains", "reference"]
+SCAN_DIRS = ["platform", "domains"]
 SKIP_PARTS = {".venv", "__pycache__", "build", "dist", "target", "dbt_packages", ".git"}
 
 
@@ -44,12 +44,10 @@ def domain_of_import(name: str) -> str | None:
 
 
 def zone_of_path(path: Path) -> tuple[str, str | None]:
-    """Classify a file: ('platform'|'reference'|'domain'|'other', domain_name|None)."""
+    """Classify a file: ('platform'|'domain'|'other', domain_name|None)."""
     rel = path.relative_to(REPO_ROOT).parts
     if rel[0] == "platform":
         return "platform", None
-    if rel[0] == "reference":
-        return "reference", None
     if rel[0] == "domains" and len(rel) > 1:
         return "domain", rel[1]
     return "other", None
@@ -90,7 +88,7 @@ def main() -> int:
             imported_domain = domain_of_import(name)
             if imported_domain is None and not name.startswith("dgp_domain_"):
                 continue
-            if zone in ("platform", "reference"):
+            if zone == "platform":
                 violations.append(
                     f"{rel}: {zone} code must not import domain package '{name}' (ADR-0008 rule 1)"
                 )

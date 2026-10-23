@@ -11,20 +11,23 @@ schema:
 - name: orders
   description: One row per customer order, with its status and lifecycle timestamps (purchase, approval, delivery, estimated delivery).
   physicalType: table
+  authoritativeDefinitions:
+  - type: ontology
+    url: ../../../governance/ontology/commerce.ontology.yaml#Order
   properties:
   - name: order_id
-    description: Order identifier (primary key).
-    logicalType: string
+    authoritativeDefinitions:
+    - type: businessDefinition
+      url: definitions/order_id.odcs.yaml
     physicalType: text
     required: true
     unique: true
-    classification: internal
   - name: customer_id
-    description: Customer who placed the order (joins to customer.customers).
-    logicalType: string
+    authoritativeDefinitions:
+    - type: businessDefinition
+      url: definitions/customer_key.odcs.yaml
     physicalType: text
     required: true
-    classification: internal
   - name: order_status
     description: Lifecycle status of the order.
     logicalType: string

@@ -51,8 +51,9 @@ separate the three concerns that `<domain>`-in-the-path used to conflate:
   from (`<source>/<dataset>`), so a shared file does not live under any consumer's name.
 - **Ownership is singular and declared.** Exactly one owner per landing dataset — the ODCS
   `team`, mirrored by which domain registers it in its `sources.yml` and by `CODEOWNERS`.
-  Cross-cutting reference data (e.g. geolocation) is owned by the platform-level `reference`
-  domain.
+  Cross-cutting reference data (e.g. geolocation) is owned by the `reference` domain
+  (`domains/reference/`, its own team in CODEOWNERS; first a platform-level folder, moved in
+  ADR-0027).
 - **Consumption is many, through the output port.** Other domains never read the landing file
   directly; they consume the owning domain's published data product. One owner, N consumers.
 

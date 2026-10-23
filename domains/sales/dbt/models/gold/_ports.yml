@@ -6,12 +6,14 @@ models:
       datacontract_cli:
         contract_id: sales.sales_performance
         owner: sales
+      governance_tags:
+        SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
     tags:
     - output_port
   columns:
   - name: customer_state
     data_type: text
-    description: Two-letter Brazilian state (grain).
+    description: Two-letter code of a Brazilian state (e.g. SP, RJ).
     data_tests:
     - not_null:
         config:
@@ -37,6 +39,8 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: num_orders
     data_type: integer
     description: Distinct orders placed by customers in the state.
@@ -55,9 +59,12 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: num_customers
     data_type: integer
-    description: Distinct customer keys (customer_id) in the state. customer_id is issued per order, so this counts order-level buyers, not distinct people.
+    description: Distinct customer keys (customer_id) in the state. customer_id is
+      issued per order, so this counts order-level buyers, not distinct people.
     data_tests:
     - not_null:
         config:
@@ -73,6 +80,8 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: total_revenue
     data_type: numeric
     description: Total payment value of the state's orders.
@@ -91,6 +100,8 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: avg_review_score
     data_type: numeric
     description: Average review score (1-5) across the state's reviewed orders.
@@ -98,9 +109,13 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: num_people
     data_type: integer
-    description: Distinct people (customer_unique_id, read pseudonymised) with an order delivered in the state. A person with orders in several states counts in each, so states don't add up to the platform total.
+    description: Distinct people (customer_unique_id, read pseudonymised) with an
+      order delivered in the state. A person with orders in several states counts
+      in each, so states don't add up to the platform total.
     data_tests:
     - not_null:
         config:
@@ -116,4 +131,130 @@ models:
       meta:
         datacontract_cli:
           generated: true
-  description: 'One row per customer state: distinct orders, customer keys and people, total revenue and average review score.'
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+  description: 'One row per customer state: distinct orders, customer keys and people,
+    total revenue and average review score.'
+- name: seller_performance
+  description: 'One row per seller: distinct orders and items sold, the value of those
+    items at their price, and the freight charged on them.'
+  config:
+    meta:
+      datacontract_cli:
+        contract_id: sales.seller_performance
+        owner: sales
+      governance_tags:
+        SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
+    tags:
+    - output_port
+  columns:
+  - name: seller_id
+    data_type: text
+    description: Identifies one seller on the marketplace.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: seller_performance__seller_id__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field seller_id has no missing values
+    - unique:
+        config:
+          meta:
+            datacontract_cli:
+              check: seller_performance__seller_id__field_unique
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field seller_id has no duplicate values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
+  - name: orders_sold
+    data_type: integer
+    description: Distinct orders containing at least one of the seller's items.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: seller_performance__orders_sold__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field orders_sold has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+  - name: items_sold
+    data_type: integer
+    description: Order lines (items) the seller sold.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: seller_performance__items_sold__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field items_sold has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+  - name: total_revenue
+    data_type: numeric
+    description: Value of the seller's items sold, at their price, excluding freight.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: seller_performance__total_revenue__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field total_revenue has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+  - name: total_freight
+    data_type: numeric
+    description: Freight charged on the seller's items.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: seller_performance__total_freight__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.0.0
+              generated: true
+        description: Check that field total_freight has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC

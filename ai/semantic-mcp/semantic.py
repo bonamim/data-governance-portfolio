@@ -36,9 +36,11 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "platform" / "semantics"))
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "platform" / "quality" / "src"))
 import ossie  # noqa: E402  (shared Ossie->SQL reader — the one definition BI and AI both compile)
+from dgp_platform_quality import odcs  # noqa: E402  (the one contract reader: links inlined)
 
-from governance.registry import domains  # noqa: E402  (single source of truth for owners)
+from governance.registry import column_tags, concept_of, domains  # noqa: E402  (owners, meaning)
 
 # libpq URI for the warehouse, as a CONSUMER role (output ports only) — never an admin/owner role.
 WAREHOUSE_URI = os.environ.get("SEMANTIC_WAREHOUSE_URI")
@@ -87,7 +89,7 @@ def _audit(tool: str, decision: str, **fields: Any) -> None:
 
 
 def _specs() -> list[tuple[Path, dict]]:
-    return [(p, ossie.load(p)) for p in ossie.models(DOMAIN)]
+    return [(p, ossie.load_compiled(p)) for p in ossie.models(DOMAIN)]
 
 
 def _governed_names() -> set[str]:
@@ -112,13 +114,45 @@ def _column_classes(domain: str | None, product: str | None) -> dict[str, str]:
     path = REPO_ROOT / "domains" / str(domain) / "contracts" / f"{product}.odcs.yaml"
     if not path.exists():
         return {}
-    defn = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    defn = odcs.load(path)
     return {
         p["name"]: p.get("classification", "unclassified")
         for obj in defn.get("schema") or []
         if "output_port" in (obj.get("tags") or [])
         for p in obj.get("properties") or []
         if p.get("name")
+    }
+
+
+def _column_privacy(domain: str | None, product: str | None) -> dict[str, str]:
+    """{column: privacy category} for the output-port columns that hold personal data
+    (identifier, quasi_identifier, sensitive — SNOWFLAKE.CORE.PRIVACY_CATEGORY), from the resolved
+    contract; a column not listed is not personal data."""
+    path = REPO_ROOT / "domains" / str(domain) / "contracts" / f"{product}.odcs.yaml"
+    if not path.exists():
+        return {}
+    return {
+        p["name"]: privacy
+        for obj in odcs.load(path).get("schema") or []
+        if "output_port" in (obj.get("tags") or [])
+        for p in obj.get("properties") or []
+        if p.get("name") and (privacy := column_tags(p).get("privacy_category"))
+    }
+
+
+def _column_concepts(domain: str | None, product: str | None) -> dict[str, str]:
+    """{column: ontology concept} for a product's output port: columns of different products that
+    share a concept mean the same thing (the join key), whatever they are called (ADR-0027)."""
+    path = REPO_ROOT / "domains" / str(domain) / "contracts" / f"{product}.odcs.yaml"
+    if not path.exists():
+        return {}
+    defn = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {
+        p["name"]: concept
+        for obj in defn.get("schema") or []
+        if "output_port" in (obj.get("tags") or [])
+        for p in obj.get("properties") or []
+        if p.get("name") and (concept := concept_of(p, path))
     }
 
 
@@ -141,6 +175,8 @@ def _catalog_products() -> list[dict]:
                 "owner_contact": _owner_contact(team),
                 "governed": name in governed,
                 "column_classification": _column_classes(team, name),
+                "column_concepts": _column_concepts(team, name),
+                "column_privacy": _column_privacy(team, name),
             }
         )
     return out
@@ -163,9 +199,10 @@ def _resolve(product: str) -> tuple[dict, dict]:
 
 
 def list_data_products() -> list[dict]:
-    """Every data product in the mesh, flagged governed/ungoverned, with its owner and each column's
-    classification; a governed product also lists its metrics and dimensions, so one call is
-    enough to go straight to ``query_metric`` (discovery)."""
+    """Every data product in the mesh, flagged governed/ungoverned, with its owner, each column's
+    classification and its ontology concept (columns sharing a concept mean the same thing); a
+    governed product also lists its metrics and dimensions, so one call is enough to go straight
+    to ``query_metric`` (discovery)."""
     out = _catalog_products()
     for product in out:
         if product["governed"]:

@@ -14,28 +14,28 @@ schema:
     description: "One row per customer satisfaction review of an order: the score, when it was sent and answered, and whether it has a comment."
     physicalType: table
     tags: [output_port]
+    authoritativeDefinitions:
+      - type: ontology
+        url: ../../../governance/ontology/commerce.ontology.yaml#Review
     properties:
       - name: review_id
-        description: "Review identifier."
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: definitions/review_id.odcs.yaml
         physicalType: text
         required: true
-        classification: internal
       - name: order_id
-        description: "The reviewed order; joins to sales.orders."
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../sales/contracts/definitions/order_id.odcs.yaml
         physicalType: text
         required: true
-        classification: internal
       - name: review_score
-        description: "Customer satisfaction score from 1 (worst) to 5 (best)."
-        logicalType: integer
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: definitions/review_score.odcs.yaml
         physicalType: integer
         required: true
-        classification: public
-        logicalTypeOptions:
-          minimum: 1
-          maximum: 5
       - name: has_comment
         description: "True when the customer left a free-text comment. The comment itself is not published (it can carry PII)."
         logicalType: boolean
@@ -43,17 +43,17 @@ schema:
         required: true
         classification: public
       - name: review_creation_date
-        description: "Date the satisfaction survey was sent to the customer."
-        logicalType: date
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: definitions/review_sent_date.odcs.yaml
         physicalType: timestamp
         required: true
-        classification: public
       - name: review_answer_timestamp
-        description: "When the customer answered the survey; null if not yet answered."
-        logicalType: date
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: definitions/review_answered_at.odcs.yaml
         physicalType: timestamp
         required: false
-        classification: public
     quality:
       - type: library
         metric: rowCount

@@ -11,8 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "policies"))
 import check_ai_agents  # noqa: E402
 import check_semantics  # noqa: E402
 
-PII = next(iter(check_ai_agents._pii_values()))
-
 
 def _repo(root: Path, field_expr: str, field_name: str = "order_purchase_month") -> None:
     sales = root / "domains" / "sales"
@@ -26,7 +24,13 @@ def _repo(root: Path, field_expr: str, field_name: str = "order_purchase_month")
                 "properties": [
                     {"name": "order_id", "classification": "internal"},
                     {"name": "order_purchase_timestamp", "classification": "public"},
-                    {"name": "buyer_email", "classification": PII},
+                    {
+                        "name": "buyer_email",
+                        "classification": "restricted",
+                        "customProperties": [
+                            {"property": "privacyCategory", "value": "identifier"}
+                        ],
+                    },
                 ],
             }
         ]
@@ -37,6 +41,7 @@ def _repo(root: Path, field_expr: str, field_name: str = "order_purchase_month")
     )
     dialects = {"dialects": [{"dialect": "ANSI_SQL", "expression": field_expr}]}
     spec = {
+        "version": "0.2.0.dev0",
         "name": "orders",
         "datasets": [
             {

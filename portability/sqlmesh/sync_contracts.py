@@ -30,7 +30,7 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
+from dgp_platform_quality import odcs
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -49,13 +49,13 @@ KIND_END = re.compile(r"(?ms)^  kind [A-Z_]+(?: \(\n.*?^  \))?,\n")
 
 
 def columns(contract: Path) -> list[str]:
-    doc = yaml.safe_load(contract.read_text(encoding="utf-8")) or {}
+    doc = odcs.load(contract)
     props = (doc.get("schema") or [{}])[0].get("properties") or []
     return [f"{p['name']} {str(p.get('physicalType', 'text')).upper()}" for p in props]
 
 
 def audits(contract: Path, incremental: bool) -> list[str]:
-    doc = yaml.safe_load(contract.read_text(encoding="utf-8")) or {}
+    doc = odcs.load(contract)
     schema = (doc.get("schema") or [{}])[0]
     props = schema.get("properties") or []
     out = []

@@ -18,15 +18,14 @@ from pathlib import Path
 
 import psycopg
 import yaml
+from dgp_platform_quality import odcs
 from psycopg import sql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _definition_files() -> list[Path]:
-    return sorted(REPO_ROOT.glob("domains/*/data_products/*.yaml")) + sorted(
-        REPO_ROOT.glob("reference/data_products/*.yaml")
-    )
+    return sorted(REPO_ROOT.glob("domains/*/data_products/*.yaml"))
 
 
 def port_location(owner: str, product: str) -> tuple[str, str] | None:
@@ -51,7 +50,7 @@ ANALYTICS_READER = "analytics_reader"
 def is_masked_port(owner: str, product: str) -> bool:
     """True if the port's output-port contract declares a maskingPolicy on any column (ADR-0013)."""
     for c in REPO_ROOT.glob(f"domains/{owner}/contracts/{product}.odcs.yaml"):
-        defn = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
+        defn = odcs.load(c)
         for obj in defn.get("schema") or []:
             if "output_port" not in (obj.get("tags") or []):
                 continue

@@ -15,27 +15,30 @@ domain: customer_experience
 schema:
   - name: reviews
     physicalType: file
+    authoritativeDefinitions:
+      - type: ontology
+        url: ../../../../governance/ontology/commerce.ontology.yaml#Review
     properties:
       - name: review_id
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/review_id.odcs.yaml
         physicalType: string
         required: true
         # Not unique: in the Olist source a review_id can map to several orders
         # (a real characteristic of the dataset, confirmed by the quality gate).
-        classification: internal
       - name: order_id
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../sales/contracts/definitions/order_id.odcs.yaml
         physicalType: string
         required: true
-        classification: internal
       - name: review_score
-        logicalType: integer
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/review_score.odcs.yaml
         physicalType: integer
         required: true
-        classification: public
-        logicalTypeOptions:
-          minimum: 1
-          maximum: 5
       - name: review_comment_title
         logicalType: string
         physicalType: string
@@ -47,15 +50,17 @@ schema:
         required: false
         classification: internal
       - name: review_creation_date
-        logicalType: date
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/review_sent_date.odcs.yaml
         physicalType: string
         required: true
-        classification: public
       - name: review_answer_timestamp
-        logicalType: date
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/review_answered_at.odcs.yaml
         physicalType: string
         required: false
-        classification: public
     quality:
       # File completeness: a daily partition must carry at least this many rows.
       # Executed by the quality gate on arrival.

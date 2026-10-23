@@ -2,7 +2,7 @@
 # Owned by the Sales domain. Answers the semantic-model request for monthly order volume: the order
 # count by purchase month and by status, with the "valid orders" definition made explicit so BI and
 # the AI agent don't each pick their own. Validated by governance/policies/check_semantics.py.
-version: "1.0"
+version: "0.2.0.dev0"
 name: orders
 datasets:
   - name: orders
@@ -17,9 +17,8 @@ datasets:
             - dialect: ANSI_SQL
               expression: "DATE_TRUNC('month', orders.order_purchase_timestamp)"
       - name: order_status
-        description: "Lifecycle status of the order (delivered, shipped, canceled, unavailable, ...)."
         expression:
-          dialects: [{ dialect: ANSI_SQL, expression: order_status }]
+          dialects: [{dialect: ANSI_SQL, expression: order_status}]
 metrics:
   - name: order_count
     description: "Orders placed, whatever their status (one per order_id). Use valid_order_count to leave out canceled and unavailable orders."

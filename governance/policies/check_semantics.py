@@ -10,9 +10,12 @@ A field is either a contract column (named as the column) or a **derived** field
 whose expression references only contract columns as ``<dataset>.<column>`` — e.g.
 ``order_purchase_month`` = ``DATE_TRUNC('month', orders.order_purchase_timestamp)``.
 
-Every dataset, field and metric must also carry a ``description``: the semantic MCP hands these
+Every dataset, derived field and metric must carry a ``description``: the semantic MCP hands these
 to the AI agent verbatim (``list_metrics``), and an agent with no description guesses the meaning
-from the name — e.g. counting ``customer_id`` (per order) as people.
+from the name — e.g. counting ``customer_id`` (per order) as people. A field that IS a contract
+column must not: its description is the contract's — and its data element's — and the compile
+step (``ossie.compile``) puts it into the model every consumer reads, so a column is described in
+one place (ADR-0027). The model itself must pass Ossie's own validator (``version: 0.2.0.dev0``).
 """
 
 from __future__ import annotations
@@ -22,14 +25,17 @@ import sys
 from pathlib import Path
 
 import yaml
+from dgp_platform_quality import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "platform" / "semantics"))
+import ossie  # noqa: E402  (the shared Ossie reader; Ossie's own validator)
 
 
 def _port_columns(product: str) -> set[str] | None:
     """Columns of the output port named ``product`` (from its tagged ODCS contract), or None."""
     for c in REPO_ROOT.glob(f"domains/*/contracts/{product}.odcs.yaml"):
-        defn = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
+        defn = odcs.load(c)
         cols: set[str] = set()
         for obj in defn.get("schema") or []:
             if "output_port" in (obj.get("tags") or []):
@@ -57,6 +63,7 @@ def main() -> int:
     for m in models:
         rel = m.relative_to(REPO_ROOT)
         spec = yaml.safe_load(m.read_text(encoding="utf-8")) or {}
+        errors += [f"{rel}: {e}" for e in ossie.validate(spec, "core-spec/ossie-schema.json")]
         if not spec.get("name") or not spec.get("datasets"):
             errors.append(f"{rel}: missing top-level 'name' or 'datasets'")
             continue
@@ -75,8 +82,14 @@ def main() -> int:
             if not str(ds.get("description") or "").strip():
                 errors.append(f"{rel}: dataset '{ds.get('name')}' has no description")
             for f in ds.get("fields") or []:
-                if not str(f.get("description") or "").strip():
-                    errors.append(f"{rel}: field '{f.get('name')}' has no description")
+                described = bool(str(f.get("description") or "").strip())
+                if f.get("name") in cols and described:  # one place per fact (ADR-0027)
+                    errors.append(
+                        f"{rel}: field '{f.get('name')}' is a contract column — remove its "
+                        "description; it is the contract's (and its data element's), inherited"
+                    )
+                elif f.get("name") not in cols and not described:
+                    errors.append(f"{rel}: derived field '{f.get('name')}' has no description")
             bad_fields: set[str] = set()
             for f in ds.get("fields") or []:
                 if f.get("name") in cols:

@@ -20,21 +20,21 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import yaml
+from dgp_platform_quality import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _domain_of(path: Path) -> str:
     rel = path.relative_to(REPO_ROOT).parts
-    return rel[1] if rel[0] == "domains" else "reference"
+    return rel[1]
 
 
 def _port_contracts() -> dict[str, tuple[str, Path, dict]]:
     """Return {product: (domain, path, schema object)} for every output-port ODCS contract."""
     ports: dict[str, tuple[str, Path, dict]] = {}
     for c in REPO_ROOT.glob("domains/*/contracts/*.odcs.yaml"):  # excludes contracts/landing/
-        doc = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
+        doc = odcs.load(c)
         schema = (doc.get("schema") or [{}])[0]
         if "output_port" in (schema.get("tags") or []):
             ports[schema.get("name", c.stem)] = (_domain_of(c), c, schema)

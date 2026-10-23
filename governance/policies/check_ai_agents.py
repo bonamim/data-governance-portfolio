@@ -8,8 +8,10 @@ owns. This check validates every such agent against the standard's CI-checkable 
   1. each semantic model sits under a registered domain;
   2. an agent serves ONLY its own domain's output ports (domain isolation);
   3. the agent's domain declares an owner (team + contact) — accountability;
-  4. no raw PII is exposed — no field/metric references a column classified ``pii`` in that port's
-     ODCS contract (unmasking is governed by ADR-0013, enforced in M8).
+  4. no raw personal data is exposed — no field/metric references a column whose privacy category
+     (governed tag ``privacy_category``, SNOWFLAKE.CORE.PRIVACY_CATEGORY) is ``identifier`` or
+     ``sensitive`` in that port's resolved ODCS contract (unmasking is governed by ADR-0013). A
+     quasi-identifier (a customer's state) may be a dimension.
 
 Reads only governance + domain definitions (no platform/ or ai/ import), so it is an INDEPENDENT
 check and respects the module boundaries (ADR-0008). Behavioural rules (governed-tools-only, least
@@ -23,19 +25,15 @@ import sys
 from pathlib import Path
 
 import yaml
+from dgp_platform_quality import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
-from governance.registry import classification_terms, domains  # noqa: E402
+from governance.registry import column_tags, domains  # noqa: E402
 
-
-def _pii_values() -> set[str]:
-    """ODCS ``classification`` values that mean PII, from the glossary (not hardcoded)."""
-    out = set()
-    for value, term in classification_terms().items():
-        if "PII" in {str(term.get("name", "")).upper(), str(term.get("id", "")).upper()}:
-            out.add(value)
-    return out
+# Privacy categories an agent never exposes raw: data that identifies a person on its own, or is
+# sensitive about one. Quasi-identifiers (zip, city, state) are fine as aggregate dimensions.
+PERSONAL = {"identifier", "sensitive"}
 
 
 def _product_owner(product: str) -> str | None:
@@ -46,14 +44,15 @@ def _product_owner(product: str) -> str | None:
     return None
 
 
-def _pii_columns(product: str, pii_values: set[str]) -> set[str]:
-    """PII-classified columns of the output port named ``product``, from its ODCS contract."""
+def _personal_columns(product: str) -> set[str]:
+    """Columns of the output port named ``product`` that hold personal data an agent must not
+    expose (privacy category in PERSONAL), from its resolved ODCS contract."""
     cols: set[str] = set()
     for c in REPO_ROOT.glob(f"domains/*/contracts/{product}.odcs.yaml"):
-        defn = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
+        defn = odcs.load(c)
         for obj in defn.get("schema") or []:
             for prop in obj.get("properties") or []:
-                if prop.get("name") and prop.get("classification") in pii_values:
+                if prop.get("name") and column_tags(prop).get("privacy_category") in PERSONAL:
                     cols.add(prop["name"])
     return cols
 
@@ -72,7 +71,6 @@ def main() -> int:
         return 0
 
     registry = {d["name"]: d for d in domains()}
-    pii_values = _pii_values()
     errors: list[str] = []
     agents: set[str] = set()
 
@@ -103,7 +101,7 @@ def main() -> int:
                     f"agent '{domain}': serves '{product}' owned by '{port_owner}' (isolation)"
                 )
             # 4. no raw PII exposed
-            pii = _pii_columns(product, pii_values)
+            pii = _personal_columns(product)
             if pii:
                 exposed = {f.get("name") for f in ds.get("fields") or []} & pii
                 for field in ds.get("fields") or []:  # a derived field must not wrap PII either

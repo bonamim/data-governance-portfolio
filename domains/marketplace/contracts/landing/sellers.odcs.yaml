@@ -13,28 +13,35 @@ domain: marketplace
 schema:
   - name: sellers
     physicalType: file
+    authoritativeDefinitions:
+      - type: ontology
+        url: ../../../../governance/ontology/commerce.ontology.yaml#Seller
     properties:
       - name: seller_id
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/seller_id.odcs.yaml
         physicalType: string
         required: true
         unique: true
-        classification: internal
       - name: seller_zip_code_prefix
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../reference/contracts/definitions/zip_code_prefix.odcs.yaml
         physicalType: string
         required: true
-        classification: public
       - name: seller_city
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../reference/contracts/definitions/city_name.odcs.yaml
         physicalType: string
         required: true
-        classification: public
       - name: seller_state
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../reference/contracts/definitions/state_code.odcs.yaml
         physicalType: string
         required: true
-        classification: public
     quality:
       - type: library
         metric: rowCount

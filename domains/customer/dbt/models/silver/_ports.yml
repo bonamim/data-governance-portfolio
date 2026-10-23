@@ -6,12 +6,16 @@ models:
       datacontract_cli:
         contract_id: customer.customers
         owner: customer
+      governance_tags:
+        SNOWFLAKE.TAGS.SENSITIVITY: RESTRICTED
     tags:
     - output_port
   columns:
   - name: customer_id
     data_type: text
-    description: Per-order customer key; joins to sales.orders.
+    description: '32-character hexadecimal key, issued once per order: it joins sales.orders
+      to customer.customers one to one, and is not a person identifier (count people
+      with customer_unique_id).'
     data_tests:
     - not_null:
         config:
@@ -37,9 +41,12 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
   - name: customer_zip_code_prefix
     data_type: text
-    description: Location quasi-identifier.
+    description: The customer's zip-code prefix. With city and state it narrows a
+      person down, so it is internal here, not public.
     data_tests:
     - not_null:
         config:
@@ -55,6 +62,9 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.CORE.PRIVACY_CATEGORY: QUASI_IDENTIFIER
+          SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
   - name: customer_city
     data_type: text
     data_tests:
@@ -72,6 +82,9 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.CORE.PRIVACY_CATEGORY: QUASI_IDENTIFIER
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
     description: City of the customer's delivery address (lower case, as entered).
   - name: customer_state
     data_type: text
@@ -90,10 +103,16 @@ models:
       meta:
         datacontract_cli:
           generated: true
-    description: Two-letter Brazilian state of the customer's delivery address (e.g. SP, RJ).
+        governance_tags:
+          SNOWFLAKE.CORE.PRIVACY_CATEGORY: QUASI_IDENTIFIER
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+    description: Two-letter Brazilian state of the customer's delivery address (e.g.
+      SP, RJ).
   - name: customer_unique_id
     data_type: text
-    description: "The person identifier (links a person's orders). PII — masked at read by role: consumers see a hash pseudonym, the compliance role sees the raw value."
+    description: "The person identifier (links a person's orders). PII \u2014 masked\
+      \ at read by role: consumers see a hash pseudonym, the compliance role sees\
+      \ the raw value."
     data_tests:
     - not_null:
         config:
@@ -109,4 +128,8 @@ models:
       meta:
         datacontract_cli:
           generated: true
-  description: One row per order-level customer key, with the customer's location and a person identifier masked by role.
+        governance_tags:
+          SNOWFLAKE.CORE.PRIVACY_CATEGORY: IDENTIFIER
+          SNOWFLAKE.TAGS.SENSITIVITY: RESTRICTED
+  description: One row per order-level customer key, with the customer's location
+    and a person identifier masked by role.

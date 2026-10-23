@@ -9,13 +9,65 @@ therefore enforced in code, not only by convention — a metric yields the same 
 
 from __future__ import annotations
 
+import copy
+import importlib.util
+import json
 import re
+import sys
 from pathlib import Path
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DIALECT = "ANSI_SQL"
+VENDOR = Path(__file__).resolve().parent / "vendor" / "ossie"
+
+
+def compile(spec: dict) -> dict:  # noqa: A001 — "compile" is the name of the step
+    """A semantic model as a complete, self-contained Ossie document (ADR-0027): a copy of the
+    authored one in which every field that is a contract column gets the column's description and
+    synonyms from its resolved output-port contract (inherited from its data element). The author
+    writes them once, in the data element; every consumer — this platform's readers, the bundle
+    deployed to Snowflake or another Ossie tool — gets them in the standard places
+    (``description``, ``ai_context.synonyms``). Derived fields and metrics keep their own."""
+    sys.path.insert(0, str(REPO_ROOT / "platform" / "quality" / "src"))
+    from dgp_platform_quality import odcs  # the one contract reader
+
+    out = copy.deepcopy(spec)
+    for ds in out.get("datasets") or []:
+        table = str(ds.get("source", "")).split(".")[-1]
+        columns = {
+            prop["name"]: prop
+            for contract in REPO_ROOT.glob(f"domains/*/contracts/{table}.odcs.yaml")
+            for obj in odcs.load(contract).get("schema") or []
+            for prop in obj.get("properties") or []
+            if prop.get("name")
+        }
+        for field in ds.get("fields") or []:
+            column = columns.get(field.get("name"))
+            if not column:
+                continue
+            if not str(field.get("description") or "").strip() and column.get("description"):
+                field["description"] = " ".join(str(column["description"]).split())
+            synonyms = [s["synonym"] for s in column.get("synonyms") or [] if s.get("synonym")]
+            context = field.get("ai_context")
+            if synonyms and context is None:
+                field["ai_context"] = {"synonyms": synonyms}
+            elif synonyms and isinstance(context, dict) and "synonyms" not in context:
+                context["synonyms"] = synonyms
+    return out
+
+
+def validate(doc: dict, schema: str = "ontology/ontology.json") -> list[str]:
+    """Ossie's own validator (vendored unchanged, ``vendor/ossie/``) on a parsed document: its
+    diagnostics, empty when the document is valid. Ontologies by default; pass
+    ``core-spec/ossie-schema.json`` for a semantic model."""
+    spec = importlib.util.spec_from_file_location(
+        "ossie_validate", VENDOR / "validation/validate.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.validate_document(doc, json.loads((VENDOR / schema).read_text(encoding="utf-8")))
 
 
 def models(domain: str | None = None) -> list[Path]:
@@ -34,7 +86,13 @@ def domain_of(path: Path) -> str:
 
 
 def load(path: Path) -> dict:
+    """A semantic model as authored (what the governance checks judge)."""
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def load_compiled(path: Path) -> dict:
+    """A semantic model as consumers see it: authored, then compiled (``compile``)."""
+    return compile(load(path))
 
 
 def datasets(spec: dict) -> list[dict]:

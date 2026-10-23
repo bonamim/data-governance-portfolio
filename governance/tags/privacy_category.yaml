@@ -1,0 +1,22 @@
+# Governed tag `privacy_category` (ADR-0027): whether a column's data is about a person, and how
+# directly — the categories of the Snowflake system tag SNOWFLAKE.CORE.PRIVACY_CATEGORY, which
+# Snowflake's sensitive-data classification also applies. Not the same as sensitivity: a customer's
+# zip-code prefix is internal, and a quasi-identifier. Maintained by the governance guild.
+#
+# A column's value is its ODCS custom property `privacyCategory` (on the column, or inherited from
+# its data element); a column with none is not personal data. Applied by the build with
+# `sensitivity` (dgp_dbt.apply_governance_tags) and published to the catalog.
+tag: privacy_category
+warehouse_tag: SNOWFLAKE.CORE.PRIVACY_CATEGORY
+odcs: {custom_property: privacyCategory}
+description: Whether the data identifies a person, directly, in combination, or is sensitive about one.
+values:
+  - value: identifier
+    warehouse_value: IDENTIFIER
+    description: "Identifies a person on its own (a person id, an email)."
+  - value: quasi_identifier
+    warehouse_value: QUASI_IDENTIFIER
+    description: "Identifies a person in combination with other data (zip code, city, birth date)."
+  - value: sensitive
+    warehouse_value: SENSITIVE
+    description: "Sensitive about a person without identifying them (salary, health)."

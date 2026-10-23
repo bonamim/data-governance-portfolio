@@ -1,0 +1,7 @@
+businessName: City
+description: Name of a Brazilian city as entered in the source (lower case, not normalised).
+logicalType: string
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#CityName

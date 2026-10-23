@@ -1,0 +1,9 @@
+businessName: Review id
+description: >-
+  Identifies one satisfaction-survey answer. Not unique on its own: the same review id can appear
+  on several orders.
+logicalType: string
+classification: internal
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#ReviewId

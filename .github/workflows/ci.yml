@@ -34,6 +34,10 @@ jobs:
         run: uv run python governance/policies/check_data_products.py
       - name: Publishing guardrail (output-port contract <-> model <-> definition)
         run: uv run python governance/policies/check_output_ports.py
+      - name: Ontology (Apache Ossie) and the contract links to it, one definition per column
+        run: uv run python governance/policies/check_ontology.py
+      - name: Ossie bundle builds and validates (ontology, compiled semantic models, mappings — ADR-0027)
+        run: uv run python platform/semantics/build_ossie.py --check
       - name: Versioned ports (deprecated versions carry a sunset; none outlives it, ADR-0019)
         run: uv run python governance/policies/check_port_versions.py
       - name: SQLMesh port models follow the ODCS contracts (engine portability, ADR-0026)

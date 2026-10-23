@@ -43,7 +43,11 @@ mcp = MCPServer(f"dgp-semantic-{_scope}" if _scope else "dgp-semantic", instruct
 @mcp.tool()
 def list_data_products() -> list[dict]:
     """List EVERY data product in the mesh, each flagged ``governed`` (has metrics) or not, with its
-    owning domain, owner contact and each column's classification (public/internal/pii). A governed
+    owning domain, owner contact, each column's sensitivity (``column_classification``: restricted,
+    confidential, internal, public), the privacy category of personal-data columns
+    (``column_privacy``: identifier, quasi_identifier, sensitive) and its
+    ontology concept (``column_concepts``: columns of different products with the same concept mean
+    the same thing, whatever their name). A governed
     product also lists its metrics and dimensions, so call ``query_metric`` next — no need for
     ``list_metrics``. Discovery is open: ungoverned products are visible so a user can ask the
     owner (``request_semantic_model``) to define metrics. Only governed ones are queryable."""

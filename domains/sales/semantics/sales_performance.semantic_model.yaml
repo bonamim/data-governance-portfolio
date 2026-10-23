@@ -3,7 +3,7 @@
 # — the dimensions and metrics — so Superset (M6) and the AI agent (M7) compute the same numbers.
 # Validated in CI (governance/policies/check_semantics.py): every field/metric must resolve to a
 # column in the port's ODCS contract, so the semantics can't drift from the contract.
-version: "1.0"
+version: "0.2.0.dev0"
 name: sales_performance
 datasets:
   - name: sales_performance
@@ -12,31 +12,25 @@ datasets:
     primary_key: [customer_state]
     fields:
       - name: customer_state
-        description: "Two-letter Brazilian state — the grain and primary dimension."
         expression:
           dialects:
             - dialect: ANSI_SQL
               expression: customer_state
       - name: num_orders
-        description: "Distinct orders placed by customers in the state."
         expression:
-          dialects: [{ dialect: ANSI_SQL, expression: num_orders }]
+          dialects: [{dialect: ANSI_SQL, expression: num_orders}]
       - name: num_customers
-        description: "Distinct customer keys (customer_id) in the state; customer_id is issued per order, so not distinct people."
         expression:
-          dialects: [{ dialect: ANSI_SQL, expression: num_customers }]
+          dialects: [{dialect: ANSI_SQL, expression: num_customers}]
       - name: num_people
-        description: "Distinct people (pseudonymised person identifier) with an order in the state; a person with orders in several states counts in each."
         expression:
-          dialects: [{ dialect: ANSI_SQL, expression: num_people }]
+          dialects: [{dialect: ANSI_SQL, expression: num_people}]
       - name: total_revenue
-        description: "Sum of payment value for the state's orders."
         expression:
-          dialects: [{ dialect: ANSI_SQL, expression: total_revenue }]
+          dialects: [{dialect: ANSI_SQL, expression: total_revenue}]
       - name: avg_review_score
-        description: "Average review score (1-5) of the state's reviewed orders."
         expression:
-          dialects: [{ dialect: ANSI_SQL, expression: avg_review_score }]
+          dialects: [{dialect: ANSI_SQL, expression: avg_review_score}]
 metrics:
   - name: total_revenue
     description: "Total payment value across the selected states."

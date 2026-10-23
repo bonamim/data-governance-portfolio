@@ -28,6 +28,7 @@ import tempfile
 from pathlib import Path
 
 import yaml
+from dgp_platform_quality import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASE_REF = os.environ.get("BASE_REF", "origin/main")
@@ -45,22 +46,18 @@ def _resolve_base() -> str | None:
 
 
 def _changed_output_port_contracts(base: str) -> list[Path]:
-    """Output-port contracts changed vs base — domains/<d>/contracts/<port>.odcs.yaml (depth 4;
-    landing contracts live one level deeper under contracts/landing/ and are excluded)."""
-    changed = _git("diff", "--name-only", base, "--", "domains").stdout.splitlines()
-    # New contracts not yet committed (a local run on a working tree) — a PR has them in the diff.
-    changed += _git("ls-files", "--others", "--exclude-standard", "domains").stdout.splitlines()
+    """Output-port contracts changed vs base — domains/<d>/contracts/<port>.odcs.yaml (landing
+    contracts live one level deeper under contracts/landing/ and are excluded) — either the file
+    itself or a definition it links to: a changed concept changes every contract that uses it."""
+    changed = set(_git("diff", "--name-only", base).stdout.splitlines())
+    # New files not yet committed (a local run on a working tree) — a PR has them in the diff.
+    changed |= set(_git("ls-files", "--others", "--exclude-standard").stdout.splitlines())
     out = []
-    for f in changed:
-        parts = f.split("/")
-        if (
-            len(parts) == 4
-            and parts[0] == "domains"
-            and parts[2] == "contracts"
-            and f.endswith(".odcs.yaml")
-            and (REPO_ROOT / f).exists()
-        ):
-            out.append(REPO_ROOT / f)
+    for path in sorted(REPO_ROOT.glob("domains/*/contracts/*.odcs.yaml")):
+        reached = {path.resolve(), *odcs.linked_files(path)}
+        rel = {p.relative_to(REPO_ROOT).as_posix() for p in reached if p.is_relative_to(REPO_ROOT)}
+        if rel & changed:
+            out.append(path)
     return out
 
 
@@ -72,7 +69,7 @@ def _retired_output_ports(base: str) -> list[tuple[str, str]]:
         parts = f.split("/")
         if len(parts) != 4 or parts[2] != "contracts" or not f.endswith(".odcs.yaml"):
             continue
-        doc = yaml.safe_load(_git("show", f"{base}:{f}").stdout) or {}
+        doc = odcs.load(REPO_ROOT / f, read=_at_base(base))
         schema = (doc.get("schema") or [{}])[0]
         if "output_port" in (schema.get("tags") or []):
             out.append((parts[1], schema.get("name", parts[3][: -len(".odcs.yaml")])))
@@ -101,16 +98,33 @@ def _retirement_blockers(base: str, domain: str, port: str) -> tuple[list[str], 
     return _readers(domain, port), _declared_consumers(base, domain, port) - approved
 
 
-def _base_file(base: str, path: Path) -> str | None:
-    """The contract as it is on the base branch, written to a temp file (None if new)."""
-    rel = path.relative_to(REPO_ROOT).as_posix()
-    r = _git("show", f"{base}:{rel}")
-    if r.returncode != 0:
-        return None
+def _at_base(base: str) -> odcs.Reader:
+    """Read a repository file as it is on the base branch, so a base contract's links resolve to
+    the definitions as they were then too (a changed concept is a changed contract)."""
+
+    def read(path: Path) -> str:
+        r = _git("show", f"{base}:{path.relative_to(REPO_ROOT).as_posix()}")
+        if r.returncode != 0:
+            raise FileNotFoundError(path)
+        return r.stdout
+
+    return read
+
+
+def _resolved_file(doc: dict) -> str:
+    """A resolved contract in a temp file, for ``datacontract breaking``."""
     fd, tmp = tempfile.mkstemp(suffix=".odcs.yaml")
     os.close(fd)
-    Path(tmp).write_text(r.stdout, encoding="utf-8")
+    Path(tmp).write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
     return tmp
+
+
+def _base_file(base: str, path: Path) -> str | None:
+    """The contract as it is on the base branch, resolved, in a temp file (None if new)."""
+    try:
+        return _resolved_file(odcs.load(path, read=_at_base(base)))
+    except FileNotFoundError:
+        return None
 
 
 def _consumers_of(product: str) -> set[str]:
@@ -134,7 +148,12 @@ def _breaking_report(old_file: str, new_file: Path) -> str | None:
     """datacontract breaking report if there are ERROR-severity changes, else None.
     (datacontract breaking always exits 0, so parse the '[ N Error ]' summary.)"""
     dc = shutil.which("datacontract") or "datacontract"
-    r = subprocess.run([dc, "breaking", old_file, str(new_file)], capture_output=True, text=True)
+    # Both sides are compared resolved, so an inherited change counts; the temp copies already
+    # carry their definitions, and their relative links would not resolve from the temp dir.
+    new = _resolved_file(odcs.load(Path(new_file)))
+    r = subprocess.run(
+        [dc, "breaking", "--no-inline-references", old_file, new], capture_output=True, text=True
+    )
     out = r.stdout + r.stderr
     m = re.search(r"\[\s*(\d+)\s+Error", out)
     return out if (m and int(m.group(1)) > 0) else None

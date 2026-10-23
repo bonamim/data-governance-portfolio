@@ -15,6 +15,9 @@ models:
     +persist_docs:
       relation: true
       columns: true
+    # Governed tags (sensitivity, privacy category) on output ports, set as part of the build so
+    # data is never in an untagged table (ADR-0027); a no-op on warehouses without object tags.
+    +post-hook: ["{{ dgp_dbt.apply_governance_tags() }}"]
     bronze:
       +schema: bronze
       +materialized: view

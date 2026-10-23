@@ -30,6 +30,7 @@ from datetime import date
 from pathlib import Path
 
 import yaml
+from dgp_platform_quality import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VERSIONED = re.compile(r"^(?P<base>.+)_v(?P<major>\d+)$")
@@ -58,7 +59,7 @@ def ports(root: Path = REPO_ROOT) -> dict[str, Port]:
         defs[p.stem] = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     out = {}
     for c in root.glob("domains/*/contracts/*.odcs.yaml"):
-        doc = yaml.safe_load(c.read_text(encoding="utf-8")) or {}
+        doc = odcs.load(c)
         schema = (doc.get("schema") or [{}])[0]
         if "output_port" not in (schema.get("tags") or []):
             continue

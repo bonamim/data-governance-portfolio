@@ -27,9 +27,7 @@ INPUT_RE = re.compile(r"^[a-z_]+\.[a-z_]+$")  # <domain>.<product>
 
 
 def _definition_files() -> list[Path]:
-    paths = sorted(REPO_ROOT.glob("domains/*/data_products/*.yaml"))
-    paths += sorted(REPO_ROOT.glob("reference/data_products/*.yaml"))
-    return paths
+    return sorted(REPO_ROOT.glob("domains/*/data_products/*.yaml"))
 
 
 def _lint_contract(path: Path) -> tuple[bool, str]:

@@ -35,3 +35,6 @@ portability/sqlmesh/.cache/
 
 # AI evaluation runs (make ai-eval)
 ai/eval/results/
+
+# Generated exports (make ontology-export)
+build/

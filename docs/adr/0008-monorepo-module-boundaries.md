@@ -34,7 +34,6 @@ onboard — this is the self-serve platform of [data-mesh.md](../data-mesh.md) s
 | `domains/* → platform/*`, `domains/* → governance/*` | ✅ |
 | `platform/* → domains/*` (platform depends on a domain) | ❌ |
 | `domains/A → domains/B` (one domain imports another's code) | ❌ |
-| `reference/* → domains/*` | ❌ |
 
 Domains integrate **only through published data products and contracts** — never by importing
 code. The check runs in CI (`make check-boundaries`); a violating PR fails.

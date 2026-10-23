@@ -1,0 +1,7 @@
+businessName: State
+description: Two-letter code of a Brazilian state (e.g. SP, RJ).
+logicalType: string
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#StateCode

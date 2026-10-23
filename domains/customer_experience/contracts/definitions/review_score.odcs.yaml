@@ -1,0 +1,11 @@
+businessName: Review score
+description: >-
+  Whole number from 1 (worst) to 5 (best), the customer's survey answer.
+logicalType: integer
+logicalTypeOptions:
+  minimum: 1
+  maximum: 5
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#ReviewScore

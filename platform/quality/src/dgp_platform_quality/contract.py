@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
+from dgp_platform_quality import odcs
 
 
 @dataclass(frozen=True)
@@ -48,8 +48,7 @@ class Contract:
 
 def contract_path(repo_root: Path, domain: str, dataset: str) -> Path:
     """Where a domain's landing (ingress) ODCS contract for a dataset lives."""
-    base = (repo_root / "reference") if domain == "reference" else (repo_root / "domains" / domain)
-    return base / "contracts" / "landing" / f"{dataset}.odcs.yaml"
+    return repo_root / "domains" / domain / "contracts" / "landing" / f"{dataset}.odcs.yaml"
 
 
 def _parse_column(prop: dict) -> ColumnRule:
@@ -65,7 +64,7 @@ def _parse_column(prop: dict) -> ColumnRule:
 
 
 def load_contract(path: Path) -> Contract:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    raw = odcs.load(path)
     schemas = raw.get("schema") or []
     if not schemas:
         raise ValueError(f"{path}: ODCS contract has no schema")

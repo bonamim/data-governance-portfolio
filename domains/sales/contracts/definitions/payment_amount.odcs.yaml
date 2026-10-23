@@ -1,0 +1,9 @@
+businessName: Amount paid
+description: >-
+  Amount in BRL, two decimals, summed from the orders' payments (payment_value) — freight and
+  instalment interest included.
+logicalType: number
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#PaymentAmount

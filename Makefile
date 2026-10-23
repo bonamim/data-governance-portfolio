@@ -473,6 +473,15 @@ prove-p21: $(ENV_FILE) ## Proof P21 — the analyst Claude session reaches data 
 prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proofs (P2, P5, P12, P21); P3/P6/P7/P10/P11 need the live platform
 	@echo "Self-contained proofs passed. P3/P6/P7/P10/P11 run against the live platform (see docs/proofs.md)."
 
+.PHONY: ossie-build
+ossie-build: ## Build the Ossie bundle: ontology, compiled semantic models, mappings — validated (build/ossie/, ADR-0027)
+	uv run python platform/semantics/build_ossie.py
+
+.PHONY: check-ontology
+check-ontology: ## Ontology (Apache Ossie) + concepts valid; contract columns link concepts, one definition each (ADR-0027)
+	uv run python governance/policies/check_ontology.py
+	uv run python platform/semantics/build_ossie.py --check
+
 .PHONY: check-semantics
 check-semantics: ## Ossie semantic models build only on governed output-port columns (ADR-0010)
 	uv run python governance/policies/check_semantics.py
@@ -486,4 +495,4 @@ check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, 
 	uv run python governance/policies/check_ai_agents.py
 
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-sqlmesh-contracts check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-sqlmesh-contracts check-ontology check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks

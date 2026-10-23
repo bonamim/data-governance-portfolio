@@ -29,6 +29,7 @@ from pathlib import Path
 
 import psycopg
 import yaml
+from dgp_platform_quality import odcs
 
 REPO = Path(__file__).resolve().parents[1]
 PROJECT = REPO / "portability" / "sqlmesh"
@@ -73,8 +74,10 @@ def db(query: str, *params, superuser: bool = False):
         return cur.fetchall() if cur.description else []
 
 
-def contract_test(path: str, schema: str, engine: str, tmp: Path) -> tuple[bool, str]:
-    doc = yaml.safe_load((REPO / "domains" / f"{path}.odcs.yaml").read_text(encoding="utf-8"))
+def engine_contract(path: str, schema: str, engine: str) -> dict:
+    """The port's contract, resolved, pointed at one engine's schema. Resolved here because the copy
+    is tested from a temp dir, where its relative links would not resolve."""
+    doc = odcs.load(REPO / "domains" / f"{path}.odcs.yaml")
     doc["servers"] = [
         {
             "server": engine,
@@ -85,6 +88,11 @@ def contract_test(path: str, schema: str, engine: str, tmp: Path) -> tuple[bool,
             "schema": schema,
         }
     ]
+    return doc
+
+
+def contract_test(path: str, schema: str, engine: str, tmp: Path) -> tuple[bool, str]:
+    doc = engine_contract(path, schema, engine)
     f = tmp / f"{engine}_{path.rsplit('/', 1)[1]}.odcs.yaml"
     f.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
     user, pw = (
@@ -96,7 +104,7 @@ def contract_test(path: str, schema: str, engine: str, tmp: Path) -> tuple[bool,
         )
     )
     r = subprocess.run(
-        ["datacontract", "test", "--server", engine, str(f)],
+        ["datacontract", "test", "--no-inline-references", "--server", engine, str(f)],
         capture_output=True,
         text=True,
         env={

@@ -1,0 +1,11 @@
+businessName: Customer key (per order)
+description: >-
+  32-character hexadecimal key, issued once per order: it joins sales.orders to customer.customers
+  one to one, and is not a person identifier (count people with customer_unique_id).
+logicalType: string
+classification: internal
+synonyms:
+  - synonym: customer_id
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#CustomerKey

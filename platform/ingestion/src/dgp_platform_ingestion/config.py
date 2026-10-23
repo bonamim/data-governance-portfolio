@@ -55,11 +55,7 @@ class Dataset:
 
 
 def _find_config_files(repo_root: Path) -> list[Path]:
-    paths = sorted(repo_root.glob("domains/*/ingestion/sources.yml"))
-    reference = repo_root / "reference" / "ingestion" / "sources.yml"
-    if reference.exists():
-        paths.append(reference)
-    return paths
+    return sorted(repo_root.glob("domains/*/ingestion/sources.yml"))
 
 
 def _parse_file(path: Path) -> list[Dataset]:

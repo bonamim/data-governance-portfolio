@@ -17,12 +17,12 @@ schema:
     tags: [output_port]
     properties:
       - name: customer_state
-        description: "Two-letter Brazilian state (grain)."
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../reference/contracts/definitions/state_code.odcs.yaml
         physicalType: text
         required: true
         unique: true
-        classification: public
       - name: num_orders
         description: "Distinct orders placed by customers in the state."
         logicalType: integer
@@ -42,11 +42,12 @@ schema:
         required: true
         classification: public
       - name: total_revenue
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: definitions/payment_amount.odcs.yaml
         description: "Total payment value of the state's orders."
-        logicalType: number
         physicalType: numeric
         required: true
-        classification: public
       - name: avg_review_score
         description: "Average review score (1-5) across the state's reviewed orders."
         logicalType: number

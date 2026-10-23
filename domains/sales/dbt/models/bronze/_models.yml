@@ -17,3 +17,12 @@ models:
       - name: order_id
         description: "Order the payment belongs to."
         data_tests: [not_null]
+  - name: brz_order_items
+    description: "Standardized order items (typed from raw): one row per line of an order. Internal Bronze."
+    columns:
+      - name: order_id
+        description: "Order the line belongs to."
+        data_tests: [not_null]
+      - name: seller_id
+        description: "Seller of the line's item."
+        data_tests: [not_null]

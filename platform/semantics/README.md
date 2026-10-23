@@ -31,6 +31,7 @@ compiles the derived expression.
 |---|---|
 | `make bi-publish` | Publish each Ossie model to Superset — the warehouse connection, the dataset, and its metrics, generated from the spec (not hand-typed). Idempotent. |
 | `make bi-check-drift` | **Fail if Superset's metrics no longer match the Ossie models** (e.g. edited in the UI). This is what makes "one definition" binding rather than a one-time copy. |
+| `make ontology-export` | Write the business ontology as one complete Ossie document (`build/ontology/`): the structure from `governance/ontology/*.ontology.yaml` plus each value type's description from the definition its domain keeps (`domains/<d>/contracts/definitions/`), checked with Ossie's own validator (`vendor/ossie/`, ADR-0027). |
 
 ## Switching the warehouse (e.g. to Snowflake with views)
 

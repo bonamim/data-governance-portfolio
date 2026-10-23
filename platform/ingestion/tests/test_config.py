@@ -11,7 +11,7 @@ def _write(root: Path, rel: str, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def test_load_datasets_discovers_domains_and_reference(tmp_path: Path):
+def test_load_datasets_discovers_every_domain(tmp_path: Path):
     _write(
         tmp_path,
         "domains/sales/ingestion/sources.yml",
@@ -23,7 +23,7 @@ def test_load_datasets_discovers_domains_and_reference(tmp_path: Path):
     )
     _write(
         tmp_path,
-        "reference/ingestion/sources.yml",
+        "domains/reference/ingestion/sources.yml",
         "domain: reference\n"
         "datasets:\n"
         "  - name: geolocation\n"

@@ -6,7 +6,7 @@ touching this package (ADR-0008).
 
 ## What a domain provides
 
-A `sources.yml` in `domains/<domain>/ingestion/` (or `reference/ingestion/`):
+A `sources.yml` in `domains/<domain>/ingestion/`:
 
 ```yaml
 domain: sales

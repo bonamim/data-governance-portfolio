@@ -2,6 +2,13 @@
 
 **Status:** Accepted (implemented locally in M8 — `platform/access/apply_masking.py`, proof P8)
 
+> **Amended by [ADR-0027](0027-business-ontology.md):** the column's sensitivity and privacy are now
+> two governed tags following Snowflake's own — `classification` takes the sensitivity levels
+> (restricted / confidential / internal / public) and a custom property `privacyCategory` the privacy
+> category (identifier / quasi_identifier / sensitive); `pii` below reads as *restricted* +
+> *identifier*. The `maskingPolicy` is declared on the column's **data element** (the customer person
+> id's), so every column holding that value is masked the same way; the mechanism is unchanged.
+
 ## Context
 PII must be protected, but a single fixed transform (e.g. hashing at ingestion) is a one-way
 door: no role can ever see the real value, so it cannot serve legitimate privileged access

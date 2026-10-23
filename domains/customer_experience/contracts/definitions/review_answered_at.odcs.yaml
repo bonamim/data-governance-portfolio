@@ -1,0 +1,9 @@
+businessName: Survey answered at
+description: When the customer answered the satisfaction survey; empty if not answered yet.
+logicalType: date
+classification: public
+synonyms:
+  - synonym: review_answer_timestamp
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#ReviewAnsweredAt

@@ -107,7 +107,6 @@ P = AssertionStdParameterTypeClass
 
 def _landing_datasets() -> list[dict]:
     paths = sorted(REPO_ROOT.glob("domains/*/ingestion/sources.yml"))
-    paths.append(REPO_ROOT / "reference" / "ingestion" / "sources.yml")
     out = []
     for path in paths:
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}

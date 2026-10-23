@@ -53,7 +53,7 @@ x-airflow-common: &airflow-common
         {"name":"customer","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/domains/customer/pipelines"}},
         {"name":"marketplace","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/domains/marketplace/pipelines"}},
         {"name":"customer_experience","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/domains/customer_experience/pipelines"}},
-        {"name":"reference","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/reference/pipelines"}}
+        {"name":"reference","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/domains/reference/pipelines"}}
       ]
     # DataHub lineage (ADR-0018): the plugin emits DAG/task + dataset lineage to GMS, which
     # lives in the dgp-catalog compose project — reach it on the host gateway.

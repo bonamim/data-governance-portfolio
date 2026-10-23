@@ -7,7 +7,6 @@
 
 # Self-serve platform and shared infrastructure.
 /platform/                  @org/platform-team
-/reference/                 @org/platform-team
 
 # Federated governance: owned by the governance guild (one rep per domain + platform).
 /governance/                @org/governance-guild
@@ -17,6 +16,7 @@
 /domains/customer/          @org/customer-team
 /domains/marketplace/       @org/marketplace-team
 /domains/customer_experience/ @org/customer-experience-team
+/domains/reference/          @org/reference-team
 
 # Architecture decisions change the whole platform: platform + governance sign off.
 /docs/adr/                  @org/platform-team @org/governance-guild

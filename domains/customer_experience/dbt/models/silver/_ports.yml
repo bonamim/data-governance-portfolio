@@ -6,6 +6,8 @@ models:
       datacontract_cli:
         contract_id: customer_experience.reviews
         owner: customer_experience
+      governance_tags:
+        SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
     tags:
     - output_port
   columns:
@@ -26,7 +28,10 @@ models:
       meta:
         datacontract_cli:
           generated: true
-    description: Review identifier.
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
+    description: 'Identifies one satisfaction-survey answer. Not unique on its own:
+      the same review id can appear on several orders.'
   - name: order_id
     data_type: text
     data_tests:
@@ -44,7 +49,10 @@ models:
       meta:
         datacontract_cli:
           generated: true
-    description: The reviewed order; joins to sales.orders.
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
+    description: Identifies one order on the marketplace; the same value in every
+      domain.
   - name: review_score
     data_type: integer
     data_tests:
@@ -62,7 +70,9 @@ models:
       meta:
         datacontract_cli:
           generated: true
-    description: Customer satisfaction score from 1 (worst) to 5 (best).
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+    description: Whole number from 1 (worst) to 5 (best), the customer's survey answer.
   - name: has_comment
     data_type: boolean
     data_tests:
@@ -80,7 +90,10 @@ models:
       meta:
         datacontract_cli:
           generated: true
-    description: True when the customer left a free-text comment. The comment itself is not published (it can carry PII).
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+    description: True when the customer left a free-text comment. The comment itself
+      is not published (it can carry PII).
   - name: review_creation_date
     data_type: timestamp
     data_tests:
@@ -98,6 +111,8 @@ models:
       meta:
         datacontract_cli:
           generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
     description: Date the satisfaction survey was sent to the customer.
   - name: review_answer_timestamp
     data_type: timestamp
@@ -105,5 +120,9 @@ models:
       meta:
         datacontract_cli:
           generated: true
-    description: When the customer answered the survey; null if not yet answered.
-  description: 'One row per customer satisfaction review of an order: the score, when it was sent and answered, and whether it has a comment.'
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
+    description: When the customer answered the satisfaction survey; empty if not
+      answered yet.
+  description: 'One row per customer satisfaction review of an order: the score, when
+    it was sent and answered, and whether it has a comment.'

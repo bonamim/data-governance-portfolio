@@ -81,6 +81,9 @@ graph LR
     CI -.blocks breaking PRs.-> DP
 ```
 
+Every governed fact is written once and the rest is generated — source → compile → validate → deploy:
+see [docs/source-compile-deploy.md](docs/source-compile-deploy.md).
+
 Three storage platforms are used on purpose — **MinIO (S3)**, **Postgres `shop_oltp`** and
 **Postgres `analytics`** — so lineage crosses real platform boundaries, as it does in a company.
 
@@ -203,18 +206,19 @@ platform/                 Self-serve platform (owned by the platform team)
 governance/               Federated governance (owned by the governance guild)
   standards/              Contract template, naming conventions, required fields
   policies/               Policies as code: PII, certification, breaking changes
-  glossary/               Business glossary
+  ontology/               Business ontology (ADR-0027): one Apache Ossie document
+  tags/                   Governed tags (classification): warehouse + catalog tags
   domains/                Domain registry: owners, teams, descriptions
 
 domains/<domain>/         Owned by each domain team
-  contracts/              ODCS contracts for the domain's datasets
+  contracts/              ODCS contracts for the domain's datasets; definitions/ = the meaning of
+                          the ontology value types this domain owns (columns link and inherit)
   ingestion/              Source configuration for the domain's sources
   dbt/                    The domain's dbt project
   data_products/          Data product definitions (output ports, SLA, consumers)
   semantics/              Apache Ossie semantic specs: metrics and dimensions (M6)
   pipelines/              The domain's Airflow DAG bundle
 
-reference/                Shared reference data (geolocation)
 reporting/                Superset dashboards as code (BI consumer)
 ai/                       Governed AI (M7)
   semantic-mcp/           Governed semantic MCP agent (domain-scopable: one per domain)

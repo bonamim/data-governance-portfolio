@@ -14,12 +14,16 @@ domain: reference
 schema:
   - name: geolocation
     physicalType: file
+    authoritativeDefinitions:
+      - type: ontology
+        url: ../../../../governance/ontology/commerce.ontology.yaml#Location
     properties:
       - name: geolocation_zip_code_prefix
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/zip_code_prefix.odcs.yaml
         physicalType: string
         required: true
-        classification: public
       - name: geolocation_lat
         logicalType: number
         physicalType: string
@@ -37,15 +41,17 @@ schema:
           minimum: -180
           maximum: 180
       - name: geolocation_city
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/city_name.odcs.yaml
         physicalType: string
         required: true
-        classification: public
       - name: geolocation_state
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/state_code.odcs.yaml
         physicalType: string
         required: true
-        classification: public
     quality:
       - type: library
         metric: rowCount

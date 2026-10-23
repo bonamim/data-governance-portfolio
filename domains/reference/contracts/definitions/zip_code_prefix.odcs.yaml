@@ -1,0 +1,9 @@
+businessName: Zip-code prefix
+description: >-
+  First five digits of a Brazilian zip code (CEP), as text so leading zeros are kept. Locates a
+  place to roughly a neighbourhood.
+logicalType: string
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#ZipCodePrefix

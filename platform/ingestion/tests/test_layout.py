@@ -102,7 +102,7 @@ def test_replay_takes_each_datasets_newest_file_as_of_a_date():
     [
         "domains/customer_experience/contracts/landing/reviews.odcs.yaml",
         "domains/marketplace/contracts/landing/sellers.odcs.yaml",
-        "reference/contracts/landing/geolocation.odcs.yaml",
+        "domains/reference/contracts/landing/geolocation.odcs.yaml",
     ],
 )
 def test_repo_landing_contracts_are_executable(contract):

@@ -1,0 +1,7 @@
+businessName: Seller id
+description: Identifies one seller on the marketplace.
+logicalType: string
+classification: internal
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#SellerId

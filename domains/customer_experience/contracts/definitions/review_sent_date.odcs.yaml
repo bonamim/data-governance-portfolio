@@ -1,0 +1,9 @@
+businessName: Survey sent date
+description: Date the satisfaction survey was sent to the customer.
+logicalType: date
+classification: public
+synonyms:
+  - synonym: review_creation_date
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#ReviewSentDate

@@ -116,7 +116,7 @@ def _models() -> list[Path]:
 def _publish(s: requests.Session) -> int:
     db_id = _ensure_database(s)
     for m in _models():
-        spec = ossie.load(m)
+        spec = ossie.load_compiled(m)
         for ds in ossie.datasets(spec):
             parts = str(ds.get("source", "")).split(".")
             if len(parts) != 3:
@@ -133,7 +133,7 @@ def _check(s: requests.Session) -> int:
     """Fail if Superset's metrics drifted from the Ossie models (e.g. edited in the UI)."""
     drift: list[str] = []
     for m in _models():
-        spec = ossie.load(m)
+        spec = ossie.load_compiled(m)
         for ds in ossie.datasets(spec):
             parts = str(ds.get("source", "")).split(".")
             if len(parts) != 3:

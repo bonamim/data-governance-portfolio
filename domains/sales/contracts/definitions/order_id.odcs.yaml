@@ -1,0 +1,7 @@
+businessName: Order id
+description: Identifies one order on the marketplace; the same value in every domain.
+logicalType: string
+classification: internal
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#OrderId

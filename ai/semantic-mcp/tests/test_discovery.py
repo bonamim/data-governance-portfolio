@@ -23,6 +23,7 @@ def test_governed_product_lists_its_metrics_and_dimensions():
 def test_every_product_carries_its_column_classification():
     products = _products()
 
-    assert products["customers"]["column_classification"]["customer_unique_id"] == "pii"
+    assert products["customers"]["column_classification"]["customer_unique_id"] == "restricted"
+    assert products["customers"]["column_privacy"]["customer_unique_id"] == "identifier"
     assert products["sales_performance"]["column_classification"]["total_revenue"] == "public"
     assert "metrics" not in products["customers"]  # ungoverned: classes yes, metrics no
