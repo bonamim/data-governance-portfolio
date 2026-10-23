@@ -38,6 +38,17 @@ acknowledgements authored *in* DataHub exist only there. That makes DataHub's ow
 (MySQL + OpenSearch) **backup-critical** for DR (docs/disaster-recovery.md) — the generated layer is
 reproducible, the human layer is not.
 
+### 2a. Lineage has one owner per hop (amended with the Cosmos transform DAGs)
+- **Transformation lineage is dbt's** (`make catalog-ingest` over the dbt artifacts): raw → bronze →
+  silver/gold, column level included.
+- **Airflow adds only what dbt cannot see**: the ingestion tasks declare their inlets/outlets
+  (source/landing → raw), and the DataHub plugin emits those.
+- **The transform DAGs are not reported to DataHub** (`AIRFLOW__DATAHUB__DAG_FILTER_STR` denies
+  `*_transform`). Cosmos attaches OpenLineage to every per-model task and the plugin reads it, which
+  drew each dbt hop a second time through an Airflow node per model; `enable_extractors` does not
+  stop it on Airflow 3. Which DAG builds a dataset is a link on the dataset (`catalog-govern`), and
+  transform runs are observed in Airflow.
+
 ### 3. Retire the simulated marketplace
 `platform/marketplace/` and `docs/marketplace.md` were explicitly the stand-in "until DataHub at M4"
 (ADR-0012). DataHub is now the real catalog and internal marketplace, so the generator, its `make`

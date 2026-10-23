@@ -68,6 +68,13 @@ x-airflow-common: &airflow-common
     # Don't surface the abstract published/<domain> scheduling Assets as catalog datasets;
     # lineage flows through the real output-port tables we declare as the task's iolets.
     AIRFLOW__DATAHUB__CAPTURE_AIRFLOW_ASSETS: "false"
+    # Lineage has one owner per hop (ADR-0018). dbt's own metadata draws every transformation edge
+    # (raw -> bronze -> silver/gold, column level); Airflow adds only the ingestion edges dbt can't
+    # see (source/landing -> raw, declared as the ingestion tasks' inlets/outlets). The transform
+    # DAGs are not reported: each Cosmos task would draw its dbt model's hop again through an
+    # Airflow node (Cosmos always attaches OpenLineage, and the plugin reads it). Which DAG builds a
+    # dataset is a link on the dataset (catalog-govern); transform runs are in Airflow.
+    AIRFLOW__DATAHUB__DAG_FILTER_STR: '{"allow": [".*"], "deny": [".*_transform$$"]}'
     # Ingestion runtime: the repo is mounted here; the Olist cache is a shared volume.
     DGP_REPO_ROOT: /opt/airflow/repo
     DGP_DATA_DIR: /opt/airflow/data
