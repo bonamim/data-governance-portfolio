@@ -76,7 +76,7 @@ preflight: ## List default/weak credentials (X2); DGP_ENV=prod make preflight fa
 .PHONY: db-roles
 db-roles: ## Ensure least-privilege roles + the DR heartbeat on a RUNNING platform (fresh volumes get them at init)
 	@for svc in postgres-oltp postgres-analytics; do \
-		$(COMPOSE) exec -T $$(env | grep -E '^(ACCESS_ADMIN|CATALOG_READER|LANDING_EVENTS|SQLMESH_ROLE|AGENT_[A-Z_]+)_PASSWORD=' | sed 's/^/-e /') \
+		$(COMPOSE) exec -T $$(env | grep -E '^(ACCESS_ADMIN|CATALOG_READER|LANDING_EVENTS|AGENT_[A-Z_]+)_PASSWORD=' | sed 's/^/-e /') \
 			$$svc bash /docker-entrypoint-initdb.d/10-hardening-roles.sh; \
 	done
 	$(COMPOSE) exec -T postgres-oltp bash /docker-entrypoint-initdb.d/20-dr-heartbeat.sh
@@ -203,18 +203,6 @@ check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
 .PHONY: check-data-products
 check-data-products: ## Enforce the data product standard on every definition
 	uv run python governance/policies/check_data_products.py
-
-.PHONY: check-sqlmesh-contracts
-check-sqlmesh-contracts: ## SQLMesh port models' schema + audits match their ODCS contracts (ADR-0026)
-	uv run python portability/sqlmesh/sync_contracts.py --check
-
-.PHONY: sqlmesh-sync
-sqlmesh-sync: ## Regenerate the SQLMesh port models' schema + audits from the ODCS contracts
-	uv run python portability/sqlmesh/sync_contracts.py
-
-.PHONY: sqlmesh-plan
-sqlmesh-plan: $(ENV_FILE) ## Build the data products with SQLMesh (portability check, ADR-0026)
-	cd portability/sqlmesh && uv run --group sqlmesh sqlmesh plan --auto-apply --no-prompts
 
 .PHONY: check-port-versions
 check-port-versions: ## Versioned output ports: successor -> deprecated + sunset; fail after the sunset (ADR-0019)
@@ -424,10 +412,6 @@ prove-p4: $(ENV_FILE) ## Proof P4 — a producer's new port version rebuilds its
 prove-p19: $(ENV_FILE) ## Proof P19 — a versioned port: v2 beside v1, sunset, migrate, retire with sign-off (live)
 	uv run --group dbt python proofs/p19_versioned_port.py
 
-.PHONY: prove-p20
-prove-p20: $(ENV_FILE) ## Proof P20 — same contracts, products and numbers on SQLMesh as on dbt (live)
-	uv run --group sqlmesh python proofs/p20_engine_portability.py
-
 .PHONY: prove-p14
 prove-p14: ## Proof P14 — landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)
 	uv run python proofs/p14_landing_lifecycle.py
@@ -495,4 +479,4 @@ check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, 
 	uv run python governance/policies/check_ai_agents.py
 
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-sqlmesh-contracts check-ontology check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-ontology check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks

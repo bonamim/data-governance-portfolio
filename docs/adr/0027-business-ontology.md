@@ -81,7 +81,7 @@ element the definition sets — description, business name, **classification**, 
 synonyms, examples — wherever the column leaves it unset, and **what the contract sets itself
 wins**. The platform reads every contract the same way through `dgp_platform_quality.odcs` (its
 rules pinned to the CLI's by a conformance test), so masking, grants, the catalog, dbt sync, the
-SQLMesh sync, the semantic MCP and the policy checks all see the inherited meaning. A column that
+semantic MCP and the policy checks all see the inherited meaning. A column that
 inherits its masking policy and an `identifier` privacy category is protected like one that
 declares them.
 

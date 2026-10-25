@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SCAN = ["platform", "governance/policies", "ai", "portability", "proofs"]
+SCAN = ["platform", "governance/policies", "ai", "proofs"]
 SKIP = {".venv", "__pycache__", "tests", "target", "dbt_packages"}
 USES_LOADER = re.compile(
     r"from dgp_platform_quality(?:\.contract)? import .*\b(odcs|load_contract)\b"

@@ -27,7 +27,7 @@ review as (
 
 select
     c.customer_state,
-    -- COUNT is bigint in Postgres; the contract promises integer (found by the portability check).
+    -- COUNT is bigint in Postgres; the contract promises integer.
     count(distinct o.order_id)::int    as num_orders,
     count(distinct o.customer_id)::int as num_customers,
     count(distinct c.customer_unique_id)::int as num_people,

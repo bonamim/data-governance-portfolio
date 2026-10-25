@@ -12,8 +12,8 @@ to contracts, meaning and access too.
    the generators.
 2. **Everything else is generated**, by a platform generator that is idempotent and has a check
    mode (`--check`, or a drift diff in CI).
-3. **A generated file is committed only when a tool needs it inside the repository** (dbt, SQLMesh,
-   the landing-zone policies) — and CI fails when it drifts. Anything deployed elsewhere is built
+3. **A generated file is committed only when a tool needs it inside the repository** (dbt, the
+   landing-zone policies) — and CI fails when it drifts. Anything deployed elsewhere is built
    into `build/` or applied to a live system from git; nothing is hand-edited there.
 4. **One reader per standard.** ODCS through `dgp_platform_quality.odcs` (links inlined), Apache
    Ossie through `platform/semantics/ossie.py` (load, compile, Ossie's own validator), governance
@@ -26,7 +26,6 @@ to contracts, meaning and access too.
 | Source (git) | Generator | Output | Committed? | Checked by |
 |---|---|---|---|---|
 | ODCS contracts (+ linked data elements) | `make sync-contracts` | dbt `_ports.yml`: columns, descriptions, contract tests, governed-tag metadata | yes — dbt reads it | CI drift diff |
-| ODCS contracts | `make sqlmesh-sync` | SQLMesh port models' schema and audits | yes | `check-sqlmesh-contracts` |
 | `ingestion/sources.yml` | `make landing-access` | landing bucket and key policies | yes | `check-landing-access` |
 | ontology, data elements, semantic models, contracts | `make ossie-build` | `build/ossie/`: the ontology, the compiled semantic models, the mappings — the bundle Ossie tools and Snowflake read | no — built | `check-ontology` (builds and validates) |
 | port metadata from `sync-contracts` | the dbt build (post-hook) | governed tags on each output port, before access is granted | — warehouse | `governance_tags_preview` |
@@ -49,15 +48,14 @@ the standard files itself, and it goes away as soon as that tool can.
   runs offline in about 16 seconds; each check is linear in the files it reads, with no service.
 - **What to watch.**
   - The number of generators is not a target, it is the list of tools that cannot read ODCS or
-    Ossie yet. Of today's eight, six stay (dbt, landing policies, the Ossie bundle, the warehouse
-    tags inside the dbt build, masking and grants, the DataHub governance layer); `sqlmesh-sync`
-    exists only for the portability check and can go with it; `bi-publish` goes away when Superset
+    Ossie yet. Of today's seven, six stay (dbt, landing policies, the Ossie bundle, the warehouse
+    tags inside the dbt build, masking and grants, the DataHub governance layer); `bi-publish` goes away when Superset
     reads Ossie itself; DataHub's ODCS source could take over part of `catalog-govern`. A tool that
     already reads the standard (the Ossie Visualizer, Snowflake's create-from-Ossie) needs none.
   - Two standards are drafts. Every Ossie document is `version: 0.2.0.dev0`, validated against a
     pinned copy of Ossie's own schemas; Snowflake reads semantic views back as Ossie `0.1.1` by
     default and does not document which versions it creates from. The compile step is the one place
     to emit what a consumer needs — to verify on a real Snowflake account.
-  - Committed generated files make diffs longer; that is dbt's and SQLMesh's requirement.
+  - Committed generated files make diffs longer; that is dbt's requirement.
   - Checks run over the whole repository; scoping them to the domains a change touches is the next
     step if it ever grows slow.

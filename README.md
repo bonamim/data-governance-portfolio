@@ -358,10 +358,6 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   port has such a consumer yet. Originally: dbt model versions (`v1`/`v2`) for a port that gains a
   consumer which can't migrate atomically (external team / BI / ad-hoc SQL). Opt-in per port; the
   approval gate already handles internal consumers.
-- [x] **SQLMesh portability check** (ADR-0026, `make prove-p20`) — the four ports rebuilt natively in
-  SQLMesh pass the same contracts with identical data; it found a type defect dbt hid, and SQLMesh
-  audits restated data only after writing it. Originally: re-run the same ODCS contracts and data products on **SQLMesh** to
-  validate the engine-portability thesis against a natively stateful framework (ADR-0006 comparison).
 - **Superset native semantic-layer connection (Ossie)** — *waiting on Superset 7.0 GA* (checked
   2026-10-19: PyPI's latest is 6.1.0; only `7.0.0rc1`/`rc2` images exist, the feature is still an
   experimental flag and no Ossie extension exists yet). Decision: build it on the final release, not

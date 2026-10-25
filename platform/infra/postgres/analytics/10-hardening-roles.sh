@@ -13,8 +13,6 @@
 #   landing_events  the landing arrival queue (ADR-0016): MinIO's bucket notifications append to
 #                   landing_events.arrivals and Airflow's arrival trigger drains it. Owns that one
 #                   schema; reads nothing else (the local stand-in for an SQS queue).
-#   sqlmesh_role    the engine-portability check (portability/sqlmesh): reads the domains' raw
-#                   schemas and owns only the sqlmesh* schemas it creates. Never granted to consumers.
 set -euo pipefail
 
 DOMAINS="sales customer marketplace customer_experience reference"
@@ -39,13 +37,6 @@ ensure_login access_admin "$ACCESS_ADMIN_PASSWORD"
 ensure_login catalog_reader "$CATALOG_READER_PASSWORD"
 ensure_login landing_events "$LANDING_EVENTS_PASSWORD"
 run_sql -c "CREATE SCHEMA IF NOT EXISTS landing_events AUTHORIZATION landing_events"
-ensure_login sqlmesh_role "$SQLMESH_ROLE_PASSWORD"
-run_sql -c "GRANT CREATE ON DATABASE ${POSTGRES_DB} TO sqlmesh_role"
-for d in customer customer_experience sales; do
-	run_sql -c "GRANT USAGE ON SCHEMA ${d}_raw TO sqlmesh_role" \
-		-c "GRANT SELECT ON ALL TABLES IN SCHEMA ${d}_raw TO sqlmesh_role" \
-		-c "ALTER DEFAULT PRIVILEGES FOR ROLE platform_loader IN SCHEMA ${d}_raw GRANT SELECT ON TABLES TO sqlmesh_role"
-done
 for domain in $DOMAINS; do
 	ensure_login "agent_${domain}" "$(agent_password "$domain")"
 	run_sql -c "GRANT ${domain}_role TO access_admin"

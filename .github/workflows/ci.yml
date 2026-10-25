@@ -40,8 +40,6 @@ jobs:
         run: uv run python platform/semantics/build_ossie.py --check
       - name: Versioned ports (deprecated versions carry a sunset; none outlives it, ADR-0019)
         run: uv run python governance/policies/check_port_versions.py
-      - name: SQLMesh port models follow the ODCS contracts (engine portability, ADR-0026)
-        run: uv run python portability/sqlmesh/sync_contracts.py --check
       - name: Semantic governance (Ossie models build on contract columns, ADR-0010)
         run: uv run python governance/policies/check_semantics.py
       - name: AI-agent governance (domain-scoped, isolated, owned, no raw PII, ADR-0021)

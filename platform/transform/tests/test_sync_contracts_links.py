@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-# Loaded by path: platform/transform and portability/sqlmesh both have a sync_contracts.py.
+# Loaded by path: the module is not importable as a package.
 _spec = importlib.util.spec_from_file_location(
     "transform_sync_contracts", Path(__file__).resolve().parents[1] / "sync_contracts.py"
 )

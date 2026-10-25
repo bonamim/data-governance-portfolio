@@ -30,7 +30,7 @@ One streaming pass, so a million-row file is fine (validated on real Olist geolo
 ## Reading a contract: `dgp_platform_quality.odcs`
 
 Every platform reader of an ODCS contract goes through `odcs.load(path)`: masking and grants,
-the catalog generator, dbt sync (`platform/transform/sync_contracts.py`), the SQLMesh sync, the
+the catalog generator, dbt sync (`platform/transform/sync_contracts.py`), the
 semantic MCP, the governance checks and this engine. It returns the contract with its **linked
 definitions inlined**: a property with `authoritativeDefinitions: [{type: businessDefinition, url: <file>}]` (or the
 CLI's `semantics`/`definition`) inherits every element it leaves unset (description, classification,

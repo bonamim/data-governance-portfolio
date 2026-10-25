@@ -1,6 +1,7 @@
 # ADR-0026: SQLMesh portability check — the contracts are the portable interface
 
-**Status:** Accepted (check built, proof P20). **Relates to** [ADR-0006](0006-pipeline-state.md)
+**Status:** Withdrawn 2026-10-25 — the check, its CI step and proof P20 were removed; the record is
+kept for its findings (the `sales_performance` integer cast it surfaced stays). **Relates to** [ADR-0006](0006-pipeline-state.md)
 (pipeline state), [ADR-0009](0009-cloud-portability.md) (portability),
 [ADR-0015](0015-scaling-the-transform-layer.md) (transform layer).
 
