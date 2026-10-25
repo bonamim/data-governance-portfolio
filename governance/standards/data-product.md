@@ -69,3 +69,10 @@ ODCS makes `description` optional.)
 One accountable owner per product; many consumers. A shared source dataset is **source-aligned
 and singly owned** (e.g. `reference.geolocation`), not an aggregate — an aggregate only exists
 when 3+ teams need the same derived facts and someone owns that derivation.
+
+## 5. Changing a published port
+
+An output port is an interface: a breaking change to its contract ships either as a coordinated
+migration (every reader changed in the same PR) or as a versioned port (`<port>_v<N>` with
+`version_of`, beside the deprecated old one until its sunset). When to use which, and how:
+[breaking-changes.md](breaking-changes.md).

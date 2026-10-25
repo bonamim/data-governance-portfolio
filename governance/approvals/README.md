@@ -4,6 +4,10 @@ When an output port ships a **breaking change** (a major version bump on its ODC
 affected consumer must sign off. Approvals are recorded here, one file per port + major version:
 `<port>-v<N>.yaml`.
 
+This page is the record's format. **How** to ship the change — a coordinated migration in one PR,
+or a versioned port beside the old one — with worked examples, is
+[`governance/standards/breaking-changes.md`](../standards/breaking-changes.md).
+
 **The file is the authority.** The breaking-change gate
 (`governance/policies/check_breaking_changes.py`, proof P5) lets a breaking change pass only when
 every affected consumer appears here. The GitHub approval workflow writes these files automatically

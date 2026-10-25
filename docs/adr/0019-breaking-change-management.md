@@ -43,6 +43,7 @@ the same moment the producer deploys:
   keep the old interface alive as a **dbt model version** (`versions: [{v:1},{v:2}]`, ADR-0015) with
   the old ODCS contract **deprecated** (`status` + sunset date). `v1` and `v2` coexist until those
   consumers migrate. This is opt-in *per port*; build it when such a consumer actually exists.
+  *(Built as one port per major — `<port>_v<N>` — not dbt's `versions:`; see the Amendment.)*
 
 M4 lineage + the data-product consumers tell you which case you are in and whom to ask.
 
@@ -59,6 +60,9 @@ This layer requires the repo on GitHub with those teams and a token allowed to p
 until then it is inert, and the portable gate (§1–2) still enforces the policy.
 
 ## Amendment (2026-10-19): versioned ports as explicit version models
+The how-to, with a worked example of both paths:
+[`governance/standards/breaking-changes.md`](../../governance/standards/breaking-changes.md).
+
 §3's "dbt model versions" is built as **one port per major**, not dbt's `versions:` block:
 
 - `v2` of `customers` is the port **`customers_v2`**: its own ODCS contract (major 2), dbt model and
@@ -84,6 +88,6 @@ until then it is inert, and the portable gate (§1–2) still enforces the polic
   **auditable** (and, where needed, **versioned**).
 - The policy is portable (the gate + approval file work anywhere); GitHub is only automation on top.
 - Internal consumers migrate atomically alongside the approved change — no versioning overhead. Only
-  consumers that can't cut over atomically (external / BI / ad-hoc) need the dbt-model-versions
+  consumers that can't cut over atomically (external / BI / ad-hoc) need the versioned-port
   migration window, opt-in per port — so the versioned-port machinery is built only when a real
   decoupled consumer appears, not up front.

@@ -265,8 +265,9 @@ def main() -> int:
             print(
                 f"  BLOCKED: a breaking change needs a MAJOR version bump (contract is "
                 f"{_version(old)} -> {_version(path)}), then consumer approval. Migrate the "
-                f"consumers with the change; keep v{old_major} as a dbt model version only if a "
-                f"consumer can't cut over atomically (ADR-0019)."
+                f"consumers with the change; if one can't cut over atomically, ship the new major "
+                f"as a versioned port '{product}_v{old_major + 1}' instead "
+                f"(governance/standards/breaking-changes.md)."
             )
             continue
 

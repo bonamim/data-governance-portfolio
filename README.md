@@ -254,9 +254,10 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   contract (`datacontract breaking`) and names the affected consumers; it passes only with a major
   version bump **and** approval from every consumer, recorded in `governance/approvals/`. A GitHub
   workflow requests the impacted teams' review and auto-commits the approval that unblocks the PR.
-  Internal consumers migrate atomically alongside the approved change; **dbt model versions**
-  (`v1`/`v2`) are an opt-in option only for ports with consumers that can't cut over atomically
-  (external / BI / ad-hoc), built per port when such a consumer appears.
+  Internal consumers migrate atomically alongside the approved change; a **versioned port**
+  (`<port>_v<N>` beside the deprecated old one until a sunset date) is the option for consumers
+  that can't cut over atomically (external / BI / ad-hoc) — see
+  [governance/standards/breaking-changes.md](governance/standards/breaking-changes.md).
 - [x] **M6 — Reporting & semantics (ADR-0010):** domains author **Apache Ossie** semantic models
   (`domains/<d>/semantics/`) over their output ports — dimensions + metrics with one governed
   definition; CI (`check-semantics`) keeps them on contract columns. `platform/semantics` publishes
