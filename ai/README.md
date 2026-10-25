@@ -13,7 +13,7 @@ The design is **not** a locked box. It separates *exploring what exists* from *t
   `governed` (has a semantic model) or not, with its owning domain. Users explore freely — and the
   `datahub` server adds schemas, lineage and classifications on top.
 - **Computation is governed.** `query_metric` only serves metrics defined in an Ossie spec, compiled
-  to SQL by the shared `platform/semantics/ossie.py` reader (the same one Superset uses) and run as
+  to SQL by the shared `platform/context/semantics/ossie.py` reader (the same one Superset uses) and run as
   the **consumer role**. No free-form SQL, so ungoverned/raw/PII columns are unanswerable — which is
   exactly what keeps BI and AI on the same number.
 - **The bridge, so it's never a dead end.** Want a metric on an ungoverned product?
@@ -26,7 +26,7 @@ The design is **not** a locked box. It separates *exploring what exists* from *t
 Governance isn't the only mesh principle we apply to AI — **ownership** is federated as well. There's
 one governed agent **per domain**, and an orchestrator routes each question to the owning domain:
 
-- **Per-domain agents** (`semantic-mcp` scoped by `DGP_SEMANTIC_DOMAIN`) — `make ai-agent DOMAIN=sales`
+- **Per-domain agents** (`semantic_mcp` scoped by `DGP_SEMANTIC_DOMAIN`) — `make ai-agent DOMAIN=sales`
   runs the Sales agent, which sees and answers **only** Sales' governed products (domain isolation).
   Same code, same governed boundary; the platform ships it, each domain runs an instance (self-serve).
 - **Agent registry** (`make ai-agents`) — the system-of-record: each agent, its owner, the products
@@ -66,7 +66,7 @@ Copilot, Cortex); only the wiring differs. Two MCP servers:
 | Server | Role | Source |
 |---|---|---|
 | `datahub` (official acryl `mcp-server-datahub`) | **Discovery / governance** — find the product, owner, PII classification, lineage | DataHub (M4) |
-| `semantic` (`semantic-mcp/`, ours) | **The governed number** — compute a metric; discover/request where none exists yet | the domains' Ossie specs |
+| `semantic` (`semantic_mcp/`, ours) | **The governed number** — compute a metric; discover/request where none exists yet | the domains' Ossie specs |
 
 ```
                     ┌── datahub MCP  → "sales.sales_performance, owned by Sales, revenue is PUBLIC"
@@ -76,7 +76,7 @@ Copilot, Cortex); only the wiring differs. Two MCP servers:
                          Superset (M6) ────────────────┘  same ossie.py, same definition
 ```
 
-## Tools (`semantic-mcp/server.py`)
+## Tools (`semantic_mcp/server.py`)
 
 - `list_data_products()` — every product, `governed` flag + owner (open discovery).
 - `list_metrics(data_product)` — governed metrics + dimensions; for an ungoverned product, explains
@@ -129,7 +129,7 @@ Wiring per client (all point at the *same* server and tools):
 3. Edit [`.mcp.json`](.mcp.json): repo path and the **consumer-role** warehouse URI
    (`SEMANTIC_WAREHOUSE_URI`, as `analytics_reader`). A domain-scoped agent connects as its own
    `agent_<domain>` role through `SEMANTIC_WAREHOUSE_URI_<DOMAIN>` (the Make targets set both).
-   Postgres is TLS-only, so add `?sslmode=verify-full&sslrootcert=<repo>/platform/infra/tls/out/ca.crt`
+   Postgres is TLS-only, so add `?sslmode=verify-full&sslrootcert=<repo>/platform/core/infra/tls/out/ca.crt`
    (or at least `sslmode=require`).
 4. Start the semantic server: `make ai-mcp` (stdio) or `make ai-mcp-http` (remote), then wire your
    client from the table above.
@@ -212,5 +212,5 @@ Both are deterministic (no LLM / API key).
 ## Portability
 
 `SEMANTIC_WAREHOUSE_URI` is the only engine-specific knob — the metric SQL is ANSI (ADR-0009). Moving
-to Snowflake: point the URI at Snowflake, nothing else in `semantic-mcp/` or the Ossie specs changes
-(same story as `platform/semantics/README.md`).
+to Snowflake: point the URI at Snowflake, nothing else in `semantic_mcp/` or the Ossie specs changes
+(same story as `platform/context/semantics/README.md`).

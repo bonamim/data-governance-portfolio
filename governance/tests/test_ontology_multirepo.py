@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 
 REPO = Path(__file__).resolve().parents[2]
 CUSTOMERS = Path("domains/customer/contracts/customers.odcs.yaml")

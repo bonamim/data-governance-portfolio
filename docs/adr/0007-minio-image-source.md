@@ -22,7 +22,7 @@ frozen.
 For **production**, use an image your organisation controls: MinIO's official image via an
 authenticated `quay.io` pull (or an AIStor subscription), or a mirror in your own registry.
 Nothing in the platform depends on Bitnami specifics — the server is MinIO and the client is
-`mc`, so only the `image:` lines in `platform/infra/docker-compose.yml` change.
+`mc`, so only the `image:` lines in `platform/core/infra/docker-compose.yml` change.
 
 ## Consequences
 - Reproducible local setup with no login and no paid subscription.

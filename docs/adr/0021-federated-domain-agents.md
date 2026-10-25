@@ -16,7 +16,7 @@ the governance boundary or making routing a black box.
 ## Decision
 
 **1. One governed agent per domain (federated data plane).** A domain agent is the *same* governed
-semantic server (`ai/semantic-mcp`) scoped to one domain via `DGP_SEMANTIC_DOMAIN`. It then sees and
+semantic server (`ai/semantic_mcp`) scoped to one domain via `DGP_SEMANTIC_DOMAIN`. It then sees and
 answers **only** that domain's governed products — another domain's product is invisible, not merely
 refused (domain isolation). This is the **self-serve platform** pattern: domains don't write agent
 code, they run an instance; the governance (Ossie→SQL, consumer role, no free-form SQL) is identical

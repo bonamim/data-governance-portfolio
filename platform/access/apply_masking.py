@@ -12,7 +12,7 @@ masking view**: for every output port whose contract has a masked column, this c
 base table with its (superuser) owner's rights — so consumers granted only the view see the mask, an
 unmask role (e.g. compliance) sees the raw value, and nobody reaches the base table through it. It
 is the faithful local stand-in for a Snowflake masking policy / Databricks column mask (ADR-0013's
-per-platform table). Consumers are granted the view, never the base table (see grant_consumers.py).
+per-platform table). Consumers are granted the view, never the base table (see apply_grants.py).
 
 Run: ``make mask`` (re-run after a transform/publish, which rebuilds the base tables). Idempotent.
 """
@@ -23,12 +23,12 @@ import sys
 from pathlib import Path
 
 import psycopg
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 from psycopg import sql
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "platform" / "access"))
-from grant_consumers import _conninfo, port_location  # noqa: E402 (reuse the access helpers)
+from apply_grants import _conninfo, port_location  # noqa: E402 (reuse the access helpers)
 
 MASK_SCHEMA_SUFFIX = "_masked"
 
@@ -148,7 +148,7 @@ def main() -> int:
                 )
             )
             # The unmask role reads through the view (its CASE reveals the raw value). End consumers
-            # are granted the view by grant_consumers (masked-aware). Never the base table.
+            # are granted the view by apply_grants (masked-aware). Never the base table.
             conn.execute(
                 sql.SQL("GRANT USAGE ON SCHEMA {} TO compliance").format(
                     sql.Identifier(masked_schema)

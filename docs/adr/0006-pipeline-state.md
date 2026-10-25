@@ -57,6 +57,6 @@ flowchart TD
     F --> H["published/&lt;domain&gt; asset emitted<br/>downstream aggregates rebuild"]
 ```
 
-Implemented by `platform/transform/publish.py` (`make publish`) and the
+Implemented by `platform/core/transform/publish.py` (`make publish`) and the
 `generate_alias_name` macro, per model since ADR-0015 (M9); run per domain by the Airflow
 transform DAGs. View ports carry no materialized data to protect and are published in place.

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from dgp_platform_quality.contract import ColumnRule, Contract
 from dgp_platform_quality.engine import validate_file
+from dgp_platform_quality.rules import ColumnRule, Contract
 
 CONTRACT = Contract(
     id="reviews",

@@ -15,7 +15,7 @@
         "--with", "mcp",
         "--with", "psycopg[binary]",
         "--with", "pyyaml",
-        "python", "${DGP_REPO}/ai/semantic-mcp/server.py"
+        "python", "${DGP_REPO}/ai/semantic_mcp/server.py"
       ],
       "env": {
         "SEMANTIC_WAREHOUSE_URI": "${SEMANTIC_WAREHOUSE_URI}",

@@ -31,7 +31,9 @@ import psycopg
 from psycopg import errors
 
 REPO = Path(__file__).resolve().parents[1]
-CA = os.environ.get("PGSSLROOTCERT", str(REPO / "platform" / "infra" / "tls" / "out" / "ca.crt"))
+CA = os.environ.get(
+    "PGSSLROOTCERT", str(REPO / "platform" / "core" / "infra" / "tls" / "out" / "ca.crt")
+)
 ANALYTICS = (
     f"host=localhost port={os.environ.get('ANALYTICS_PORT', '5433')} "
     f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')}"
@@ -174,7 +176,7 @@ def encryption_at_rest() -> None:
 def gates() -> None:
     print("X2 / X8 / X10 — executable gates")
     pre = subprocess.run(
-        [sys.executable, str(REPO / "platform" / "infra" / "preflight.py")],
+        [sys.executable, str(REPO / "platform" / "core" / "infra" / "preflight.py")],
         env={**os.environ, "DGP_ENV": "prod"}, capture_output=True, text=True,
     )  # fmt: skip
     check(pre.returncode == 1, "X2: production preflight refuses the shipped dev credentials",
@@ -185,7 +187,7 @@ def gates() -> None:
     )  # fmt: skip
     check(pin.returncode == 0, "X8: every image and action pinned", pin.stdout.strip()[:90])
     dr = subprocess.run(
-        [sys.executable, str(REPO / "platform" / "recovery" / "status.py")],
+        [sys.executable, str(REPO / "platform" / "core" / "recovery" / "status.py")],
         capture_output=True, text=True,
     )  # fmt: skip
     check(dr.returncode == 0, "X10: backups fresh and a drill passed recently",

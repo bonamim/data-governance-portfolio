@@ -22,7 +22,7 @@
       "Read(./data/**)",
       "Read(**/*.csv)",
       "Read(**/*.parquet)",
-      "Read(./platform/infra/tls/out/**)",
+      "Read(./platform/core/infra/tls/out/**)",
       "Read(**/*.key)",
       "Read(~/.pgpass)",
       "Read(~/.ssh/**)",

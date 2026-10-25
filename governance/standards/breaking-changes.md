@@ -51,7 +51,7 @@ version: 2.0.0            # was 1.0.0: a breaking change is a new major
 ```
 
 **2. Change the model and regenerate its dbt schema** — `domains/customer/dbt/models/silver/customers.sql`
-selects `customer_state as state_code`, then `make sync-contracts` rewrites `_ports.yml` from the
+selects `customer_state as state_code`, then `make dbt-ports` rewrites `_ports.yml` from the
 contract.
 
 **3. Migrate every reader in the same PR** — `domains/sales/dbt/models/gold/sales_performance.sql`:
@@ -145,7 +145,7 @@ output_ports:
 ```
 
 **4. Add the v2 model** — `domains/customer/dbt/models/silver/customers_v2.sql`, v1's model
-without the column — then `make sync-contracts`.
+without the column — then `make dbt-ports`.
 
 The gate passes **without any approval**: no contract a consumer reads has changed
 (`customers_v2: new output-port contract (no prior version) — OK`). `make check-port-versions`

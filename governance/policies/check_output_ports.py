@@ -20,7 +20,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

@@ -61,5 +61,5 @@ candidate/rollback, emit the failed assertion and alert.
 - The incremental path (audit-batch-then-merge / transactional merge) is more work than the
   full-table swap and is the main remaining implementation; the view and full-table cases are
   covered.
-- `platform/transform/publish.py` reads each product's `publish.audit` and only write-audit-
+- `platform/core/transform/publish.py` reads each product's `publish.audit` and only write-audit-
   publishes the opted-in table ports; others build in place.

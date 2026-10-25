@@ -25,10 +25,10 @@ import sys
 from pathlib import Path
 
 import yaml
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "platform" / "semantics"))
+sys.path.insert(0, str(REPO_ROOT / "platform" / "context" / "semantics"))
 import ossie  # noqa: E402  (the shared Ossie reader; Ossie's own validator)
 
 

@@ -29,7 +29,7 @@ jobs:
       - name: Contract governance (every landing dataset has a valid ODCS contract)
         run: uv run python governance/policies/check_contracts.py
       - name: Landing access is generated from config (ADR-0024, no hand-edited policies)
-        run: uv run python platform/access/landing_access.py --check
+        run: uv run python platform/access/generate_landing_access.py --check
       - name: Data product governance (definitions meet the standard)
         run: uv run python governance/policies/check_data_products.py
       - name: Publishing guardrail (output-port contract <-> model <-> definition)
@@ -37,7 +37,7 @@ jobs:
       - name: Ontology (Apache Ossie) and the contract links to it, one definition per column
         run: uv run python governance/policies/check_ontology.py
       - name: Ossie bundle builds and validates (ontology, compiled semantic models, mappings — ADR-0027)
-        run: uv run python platform/semantics/build_ossie.py --check
+        run: uv run python platform/context/semantics/build_ossie.py --check
       - name: Versioned ports (deprecated versions carry a sunset; none outlives it, ADR-0019)
         run: uv run python governance/policies/check_port_versions.py
       - name: Semantic governance (Ossie models build on contract columns, ADR-0010)
@@ -48,9 +48,9 @@ jobs:
         run: uv run python governance/policies/check_pinned_images.py
       - name: ODCS is source of truth (dbt schema not drifted from contracts)
         run: |
-          make sync-contracts
+          make dbt-ports
           git diff --exit-code -- domains \
-            || { echo "dbt model YAML drifted from the ODCS contracts — run 'make sync-contracts' and commit."; exit 1; }
+            || { echo "dbt model YAML drifted from the ODCS contracts — run 'make dbt-ports' and commit."; exit 1; }
       - name: Breaking-change contract gate (proof P5)
         if: github.event_name == 'pull_request'
         run: BASE_REF=origin/${{ github.base_ref }} make check-breaking
@@ -64,7 +64,7 @@ jobs:
           CUSTOMER_EXPERIENCE_ROLE_PASSWORD: parse-only
           MARKETPLACE_ROLE_PASSWORD: parse-only
         run: >-
-          uv run --group dbt python platform/transform/slim_ci.py
+          uv run --group dbt python platform/core/transform/slim_ci.py
           --baseline git:origin/${{ github.base_ref }} --plan-only
       - name: Lint
         run: uv run ruff check .

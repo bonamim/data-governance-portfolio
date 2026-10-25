@@ -24,8 +24,8 @@ import psycopg
 import requests
 
 REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "ai" / "semantic-mcp"))
-sys.path.insert(0, str(REPO / "platform" / "semantics"))
+sys.path.insert(0, str(REPO / "ai" / "semantic_mcp"))
+sys.path.insert(0, str(REPO / "platform" / "context" / "semantics"))
 import ossie  # noqa: E402  (the shared Ossie->SQL reader BI and AI both compile)
 import semantic  # noqa: E402  (the AI path — same reader, run as the consumer role)
 

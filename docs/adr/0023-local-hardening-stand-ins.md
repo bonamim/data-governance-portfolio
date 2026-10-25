@@ -14,7 +14,7 @@ production. Run them on the real services, not on mocks:
 
 | Control | Local implementation | Proven by |
 |---|---|---|
-| X2 no default credentials | `platform/infra/preflight.py`; `DGP_ENV=prod` refuses to start | unit tests, P13 |
+| X2 no default credentials | `platform/core/infra/preflight.py`; `DGP_ENV=prod` refuses to start | unit tests, P13 |
 | X3 TLS (Postgres) | `hardened-entrypoint.sh`: `ssl=on`, TLS ≥ 1.2, `hostssl` + scram, `hostnossl reject`; local CA (`make certs`); clients `verify-full` | P13 (plain TCP refused, verify-full OK, all sessions encrypted) |
 | X5 least privilege | `access_admin` (masking + grants), `catalog_reader` (DataHub), `agent_<domain>` per AI agent; no automation uses `postgres` | P8, P11 (warehouse-level agent isolation), P13 |
 | X7 encryption at rest (objects) | MinIO SSE-S3 default on every bucket (built-in KMS, static key); existing objects migrated | P13 |

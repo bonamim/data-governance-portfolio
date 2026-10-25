@@ -55,7 +55,7 @@ def versions() -> dict[str, tuple[str, bool]]:
 
 def publish(*extra: str) -> tuple[int, str]:
     r = subprocess.run(
-        [sys.executable, str(REPO / "platform" / "transform" / "publish.py"),
+        [sys.executable, str(REPO / "platform" / "core" / "transform" / "publish.py"),
          "--domain", "sales", "--no-state", *extra],
         cwd=REPO, capture_output=True, text=True,
     )  # fmt: skip

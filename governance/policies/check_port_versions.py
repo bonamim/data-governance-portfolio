@@ -30,7 +30,7 @@ from datetime import date
 from pathlib import Path
 
 import yaml
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VERSIONED = re.compile(r"^(?P<base>.+)_v(?P<major>\d+)$")

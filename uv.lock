@@ -10,6 +10,7 @@ resolution-markers = [
 [manifest]
 members = [
     "data-governance-portfolio",
+    "dgp-platform-contracts",
     "dgp-platform-ingestion",
     "dgp-platform-orchestration",
     "dgp-platform-quality",
@@ -762,9 +763,20 @@ wheels = [
 ]
 
 [[package]]
+name = "dgp-platform-contracts"
+version = "0.1.0"
+source = { editable = "platform/core/contracts" }
+dependencies = [
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyyaml", specifier = ">=6" }]
+
+[[package]]
 name = "dgp-platform-ingestion"
 version = "0.1.0"
-source = { editable = "platform/ingestion" }
+source = { editable = "platform/core/ingestion" }
 dependencies = [
     { name = "boto3" },
     { name = "dgp-platform-quality" },
@@ -785,24 +797,28 @@ requires-dist = [
 [[package]]
 name = "dgp-platform-orchestration"
 version = "0.1.0"
-source = { editable = "platform/orchestration" }
+source = { editable = "platform/core/orchestration" }
 dependencies = [
     { name = "dgp-platform-ingestion" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dgp-platform-ingestion", editable = "platform/ingestion" }]
+requires-dist = [{ name = "dgp-platform-ingestion", editable = "platform/core/ingestion" }]
 
 [[package]]
 name = "dgp-platform-quality"
 version = "0.1.0"
 source = { editable = "platform/quality" }
 dependencies = [
+    { name = "dgp-platform-contracts" },
     { name = "pyyaml" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pyyaml", specifier = ">=6" }]
+requires-dist = [
+    { name = "dgp-platform-contracts", editable = "platform/core/contracts" },
+    { name = "pyyaml", specifier = ">=6" },
+]
 
 [[package]]
 name = "fastjsonschema"

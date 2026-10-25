@@ -38,7 +38,7 @@ Least-privilege roles on the warehouse (passwords in `.env`): `platform_loader`,
 `sales_role`, `customer_role`, `marketplace_role`, `customer_experience_role`,
 `reference_role`, the read-only consumer `analytics_reader`, the unmask role `compliance`, one
 `agent_<domain>` per AI agent, `access_admin` (applies masking + grants) and `catalog_reader`
-(DataHub ingestion). dbt connects as the per-domain role (see `platform/transform/profiles.yml`).
+(DataHub ingestion). dbt connects as the per-domain role (see `platform/core/transform/profiles.yml`).
 
 ## Landing zone: where to look (ADR-0024)
 
@@ -55,7 +55,7 @@ Try it: `make prove-p14` runs the whole path (bad data, bad file name, good file
 checks, DataHub). Policies and principals are applied by `make up`.
 
 > **TLS only.** Postgres refuses plain TCP. A client on the host needs `sslmode=require` at least, or
-> better `sslmode=verify-full sslrootcert=platform/infra/tls/out/ca.crt` (Make exports `PGSSLMODE` /
+> better `sslmode=verify-full sslrootcert=platform/core/infra/tls/out/ca.crt` (Make exports `PGSSLMODE` /
 > `PGSSLROOTCERT` for every target; run `make certs` once). `make psql-oltp` / `make psql-analytics`
 > use the in-container socket and need nothing.
 

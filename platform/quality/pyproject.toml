@@ -3,7 +3,10 @@ name = "dgp-platform-quality"
 version = "0.1.0"
 description = "Quality engine: executes the quality rules declared in an ODCS contract against a dataset. A pure engine (data-mesh.md 'Where quality lives') — the rules come from the contract, the mandate from governance. Used by the landing-zone gate to quarantine a bad file before load (proof P2)."
 requires-python = ">=3.11"
-dependencies = ["pyyaml>=6"]
+dependencies = ["pyyaml>=6", "dgp-platform-contracts"]
+
+[tool.uv.sources]
+dgp-platform-contracts = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

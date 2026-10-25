@@ -5,7 +5,7 @@ from pathlib import Path
 
 ACCESS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ACCESS))
-import landing_access as la  # noqa: E402
+import generate_landing_access as la  # noqa: E402
 
 FILES = la.generate()
 

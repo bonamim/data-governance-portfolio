@@ -195,13 +195,19 @@ The URLs: Airflow at `http://localhost:8080`, MinIO console at `http://localhost
 ## Repository layout
 
 ```
-platform/                 Self-serve platform (owned by the platform team)
-  infra/                  Docker Compose (local) + production configuration
-  orchestration/          Airflow configuration and shared operators
-  ingestion/              Reusable loaders that emit lineage to DataHub
-  quality/                Contract test runner, results pushed to DataHub
-  catalog/                DataHub ingestion recipes
-  semantics/              Apache Ossie reader + Superset adapter (one metric definition, M6)
+platform/                 Self-serve platform (owned by the platform team; map: platform/README.md)
+  access/                 Pillar — who may read what: masking, consumer grants, landing policies
+  quality/                Pillar — is the data right: the contract gate's quality engine
+  context/                Pillar — what the data means and where it comes from
+    catalog/              DataHub: deployment, recipes, governance + quality publishing
+    semantics/            Apache Ossie: reader, bundle build, Superset publisher
+  core/                   The foundation the pillars govern
+    contracts/            The one ODCS contract reader (every pillar uses it)
+    ingestion/            Landing zone, contract gate, raw load, ingestion ledger
+    transform/            dbt: shared macros, write-audit-publish, dbt ports, Slim CI
+    orchestration/        Airflow image, DAG factories, platform DAGs
+    infra/                Docker Compose (local) + production configuration
+    recovery/             Backups and the restore drill
 
 governance/               Federated governance (owned by the governance guild)
   standards/              Contract template, naming conventions, required fields
@@ -221,7 +227,7 @@ domains/<domain>/         Owned by each domain team
 
 reporting/                Superset dashboards as code (BI consumer)
 ai/                       Governed AI (M7)
-  semantic-mcp/           Governed semantic MCP agent (domain-scopable: one per domain)
+  semantic_mcp/           Governed semantic MCP agent (domain-scopable: one per domain)
   orchestrator/           Agent registry + catalog-routed orchestrator (agentic mesh)
 docs/                     Architecture, ADRs, production readiness, disaster recovery
 ```
@@ -260,15 +266,15 @@ Each milestone is done only when its production-readiness and disaster-recovery 
   [governance/standards/breaking-changes.md](governance/standards/breaking-changes.md).
 - [x] **M6 — Reporting & semantics (ADR-0010):** domains author **Apache Ossie** semantic models
   (`domains/<d>/semantics/`) over their output ports — dimensions + metrics with one governed
-  definition; CI (`check-semantics`) keeps them on contract columns. `platform/semantics` publishes
+  definition; CI (`check-semantics`) keeps them on contract columns. `platform/context/semantics` publishes
   them to **Superset** (pinned `dgp-bi` compose in `reporting/`) as datasets + metrics, and the
   Superset charts ingest into DataHub — so lineage reaches the chart (source → port → BI → chart,
   proof P7). The same Ossie definitions feed the M7 AI agent.
 - [x] **M7 — Governed AI** — delivered in two parts:
   - [x] **M7a — Governed AI boundary (ADR-0020, proof P10):** any MCP client (Claude, ChatGPT,
     Copilot, Cortex) reaches the mesh through **DataHub MCP** (discovery: port, owner, PII class,
-    lineage) and a **governed semantic MCP** (`ai/semantic-mcp`) whose only metric tool compiles the
-    domain's **Apache Ossie** definition into SQL (shared `platform/semantics/ossie.py` — the same
+    lineage) and a **governed semantic MCP** (`ai/semantic_mcp`) whose only metric tool compiles the
+    domain's **Apache Ossie** definition into SQL (shared `platform/context/semantics/ossie.py` — the same
     translation Superset uses) as the consumer role. No free-form SQL: ungoverned/PII columns are
     refused; discovery stays open and `request_semantic_model` routes a "please govern this" request
     to the owner. Transport is client-agnostic (stdio / streamable-HTTP). Proof **P10**: the AI number

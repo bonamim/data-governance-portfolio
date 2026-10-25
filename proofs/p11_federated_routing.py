@@ -27,10 +27,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "ai" / "orchestrator"))
-sys.path.insert(0, str(REPO / "ai" / "semantic-mcp"))
-sys.path.insert(0, str(REPO / "platform" / "semantics"))
+sys.path.insert(0, str(REPO / "ai" / "semantic_mcp"))
+sys.path.insert(0, str(REPO / "platform" / "context" / "semantics"))
 sys.path.insert(0, str(REPO / "platform" / "access"))
-import grant_consumers  # noqa: E402  (the grants the warehouse enforces, from the definitions)
+import apply_grants  # noqa: E402  (the grants the warehouse enforces, from the definitions)
 import ossie  # noqa: E402
 import registry  # noqa: E402
 import router  # noqa: E402
@@ -120,7 +120,7 @@ def main() -> int:
                         print(f"  OK value: {ds['name']}.{name} via {routed['routed_to']} = {via}")
 
     # 4. Isolation in the warehouse — each agent's role is denied other domains' ports.
-    grants = grant_consumers._grants()
+    grants = apply_grants._grants()
     all_ports = {f"{s}.{t}" for _, s, t in grants}
     for agent in agents:
         domain = agent["domain"]

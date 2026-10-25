@@ -8,7 +8,7 @@ reference domain), and every contract column that means it links there and inher
 
   Ontology
     1. There is one ontology document, and Ossie's own validator passes it (vendored, unchanged:
-       ``platform/semantics/vendor/ossie/``) — schema, unique names, references.
+       ``platform/context/semantics/vendor/ossie/``) — schema, unique names, references.
     2. Value types and data element files match one to one: each file names the value type it holds
        with an ODCS ``ontology`` link (``<…>.ontology.yaml#<ValueType>``) that resolves; no value
        type is defined twice. Governed-tag values (``privacyCategory``) are allowed values.
@@ -46,12 +46,12 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 from open_data_contract_standard.model import SchemaProperty
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "platform" / "semantics"))
+sys.path.insert(0, str(REPO_ROOT / "platform" / "context" / "semantics"))
 import ossie  # noqa: E402  (the shared Ossie reader; validates with Ossie's own validator)
 
 from governance import registry  # noqa: E402

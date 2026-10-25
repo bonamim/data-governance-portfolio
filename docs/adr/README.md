@@ -9,7 +9,7 @@
 | [0005](0005-airflow-orchestration.md) | Apache Airflow 3 for orchestration | Accepted |
 | [0006](0006-pipeline-state.md) | Pipeline state management | Accepted |
 | [0007](0007-minio-image-source.md) | MinIO container image source | Accepted |
-| [0008](0008-monorepo-module-boundaries.md) | Monorepo with enforced module boundaries | Accepted |
+| [0008](0008-monorepo-module-boundaries.md) | Monorepo with enforced module boundaries | Accepted (§4 layout amended: governance pillars) |
 | [0009](0009-cloud-portability.md) | Cloud-portable by design | Accepted |
 | [0010](0010-semantic-layer-ossie.md) | Apache Ossie as the semantic layer standard | Accepted |
 | [0011](0011-landing-zone-slas-and-partitioning.md) | Landing-zone SLAs, partitioning, retention, shared-dataset ownership | Accepted (§2–3 amended by 0024) |

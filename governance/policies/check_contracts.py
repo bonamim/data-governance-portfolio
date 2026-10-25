@@ -21,7 +21,7 @@ from pathlib import Path
 
 import yaml
 from dgp_platform_ingestion.layout import LandingRules
-from dgp_platform_quality.contract import load_contract
+from dgp_platform_quality.rules import load_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

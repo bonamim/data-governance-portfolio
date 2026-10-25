@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "policies"))
 import check_ai_agents  # noqa: E402

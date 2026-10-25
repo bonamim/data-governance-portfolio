@@ -45,7 +45,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 EVAL = REPO / "ai" / "eval"
-CA = REPO / "platform" / "infra" / "tls" / "out" / "ca.crt"
+CA = REPO / "platform" / "core" / "infra" / "tls" / "out" / "ca.crt"
 BASE_ENV = ("HOME", "USER", "PATH", "TERM", "LANG", "TMPDIR")
 NUM = re.compile(
     r"(?<![\w.])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(million|mn|bn|billion|thousand|k|m)?\b",

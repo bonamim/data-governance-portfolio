@@ -3,8 +3,8 @@
 
 SHELL := /bin/bash
 ENV_FILE := .env
-INFRA := platform/infra/docker-compose.yml
-AIRFLOW := platform/orchestration/docker-compose.airflow.yml
+INFRA := platform/core/infra/docker-compose.yml
+AIRFLOW := platform/core/orchestration/docker-compose.airflow.yml
 COMPOSE := docker compose --env-file $(ENV_FILE) -f $(INFRA)
 COMPOSE_ALL := docker compose --env-file $(ENV_FILE) -f $(INFRA) -f $(AIRFLOW)
 
@@ -15,9 +15,9 @@ export
 endif
 
 # Host-side Postgres clients (dbt, ingestion, access scripts, proofs) verify the server certificate
-# against the local CA (X3). Postgres refuses plain TCP outright (platform/infra/postgres/pg_hba.conf).
+# against the local CA (X3). Postgres refuses plain TCP outright (platform/core/infra/postgres/pg_hba.conf).
 export PGSSLMODE ?= verify-full
-export PGSSLROOTCERT ?= $(CURDIR)/platform/infra/tls/out/ca.crt
+export PGSSLROOTCERT ?= $(CURDIR)/platform/core/infra/tls/out/ca.crt
 
 .DEFAULT_GOAL := help
 
@@ -31,11 +31,11 @@ $(ENV_FILE):
 
 .PHONY: certs
 certs: ## Generate the local CA + Postgres server certificate (X3; idempotent, gitignored)
-	@bash platform/infra/tls/gen-certs.sh
+	@bash platform/core/infra/tls/gen-certs.sh
 
 .PHONY: up
 up: $(ENV_FILE) certs ## Start the platform (MinIO + 2 Postgres)
-	@python3 platform/infra/preflight.py   # X2: warns locally; DGP_ENV=prod refuses default credentials
+	@python3 platform/core/infra/preflight.py   # X2: warns locally; DGP_ENV=prod refuses default credentials
 	$(COMPOSE) up -d --wait minio postgres-oltp postgres-analytics
 	$(COMPOSE) run --rm minio-init   # create/verify buckets, then return
 	$(COMPOSE) up -d s3-browser      # object-storage UI on :9001
@@ -71,7 +71,7 @@ psql-analytics: ## Open psql on the analytics warehouse
 
 .PHONY: preflight
 preflight: ## List default/weak credentials (X2); DGP_ENV=prod make preflight fails on any
-	@PREFLIGHT_VERBOSE=1 python3 platform/infra/preflight.py
+	@PREFLIGHT_VERBOSE=1 python3 platform/core/infra/preflight.py
 
 .PHONY: db-roles
 db-roles: ## Ensure least-privilege roles + the DR heartbeat on a RUNNING platform (fresh volumes get them at init)
@@ -83,24 +83,24 @@ db-roles: ## Ensure least-privilege roles + the DR heartbeat on a RUNNING platfo
 
 .PHONY: encrypt-at-rest
 encrypt-at-rest: ## One-time: rewrite objects stored before bucket encryption with SSE (X7; idempotent)
-	uv run --no-project --with boto3 python platform/infra/encrypt_existing.py
+	uv run --no-project --with boto3 python platform/core/infra/encrypt_existing.py
 
 .PHONY: verify-infra
 verify-infra: ## Check buckets, schemas, roles and the ingestion ledger exist
-	@bash platform/infra/verify.sh
+	@bash platform/core/infra/verify.sh
 
-.PHONY: sync-contracts
-sync-contracts: ## Generate each layer's _ports.yml from the ODCS output-port contracts
-	uv run python platform/transform/sync_contracts.py
+.PHONY: dbt-ports
+dbt-ports: ## Generate each layer's _ports.yml from the ODCS output-port contracts
+	uv run python platform/core/transform/generate_dbt_ports.py
 
 .PHONY: transform
 transform: ## Build all data products (dbt) in dependency order, applying consumer grants
-	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/transform
-	uv run --group dbt dbt build --project-dir domains/customer/dbt --profiles-dir platform/transform
-	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
-	uv run --group dbt dbt build --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
+	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt build --project-dir domains/customer/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt build --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
 	$(MAKE) mask grants
-	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/transform && uv run --group dbt dbt build --profiles-dir ../../../platform/transform
+	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/core/transform && uv run --group dbt dbt build --profiles-dir ../../../platform/core/transform
 	$(MAKE) mask grants
 
 .PHONY: mask
@@ -109,20 +109,20 @@ mask: ## Apply role-based PII masking views from the ODCS masking policies (ADR-
 
 .PHONY: grants
 grants: ## Apply consumer grants from data product definitions (output ports only; masked views for PII)
-	uv run python platform/access/grant_consumers.py
+	uv run python platform/access/apply_grants.py
 
 .PHONY: publish
 publish: ## Write-audit-publish per model: build to a candidate, audit (contract DQ), promote on pass
-	uv run --group dbt python platform/transform/publish.py
+	uv run --group dbt python platform/core/transform/publish.py
 
 .PHONY: slim-ci
 slim-ci: ## Slim CI: build only the models a change touched (state:modified+) in <domain>_ci, deferring the rest to what is published
-	uv run --group dbt python platform/transform/slim_ci.py
+	uv run --group dbt python platform/core/transform/slim_ci.py
 
 .PHONY: backfill
 backfill: ## Reprocess a window of microbatch models: make backfill DOMAIN=sales START=2017-01-01 END=2017-03-01
 	@test -n "$(DOMAIN)" -a -n "$(START)" -a -n "$(END)" || { echo "usage: make backfill DOMAIN=<d> START=YYYY-MM-DD END=YYYY-MM-DD"; exit 2; }
-	uv run --group dbt python platform/transform/publish.py --domain $(DOMAIN) \
+	uv run --group dbt python platform/core/transform/publish.py --domain $(DOMAIN) \
 		--event-time-start $(START) --event-time-end $(END)
 
 .PHONY: endpoints
@@ -147,8 +147,8 @@ airflow-build: ## Build the Airflow image (installs ingestion + orchestration)
 dbt-manifests: $(ENV_FILE) ## Parse every dbt project into target/manifest.json (Cosmos renders the transform DAGs from it; dbt-loom reads it)
 	@# Dependency order: sales reads its upstream domains' manifests through dbt-loom.
 	@for d in customer customer_experience sales; do \
-		( cd domains/$$d/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/transform >/dev/null \
-			&& uv run --group dbt dbt parse --profiles-dir ../../../platform/transform >/dev/null ) \
+		( cd domains/$$d/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/core/transform >/dev/null \
+			&& uv run --group dbt dbt parse --profiles-dir ../../../platform/core/transform >/dev/null ) \
 			|| { echo "dbt parse failed for $$d"; exit 1; }; \
 		echo "  manifest: domains/$$d/dbt/target/manifest.json"; \
 	done
@@ -190,11 +190,11 @@ check-boundaries: ## Enforce ADR-0008 module boundaries (governance policy)
 
 .PHONY: landing-access
 landing-access: ## Regenerate landing-zone access policies from sources.yml (ADR-0024; applied by `make up`)
-	uv run python platform/access/landing_access.py
+	uv run python platform/access/generate_landing_access.py
 
 .PHONY: check-landing-access
 check-landing-access: ## Fail if the committed landing access policies drift from sources.yml
-	uv run python platform/access/landing_access.py --check
+	uv run python platform/access/generate_landing_access.py --check
 
 .PHONY: check-contracts
 check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
@@ -228,13 +228,13 @@ bi-publish: $(ENV_FILE) ## Publish the Ossie semantic models to Superset (datase
 	set -a; . ./$(ENV_FILE); set +a; \
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
 	export SUPERSET_WAREHOUSE_URI="postgresql+psycopg2://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@host.docker.internal:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
-	uv run --no-project --with requests --with pyyaml python platform/semantics/generate_superset.py
+	uv run --no-project --with requests --with pyyaml python platform/context/semantics/publish_superset.py
 
 .PHONY: bi-check-drift
 bi-check-drift: $(ENV_FILE) ## Fail if Superset's metrics drifted from the Ossie models (one definition)
 	set -a; . ./$(ENV_FILE); set +a; \
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
-	uv run --no-project --with requests --with pyyaml python platform/semantics/generate_superset.py --check
+	uv run --no-project --with requests --with pyyaml python platform/context/semantics/publish_superset.py --check
 
 # ---------------------------------------------------------- disaster recovery (M8) ---
 # Backups of every store that can't be regenerated go to s3://$(BACKUP_BUCKET); the restore drill
@@ -243,20 +243,20 @@ RECOVERY := uv run --no-project --with boto3 --with 'psycopg[binary]' --with pyy
 
 .PHONY: backup
 backup: $(ENV_FILE) ## Back up shop_oltp, the ingestion ledger, Airflow, DataHub and Superset metadata
-	$(RECOVERY) platform/recovery/backup.py
+	$(RECOVERY) platform/core/recovery/backup.py
 
 .PHONY: dr-status
 dr-status: $(ENV_FILE) ## Alert check: fail if the latest backup is stale or no drill passed in 7 days (X10)
-	$(RECOVERY) platform/recovery/status.py
+	$(RECOVERY) platform/core/recovery/status.py
 
 .PHONY: restore-drill
 restore-drill: $(ENV_FILE) certs ## Restore the latest backup into a sandbox, rebuild analytics, check, measure RTO
-	$(RECOVERY) platform/recovery/restore_drill.py
+	$(RECOVERY) platform/core/recovery/restore_drill.py
 
 # -------------------------------------------------------------- governed AI (M7) ---
 # The governed semantic MCP server. Any MCP client (Claude, ChatGPT, Copilot, Cortex) connects to
 # it; only each client's wiring differs (ai/README.md). stdio = local clients; http = remote clients.
-AI_MCP := uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/semantic-mcp/server.py
+AI_MCP := uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/semantic_mcp/server.py
 # The platform-wide view uses analytics_reader; each domain agent its own agent_<domain> role (M8).
 AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
 	for d in SALES CUSTOMER MARKETPLACE CUSTOMER_EXPERIENCE REFERENCE; do \
@@ -293,7 +293,7 @@ ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no
 		ALERT_WEBHOOK_MARKETPLACE="$${ALERT_WEBHOOK_MARKETPLACE}" \
 		ALERT_WEBHOOK_CUSTOMER_EXPERIENCE="$${ALERT_WEBHOOK_CUSTOMER_EXPERIENCE}" \
 		ALERT_WEBHOOK_REFERENCE="$${ALERT_WEBHOOK_REFERENCE}" \
-		SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}?sslmode=verify-full&sslrootcert=$(CURDIR)/platform/infra/tls/out/ca.crt" \
+		SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}?sslmode=verify-full&sslrootcert=$(CURDIR)/platform/core/infra/tls/out/ca.crt" \
 		$(CLAUDE) --settings ai/analyst.settings.json --mcp-config ai/analyst.mcp.json --strict-mcp-config \
 		--append-system-prompt-file ai/analyst-prompt.md $(ARGS)
 
@@ -323,7 +323,7 @@ ai-orchestrator: $(ENV_FILE) ## Run the orchestrator MCP gateway (routes each qu
 # DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
 # pinned by digest. Ingestion needs the DataHub CLI on PATH:
 # `uv tool install 'acryl-datahub[postgres,dbt]'`. GMS is on $(DATAHUB_MAPPED_GMS_PORT).
-CATALOG := docker compose --env-file $(ENV_FILE) -p dgp-catalog --profile quickstart -f platform/catalog/docker-compose.datahub.yml
+CATALOG := docker compose --env-file $(ENV_FILE) -p dgp-catalog --profile quickstart -f platform/context/catalog/docker-compose.datahub.yml
 
 .PHONY: catalog-up
 catalog-up: $(ENV_FILE) ## Start DataHub (pinned dgp-catalog compose) in the current Colima VM
@@ -336,22 +336,22 @@ catalog-down: ## Stop DataHub (keeps its volumes)
 .PHONY: catalog-docs
 catalog-docs: $(ENV_FILE) ## Regenerate dbt manifest+catalog artifacts for ingestion
 	@# dbt_packages/ is gitignored: install the shared dgp_dbt package first, as `make transform` does.
-	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/transform
-	uv run --group dbt dbt docs generate --project-dir domains/customer/dbt --profiles-dir platform/transform
-	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
-	uv run --group dbt dbt docs generate --project-dir domains/customer_experience/dbt --profiles-dir platform/transform
-	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/transform \
-		&& uv run --group dbt dbt docs generate --profiles-dir ../../../platform/transform
+	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt docs generate --project-dir domains/customer/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt docs generate --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
+	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/core/transform \
+		&& uv run --group dbt dbt docs generate --profiles-dir ../../../platform/core/transform
 
 .PHONY: catalog-ingest
 catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lineage, tests) into DataHub
 	set -a; . ./$(ENV_FILE); set +a; \
 	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
-	datahub ingest -c platform/catalog/recipes/postgres_oltp.yml; \
-	datahub ingest -c platform/catalog/recipes/postgres_analytics.yml; \
+	datahub ingest -c platform/context/catalog/recipes/postgres_oltp.yml; \
+	datahub ingest -c platform/context/catalog/recipes/postgres_analytics.yml; \
 	for d in customer customer_experience sales; do \
 		DBT_TARGET=$(CURDIR)/domains/$$d/dbt/target DBT_PROJECT=dgp_$$d \
-			datahub ingest -c platform/catalog/recipes/dbt.yml; \
+			datahub ingest -c platform/context/catalog/recipes/dbt.yml; \
 	done
 
 .PHONY: catalog-govern
@@ -359,14 +359,14 @@ catalog-govern: $(ENV_FILE) ## Push mesh governance (domains, data products, own
 	set -a; . ./$(ENV_FILE); set +a; \
 	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
 	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml \
-		python platform/catalog/generate_governance.py
+		python platform/context/catalog/publish_governance.py
 
 .PHONY: catalog-quality
 catalog-quality: $(ENV_FILE) ## Publish landing datasets + contract-gate results (assertions) into DataHub
 	set -a; . ./$(ENV_FILE); set +a; \
 	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
 	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml --with 'psycopg[binary]' \
-		python platform/catalog/publish_landing_quality.py
+		python platform/context/catalog/publish_landing_quality.py
 
 .PHONY: check-domains
 check-domains: ## Domain registry (governance/domains) matches the domain folders
@@ -459,12 +459,12 @@ prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proof
 
 .PHONY: ossie-build
 ossie-build: ## Build the Ossie bundle: ontology, compiled semantic models, mappings — validated (build/ossie/, ADR-0027)
-	uv run python platform/semantics/build_ossie.py
+	uv run python platform/context/semantics/build_ossie.py
 
 .PHONY: check-ontology
 check-ontology: ## Ontology (Apache Ossie) + concepts valid; contract columns link concepts, one definition each (ADR-0027)
 	uv run python governance/policies/check_ontology.py
-	uv run python platform/semantics/build_ossie.py --check
+	uv run python platform/context/semantics/build_ossie.py --check
 
 .PHONY: check-semantics
 check-semantics: ## Ossie semantic models build only on governed output-port columns (ADR-0010)

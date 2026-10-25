@@ -15,8 +15,8 @@ to contracts, meaning and access too.
 3. **A generated file is committed only when a tool needs it inside the repository** (dbt, the
    landing-zone policies) — and CI fails when it drifts. Anything deployed elsewhere is built
    into `build/` or applied to a live system from git; nothing is hand-edited there.
-4. **One reader per standard.** ODCS through `dgp_platform_quality.odcs` (links inlined), Apache
-   Ossie through `platform/semantics/ossie.py` (load, compile, Ossie's own validator), governance
+4. **One reader per standard.** ODCS through `dgp_platform_contracts.odcs` (links inlined), Apache
+   Ossie through `platform/context/semantics/ossie.py` (load, compile, Ossie's own validator), governance
    through `governance/registry.py`. No generator parses a standard its own way.
 5. **Generators read sources, not each other's output** — so there are no chains to break, and a
    new consumer is one new generator.
@@ -25,13 +25,17 @@ to contracts, meaning and access too.
 
 | Source (git) | Generator | Output | Committed? | Checked by |
 |---|---|---|---|---|
-| ODCS contracts (+ linked data elements) | `make sync-contracts` | dbt `_ports.yml`: columns, descriptions, contract tests, governed-tag metadata | yes — dbt reads it | CI drift diff |
+| ODCS contracts (+ linked data elements) | `make dbt-ports` | dbt `_ports.yml`: columns, descriptions, contract tests, governed-tag metadata | yes — dbt reads it | CI drift diff |
 | `ingestion/sources.yml` | `make landing-access` | landing bucket and key policies | yes | `check-landing-access` |
 | ontology, data elements, semantic models, contracts | `make ossie-build` | `build/ossie/`: the ontology, the compiled semantic models, the mappings — the bundle Ossie tools and Snowflake read | no — built | `check-ontology` (builds and validates) |
-| port metadata from `sync-contracts` | the dbt build (post-hook) | governed tags on each output port, before access is granted | — warehouse | `governance_tags_preview` |
+| port metadata from `dbt-ports` | the dbt build (post-hook) | governed tags on each output port, before access is granted | — warehouse | `governance_tags_preview` |
 | contracts (masking policies), data product definitions | `make mask`, `make grants` | masking views, consumer grants | — warehouse | proof P8 |
 | data products, contracts, ontology, tags | `make catalog-govern` | DataHub: domains, products, business glossary, data elements, tags | — catalog | re-applied from git (ADR-0018) |
 | compiled semantic models | `make bi-publish` | Superset datasets and metrics | — BI | `bi-check-drift` |
+
+Each script is named by where its output goes, which is this table's *Committed?* column:
+`generate_` (committed files), `build_` (an artefact in `build/`), `publish_` (catalog, BI) and
+`apply_` (warehouse access controls) — the convention is in [platform/README.md](../platform/README.md).
 
 ## Does it scale — or is it a monster?
 

@@ -1,6 +1,6 @@
 # ADR-0022: Backups and the automated restore drill (proof P9)
 
-**Status:** Accepted (implemented locally in M8 — `platform/recovery/`, `make prove-p9`)
+**Status:** Accepted (implemented locally in M8 — `platform/core/recovery/`, `make prove-p9`)
 
 ## Context
 [Disaster recovery](../disaster-recovery.md) sets per-tier RPO/RTO targets and one rule: **anything
@@ -78,6 +78,6 @@ location change.
   raw load ran `DROP TABLE … CASCADE`, which removed the
   view-materialized output ports, their masking view and grants until the next transform. Raw loads
   now `TRUNCATE` in place when the columns are unchanged (regression test in
-  `platform/ingestion/tests/test_db_integration.py`).
+  `platform/core/ingestion/tests/test_db_integration.py`).
 - The drill reads the live landing zone (tier 1 is protected in place, not copied). It asserts
   versioning is on; object lock and replication are production settings.

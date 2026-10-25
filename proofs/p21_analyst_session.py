@@ -40,7 +40,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[1]
 SETTINGS = REPO / "ai" / "analyst.settings.json"
 MCP = REPO / "ai" / "analyst.mcp.json"
-RECIPES = REPO / "platform" / "catalog" / "recipes"
+RECIPES = REPO / "platform" / "context" / "catalog" / "recipes"
 
 ALLOWED_ENV = {
     "HOME", "USER", "PATH", "TERM", "LANG", "TMPDIR",
@@ -54,7 +54,7 @@ ALLOWED_ENV = {
 MUST_DENY_TOOLS = {"Bash", "Monitor", "Edit", "Write", "NotebookEdit", "Agent", "WebFetch"}
 MUST_DENY_READS = {
     "Read(./.env)", "Read(./.env.*)", "Read(./.mcp.json)", "Read(./data/**)",
-    "Read(**/*.csv)", "Read(./platform/infra/tls/out/**)", "Read(**/*.key)",
+    "Read(**/*.csv)", "Read(./platform/core/infra/tls/out/**)", "Read(**/*.key)",
 }  # fmt: skip
 GOVERNED_SERVERS = {"datahub", "semantic"}
 REQUIRED_ARGS = [

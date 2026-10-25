@@ -12,7 +12,7 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
-from .contract import Contract
+from .rules import Contract
 
 
 @dataclass(frozen=True)

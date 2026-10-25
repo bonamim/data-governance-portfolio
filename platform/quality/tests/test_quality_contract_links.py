@@ -1,7 +1,7 @@
 """The landing gate executes the rules a column inherits from its definition."""
 
 import yaml
-from dgp_platform_quality.contract import load_contract
+from dgp_platform_quality.rules import load_contract
 
 
 def test_landing_rules_include_what_a_column_inherits(tmp_path):

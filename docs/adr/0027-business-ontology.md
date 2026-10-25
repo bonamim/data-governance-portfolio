@@ -45,7 +45,7 @@ what is true of the idea everywhere. Every file and field follows an existing st
 | `domains/<d>/contracts/definitions/<value_type>.odcs.yaml` | The **data elements** — the data dictionary: what a column holding each value type the domain owns contains (description, business name, classification, logical type + options, synonyms, examples) | **the owning domain** (its folder, its CODEOWNERS) | an **ODCS property**; datacontract-cli's layout of definitions next to the contracts that use them |
 | `domains/reference/contracts/definitions/` | Shared place data elements (zip-code prefix, city, state) — other domains *link* them (reusing meaning); *reading* the reference domain's data needs its output port, like any domain's (none yet) | the reference domain — a domain like the others, with its own team | same |
 | `governance/tags/sensitivity.yaml`, `privacy_category.yaml` | The governed tags, one file per tag: **sensitivity** (restricted, confidential, internal, public — from ODCS `classification`) and **privacy category** (identifier, quasi_identifier, sensitive — from the custom property `privacyCategory`) | the governance guild | the **Snowflake-provided** tags `SNOWFLAKE.TAGS.SENSITIVITY` and `SNOWFLAKE.CORE.PRIVACY_CATEGORY`; DataHub tags |
-| `platform/semantics/vendor/ossie/` | Ossie's validator and schemas, copied unchanged at a pinned commit | platform | Apache Ossie |
+| `platform/context/semantics/vendor/ossie/` | Ossie's validator and schemas, copied unchanged at a pinned commit | platform | Apache Ossie |
 
 **Ownership is where a file lives, not a list.** A value type belongs to the domain whose folder
 defines it; an entity type to the domain that defines its identifying value types (`Order` →
@@ -79,7 +79,7 @@ Lifecycle approval is the pull request: a definition merged to `main` is approve
 The type says *what* the link means, not *which fields* come over: datacontract-cli inlines every
 element the definition sets — description, business name, **classification**, logical type,
 synonyms, examples — wherever the column leaves it unset, and **what the contract sets itself
-wins**. The platform reads every contract the same way through `dgp_platform_quality.odcs` (its
+wins**. The platform reads every contract the same way through `dgp_platform_contracts.odcs` (its
 rules pinned to the CLI's by a conformance test), so masking, grants, the catalog, dbt sync, the
 semantic MCP and the policy checks all see the inherited meaning. A column that
 inherits its masking policy and an `identifier` privacy category is protected like one that
@@ -148,7 +148,7 @@ privacy category (`pii`) with sensitivity levels. A customer's zip-code prefix i
 Values are usually set on the data element and inherited — and the customer person id's
 `maskingPolicy` sits on its data element too, so every column holding it is masked. **The tags are
 applied by the build, not by a separate step**: they are Snowflake's, so nothing is created;
-`sync_contracts.py` writes each port's resolved values into its dbt metadata, and the shared dbt
+`generate_dbt_ports.py` writes each port's resolved values into its dbt metadata, and the shared dbt
 post-hook `dgp_dbt.apply_governance_tags` sets them on the table and its columns right after the
 model is built — on a write-audit-publish candidate before promotion. Consumers are granted access
 only after the build, so data never sits in an untagged object they can read. On Postgres (no tags)

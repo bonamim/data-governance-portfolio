@@ -16,8 +16,8 @@ cross-cutting rows.
 | # | Requirement | How | Status |
 |---|---|---|---|
 | X1 | **No secret in git** | `.env` is gitignored; `make preflight` flags secrets hard-coded as literals in compose files. Secrets manager: §5 | ✅ git · 📄 manager |
-| X2 | **No default credential** | `platform/infra/preflight.py`: unset, `.env.example`, well-known (`admin`, `datahub`, …), `local_`/`dev_only` placeholders, < 16 chars, default admin user names, compose literals. Warns on `make up`; **`DGP_ENV=prod` makes it fail**, and the deploy pipeline runs it before rollout. Unit-tested; P13 | ✅ |
-| X3 | **TLS everywhere** | **Postgres: TLS-only.** Every instance (oltp, analytics, Airflow metadata, drill sandbox) runs `ssl=on`, TLS ≥ 1.2, `hostssl` + scram for network clients and **plain TCP rejected** (`platform/infra/postgres/pg_hba.conf`); host tools, Airflow and pgAdmin connect `verify-full` against a local CA (`make certs`). P13. UIs, MinIO and remote MCP behind a TLS reverse proxy: §5 | ✅ Postgres · 📄 proxy |
+| X2 | **No default credential** | `platform/core/infra/preflight.py`: unset, `.env.example`, well-known (`admin`, `datahub`, …), `local_`/`dev_only` placeholders, < 16 chars, default admin user names, compose literals. Warns on `make up`; **`DGP_ENV=prod` makes it fail**, and the deploy pipeline runs it before rollout. Unit-tested; P13 | ✅ |
+| X3 | **TLS everywhere** | **Postgres: TLS-only.** Every instance (oltp, analytics, Airflow metadata, drill sandbox) runs `ssl=on`, TLS ≥ 1.2, `hostssl` + scram for network clients and **plain TCP rejected** (`platform/core/infra/postgres/pg_hba.conf`); host tools, Airflow and pgAdmin connect `verify-full` against a local CA (`make certs`). P13. UIs, MinIO and remote MCP behind a TLS reverse proxy: §5 | ✅ Postgres · 📄 proxy |
 | X4 | **Single sign-on** | DataHub, Superset, Airflow and remote MCP behind OIDC: §5 | 📄 |
 | X5 | **Least privilege** | No automation uses a superuser. Data plane: a role per domain, `platform_loader`, `oltp_reader`/`oltp_loader`, read-only `analytics_reader`, `compliance` unmask role, **one `agent_<domain>` role per AI agent** (granted only its domain's ports). Admin plane: **`access_admin`** applies masking + grants, **`catalog_reader`** (`pg_read_all_data`) feeds DataHub. `CONNECT` revoked from `PUBLIC`. P8, P11, P13. Operators keep socket-only break-glass access inside the container | ✅ |
 | X6 | **Network isolation** | Only the reverse proxy is exposed; data stores on an internal network: §5. Local: single-user laptop (Colima forwards ports to the host loopback); the drill sandbox binds `127.0.0.1` | 📄 |
@@ -156,7 +156,7 @@ certificatesResolvers:
 Set HSTS and secure cookies in each app: Superset `TALISMAN_ENABLED = True`,
 `SESSION_COOKIE_SECURE = True`; DataHub frontend behind HTTPS with `AUTH_COOKIE_SECURE=true`.
 
-**Postgres** (all instances): **implemented locally**. `platform/infra/postgres/hardened-entrypoint.sh`
+**Postgres** (all instances): **implemented locally**. `platform/core/infra/postgres/hardened-entrypoint.sh`
 starts every instance with `ssl=on`, `ssl_min_protocol_version=TLSv1.2` and
 `hba_file=…/pg_hba.conf` (`hostssl` + scram, `hostnossl … reject`). Clients use libpq's
 `PGSSLMODE=verify-full` + `PGSSLROOTCERT` (Make exports them for host tools; the Airflow image sets

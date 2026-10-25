@@ -9,7 +9,7 @@ parts in CI (`governance/policies/check_ai_agents.py`); the rest is review guida
 ## 1. An agent is a platform capability bound to a domain — not hand-written
 
 There is **one governed agent per domain** (ADR-0021). An agent is not a bespoke artefact a domain
-authors; it is the platform's governed semantic server (`ai/semantic-mcp`) **scoped to one domain**
+authors; it is the platform's governed semantic server (`ai/semantic_mcp`) **scoped to one domain**
 (`DGP_SEMANTIC_DOMAIN`). A domain therefore "has an agent" exactly when it owns ≥ 1 governed semantic
 model — the agent is **derived** from what the domain already owns (its Ossie specs + output ports +
 registry entry), so it cannot drift and no agent config is hand-maintained (self-serve). The

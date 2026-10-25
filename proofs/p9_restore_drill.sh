@@ -9,8 +9,8 @@ cd "$(dirname "$0")/.."
 RECOVERY=(uv run --no-project --with boto3 --with 'psycopg[binary]' --with pyyaml python)
 
 echo "### P9.1 — back up every non-regenerable store"
-"${RECOVERY[@]}" platform/recovery/backup.py
+"${RECOVERY[@]}" platform/core/recovery/backup.py
 
 echo
 echo "### P9.2 — restore drill against that backup  ->  expect every check passed and every RTO met"
-"${RECOVERY[@]}" platform/recovery/restore_drill.py
+"${RECOVERY[@]}" platform/core/recovery/restore_drill.py

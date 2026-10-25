@@ -28,7 +28,7 @@ import tempfile
 from pathlib import Path
 
 import yaml
-from dgp_platform_quality import odcs
+from dgp_platform_contracts import odcs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASE_REF = os.environ.get("BASE_REF", "origin/main")

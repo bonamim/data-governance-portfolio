@@ -25,7 +25,7 @@ The catalog is a **projection of git**, not an authority:
 - **Technical metadata** (datasets, columns, lineage, tests) comes from ingestion recipes over dbt
   artifacts + the warehouse (`make catalog-ingest`).
 - **Governance** (domains, data products, ownership, the classification glossary) is **generated
-  from the same definitions that drive grants and contracts** — `generate_governance.py` reading
+  from the same definitions that drive grants and contracts** — `publish_governance.py` reading
   `domains/*/data_products/*.yaml` + the ODCS contracts (`make catalog-govern`).
 
 So governed entities are **versioned as definitions in git and re-applied**, never hand-authored in

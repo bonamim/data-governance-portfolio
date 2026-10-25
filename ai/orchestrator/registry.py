@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "platform" / "semantics"))
+sys.path.insert(0, str(REPO_ROOT / "platform" / "context" / "semantics"))
 sys.path.insert(0, str(REPO_ROOT))
 import ossie  # noqa: E402
 
@@ -27,7 +27,7 @@ from governance.registry import domains  # noqa: E402
 
 
 # The warehouse role each domain agent connects as: its own read-only agent_<domain> role, granted
-# only that domain's output ports (masked where PII) by platform/access/grant_consumers.py — so
+# only that domain's output ports (masked where PII) by platform/access/apply_grants.py — so
 # isolation holds in the warehouse as well as in the agent code (M8). The platform-wide view (no
 # domain scope) uses the shared least-privilege analytics_reader.
 def consumer_role(domain: str) -> str:

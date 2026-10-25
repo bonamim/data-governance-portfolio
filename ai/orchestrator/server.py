@@ -4,7 +4,7 @@
 A single governed endpoint for a client that doesn't want to wire up every domain agent itself: it
 discovers products across all domains, lists the domain agents, and **routes** each metric question
 to the owning domain's agent (deterministically, via the catalog). A client may instead connect to
-the per-domain agents directly (``ai/semantic-mcp`` scoped by ``DGP_SEMANTIC_DOMAIN``) — both are
+the per-domain agents directly (``ai/semantic_mcp`` scoped by ``DGP_SEMANTIC_DOMAIN``) — both are
 the same governed boundary. Transport is client-agnostic (``MCP_TRANSPORT``: stdio|streamable-http).
 
 Run: ``make ai-orchestrator``.

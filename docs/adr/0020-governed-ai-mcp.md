@@ -16,9 +16,9 @@ Expose the mesh to the agent through **two MCP servers**, splitting *discovery* 
 
 - **DataHub MCP** (official `acryl` `mcp-server-datahub`) — discovery and governance: find the data
   product, its owner, PII/Internal/Public classification, and lineage. Read-only here.
-- **A governed semantic MCP server** (`ai/semantic-mcp`, ours) — the **only** way to obtain a metric
+- **A governed semantic MCP server** (`ai/semantic_mcp`, ours) — the **only** way to obtain a metric
   value. Its `query_metric` tool compiles the domain's Ossie definition into SQL via the shared
-  `platform/semantics/ossie.py` reader — the *same* translation the Superset adapter uses — and runs
+  `platform/context/semantics/ossie.py` reader — the *same* translation the Superset adapter uses — and runs
   it against the warehouse as the **consumer role** (`marketplace_role`, output ports only).
 
 There is deliberately **no free-form-SQL tool**. A name that is not a governed metric or dimension in

@@ -8,8 +8,8 @@ import yaml
 
 ACCESS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ACCESS))
+import apply_grants  # noqa: E402
 import apply_masking  # noqa: E402
-import grant_consumers  # noqa: E402
 
 POLICY = {"method": "hash", "unmask_roles": ["compliance"]}
 
@@ -44,13 +44,13 @@ def repo(tmp_path, monkeypatch):
         ],
     }
     (contracts / "customers.odcs.yaml").write_text(yaml.safe_dump(contract))
-    monkeypatch.setattr(grant_consumers, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(apply_grants, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(apply_masking, "REPO_ROOT", tmp_path)
     return tmp_path
 
 
 def test_a_port_with_an_inherited_masking_policy_is_granted_through_the_masked_view(repo):
-    assert grant_consumers.is_masked_port("customer", "customers") is True
+    assert apply_grants.is_masked_port("customer", "customers") is True
 
 
 def test_masking_plan_masks_the_column_that_inherits_its_policy(repo):

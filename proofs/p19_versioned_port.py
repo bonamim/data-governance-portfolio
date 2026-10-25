@@ -126,7 +126,7 @@ def step_release() -> None:
         + "\n",
         encoding="utf-8",
     )
-    rc, out = run("make", "-s", "sync-contracts")
+    rc, out = run("make", "-s", "dbt-ports")
     check(rc == 0, "contracts synced into dbt", out.strip().splitlines()[-1] if out else "")
     ports = (C / "dbt/models/silver/_ports.yml").read_text(encoding="utf-8")
     check(
@@ -153,7 +153,7 @@ def step_release() -> None:
 
 def step_both() -> None:
     print("2. Both versions served: v2 built, masked and granted; sales still on v1")
-    rc, out = py("platform/transform/publish.py", "--domain", "customer", "--no-state")
+    rc, out = py("platform/core/transform/publish.py", "--domain", "customer", "--no-state")
     check(rc == 0, "customer published (v1 and v2)")
     cols = [
         r[0]
@@ -180,7 +180,7 @@ def step_both() -> None:
         sql("SELECT count(*) FROM customer_masked.customers")[0][0] == masked[0],
         "v1 is still served unchanged",
     )
-    rc, out = py("platform/transform/publish.py", "--domain", "sales", "--no-state")
+    rc, out = py("platform/core/transform/publish.py", "--domain", "sales", "--no-state")
     check(rc == 0, "sales still builds on v1")
     warned = "deprecat" in out.lower()
     print(
@@ -229,7 +229,7 @@ def step_migrate_and_retire() -> None:
         "sales_role",
         "SALES_ROLE_PASSWORD",
     )[0]
-    rc, _ = py("platform/transform/publish.py", "--domain", "sales", "--no-state")
+    rc, _ = py("platform/core/transform/publish.py", "--domain", "sales", "--no-state")
     after = sql(
         "SELECT count(*), sum(total_revenue)::text FROM sales_gold.sales_performance",
         "sales_role",
@@ -265,11 +265,11 @@ def restore(saved: dict[Path, str]) -> None:
         "DROP VIEW IF EXISTS customer_masked.customers_v2; "
         "DROP VIEW IF EXISTS customer_silver.customers_v2 CASCADE;"
     )
-    run("make", "-s", "sync-contracts")
+    run("make", "-s", "dbt-ports")
     # The sync generated dbt tests for v2's contract rules.
     shutil.rmtree(C / "dbt/tests/datacontract_cli/customer_customers_v2", ignore_errors=True)
-    py("platform/transform/publish.py", "--domain", "customer", "--no-state")
-    py("platform/transform/publish.py", "--domain", "sales", "--no-state")
+    py("platform/core/transform/publish.py", "--domain", "customer", "--no-state")
+    py("platform/core/transform/publish.py", "--domain", "sales", "--no-state")
     run("make", "-s", "dbt-manifests")
     _, status = run("git", "status", "--short", "--", "domains", "governance/approvals")
     check(status.strip() == "", "repo restored", status.strip() or "clean")

@@ -40,4 +40,4 @@ Each gap is closed by design and **proven by a reproducible scenario** in
 
 ## Consequences
 - More platform code than Dagster would need — acceptable, and orchestrator-portable.
-- Switching orchestrator later only touches `platform/orchestration/` and the DAG files.
+- Switching orchestrator later only touches `platform/core/orchestration/` and the DAG files.

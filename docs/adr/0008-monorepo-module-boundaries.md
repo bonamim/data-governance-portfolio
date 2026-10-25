@@ -1,6 +1,6 @@
 # ADR-0008: Monorepo with enforced module boundaries
 
-**Status:** Accepted
+**Status:** Accepted (§4 layout amended 2026-10-25 — see *Amendment*)
 
 ## Context
 The whole platform lives in one repository. A monorepo keeps contracts, domains, platform
@@ -69,3 +69,21 @@ project intact, consuming the platform as a published dependency.
   by meetings (federated computational governance, ADR-0003).
 - The repository can start as a monorepo and graduate domains to their own repositories
   without rework when a real team takes ownership.
+
+## Amendment (2026-10-25): the platform is laid out by governance pillar
+`platform/<capability>` became `platform/<group>/<capability>`, so the layout says what each
+capability is for ([platform/README.md](../../platform/README.md)):
+
+- **`access/`, `quality/`, `context/`** — the three pillars of data governance: who may read what,
+  whether the data is right, and what it means and where it comes from (`context/catalog`,
+  `context/semantics`).
+- **`core/`** — the platform they govern: `contracts`, `ingestion`, `transform`, `orchestration`,
+  `infra`, `recovery`.
+- **The ODCS reader is its own capability, `core/contracts` (`dgp_platform_contracts`)**, split out of
+  `quality`: every pillar reads contracts, so the reader cannot belong to one of them. `quality`
+  keeps the engine that executes a contract's rules.
+
+What does not change: CODEOWNERS (`/platform/` is one team), the dependency rules of §3 (a pillar
+may import the core; nothing imports a domain), one package per capability, and the domain layout.
+Scripts that produce something are named by where the output goes — `generate_`, `build_`,
+`publish_`, `apply_` ([docs/source-compile-deploy.md](../source-compile-deploy.md)).

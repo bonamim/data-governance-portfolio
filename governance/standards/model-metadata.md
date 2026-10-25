@@ -12,7 +12,7 @@ separate files:
 
 | File | Owner | Contents | Edited by |
 |---|---|---|---|
-| `_ports.yml` | the platform (generated) | output-port models: schema, classification-driven tests, the `output_port` tag — all from the ODCS contract | **never by hand** — `make sync-contracts` regenerates it |
+| `_ports.yml` | the platform (generated) | output-port models: schema, classification-driven tests, the `output_port` tag — all from the ODCS contract | **never by hand** — `make dbt-ports` regenerates it |
 | `_models.yml` | the domain (hand) | internal (non-port) models: a description and key tests | the domain team, directly |
 
 They describe disjoint sets of models, so neither tool nor human steps on the other.
@@ -31,7 +31,7 @@ so no ODCS contract, no classification, no SLA.
 
 Publishing is one deliberate step: write an **ODCS output-port contract** for the
 model (with `tags: [output_port]`) and a **data product definition**. `make
-sync-contracts` then seeds and fills the model's entry in `_ports.yml`, and the
+dbt-ports` then seeds and fills the model's entry in `_ports.yml`, and the
 publishing guardrail (`check_output_ports.py`) starts enforcing it.
 
 Unlike an internal model, a port's metadata **is** a CI gate: the contract must describe the

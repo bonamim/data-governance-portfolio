@@ -13,8 +13,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from dgp_platform_quality.contract import load_contract
 from dgp_platform_quality.engine import validate_file
+from dgp_platform_quality.rules import load_contract
 
 REPO = Path(__file__).resolve().parents[1]
 CONTRACT = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"

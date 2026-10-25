@@ -70,7 +70,7 @@ where its context differs. Business terms are never tags: tags carry policy, ter
 **Applied by the build, before anyone can read the data.** The tags are Snowflake's, so nothing is
 created; the transform sets them on each output port as part of building it — the dbt post-hook
 `dgp_dbt.apply_governance_tags` runs right after the model is built (on a write-audit-publish
-candidate, before it is promoted), with the values `sync_contracts.py` wrote into the model's dbt
+candidate, before it is promoted), with the values `generate_dbt_ports.py` wrote into the model's dbt
 metadata from the resolved contract. Consumers are granted access only after the build, so data never
 sits in an untagged object they can read. Masking follows the data element too: the customer person
 id's `maskingPolicy` is on its data element, so every column holding it is masked. On a warehouse

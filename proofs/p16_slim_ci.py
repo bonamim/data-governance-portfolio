@@ -41,7 +41,7 @@ def check(ok: bool, what: str, detail: str = "") -> bool:
 
 def slim_ci(*args: str) -> tuple[int, dict[str, list[str]], str]:
     r = subprocess.run(
-        [sys.executable, str(REPO / "platform" / "transform" / "slim_ci.py"), *args],
+        [sys.executable, str(REPO / "platform" / "core" / "transform" / "slim_ci.py"), *args],
         cwd=REPO, capture_output=True, text=True,
     )  # fmt: skip
     out = r.stdout + r.stderr

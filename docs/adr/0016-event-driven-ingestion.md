@@ -121,7 +121,7 @@ quarantined (`naming.business_date`): archived as accepted, it would pose as the
 the restore drill — which replays "as of the newest partition" — picked such a file once. The drill
 now also ignores partitions dated after today.
 
-**Production controls.** `landing_access.py` also generates `platform/access/landing/production/`:
+**Production controls.** `generate_landing_access.py` also generates `platform/access/landing/production/`:
 bucket policies (deny `aws:SecureTransport=false`, deny uploads that are not SSE-KMS, each partner
 prefix only under that partner's key, nobody deletes `accepted/`), lifecycles with storage-class
 transitions per retention class (`STANDARD_IA` 30 d, `GLACIER_IR` 90 d, `DEEP_ARCHIVE` 365 d for

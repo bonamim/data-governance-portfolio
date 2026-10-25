@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "ai" / "semantic-mcp"))
+sys.path.insert(0, str(REPO_ROOT / "ai" / "semantic_mcp"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import registry  # noqa: E402
 import semantic  # noqa: E402  (the one governed boundary — ossie->SQL, consumer role, no free SQL)

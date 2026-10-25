@@ -1,4 +1,4 @@
-"""Every reader of an ODCS contract goes through the shared loader (dgp_platform_quality.odcs), so
+"""Every reader of an ODCS contract goes through the shared loader (dgp_platform_contracts.odcs), so
 no reader sees a contract without the meaning its columns inherit."""
 
 import re
@@ -8,7 +8,7 @@ REPO = Path(__file__).resolve().parents[2]
 SCAN = ["platform", "governance/policies", "ai", "proofs"]
 SKIP = {".venv", "__pycache__", "tests", "target", "dbt_packages"}
 USES_LOADER = re.compile(
-    r"from dgp_platform_quality(?:\.contract)? import .*\b(odcs|load_contract)\b"
+    r"from dgp_platform_(?:contracts import .*\bodcs|quality\.rules import .*\bload_contract)\b"
 )
 # Files that name contracts without reading their meaning — each with the reason.
 NOT_READERS = {
@@ -38,7 +38,7 @@ def test_contract_readers_use_the_shared_loader():
         if f.relative_to(REPO).as_posix() not in NOT_READERS
         and not USES_LOADER.search(f.read_text(encoding="utf-8"))
     ]
-    assert raw == [], f"read contracts with dgp_platform_quality.odcs.load: {raw}"
+    assert raw == [], f"read contracts with dgp_platform_contracts.odcs.load: {raw}"
 
 
 def test_the_exceptions_are_still_needed():

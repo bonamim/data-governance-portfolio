@@ -92,7 +92,7 @@ sends a `.ok`/`.done`/manifest). Every mode is bounded by the contract's `timeOf
 deadline: the platform never waits forever, it processes what arrived and alerts.
 
 ### 5. Access is generated from config
-`platform/access/landing_access.py` reads every `sources.yml` and generates, into
+`platform/access/generate_landing_access.py` reads every `sources.yml` and generates, into
 `platform/access/landing/`:
 
 - `landing-partner-<source>`: `PutObject` (+ multipart) on `inbox/<source>/*` only. No list,
@@ -102,7 +102,7 @@ deadline: the platform never waits forever, it processes what arrived and alerts
 - `landing-owner-<domain>`: read on `quarantine/<source>/<dataset>/*` for the datasets that domain
   owns (triage with the partner). Attached to the domain's SSO role in production.
 
-The generated files are committed and CI fails on drift (`landing_access.py --check`); `minio-init`
+The generated files are committed and CI fails on drift (`generate_landing_access.py --check`); `minio-init`
 applies them at `make up`. The ingestion loader runs as `landing-loader`, not the MinIO root. In
 the cloud the same documents become IAM / S3 Access Point policies.
 
@@ -116,7 +116,7 @@ expire at 90 days.
 Each rule the gate executes is recorded per file in the ledger (`checks` JSON, with partition,
 object version and archive key). The `publish_quality` task that follows `contract_gate` in every
 ingestion DAG (and `make catalog-quality` for a full reconcile) runs
-`platform/catalog/publish_landing_quality.py`, which projects them into DataHub:
+`platform/context/catalog/publish_landing_quality.py`, which projects them into DataHub:
 
 - one **S3 dataset per landing dataset** (`<archive-bucket>/accepted/<source>/<dataset>`) with the
   contract schema, domain, owner, contract properties, and lineage into `<domain>_raw.<table>`;
