@@ -461,6 +461,17 @@ prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proof
 ossie-build: ## Build the Ossie bundle: ontology, compiled semantic models, mappings — validated (build/ossie/, ADR-0027)
 	uv run python platform/context/semantics/build_ossie.py
 
+OSSIE_UI := docker compose -f platform/context/semantics/visualizer/docker-compose.visualizer.yml
+
+.PHONY: ossie-ui
+ossie-ui: ossie-build ## Build the Ossie bundle and open the Ossie Visualizer on http://127.0.0.1:4178
+	$(OSSIE_UI) up -d --build
+	@echo "Ossie Visualizer: http://127.0.0.1:$${OSSIE_UI_PORT:-4178} -> Import document -> build/ossie/commerce.ontology.yaml"
+
+.PHONY: ossie-ui-down
+ossie-ui-down: ## Stop the Ossie Visualizer
+	$(OSSIE_UI) down
+
 .PHONY: check-ontology
 check-ontology: ## Ontology (Apache Ossie) + concepts valid; contract columns link concepts, one definition each (ADR-0027)
 	uv run python governance/policies/check_ontology.py

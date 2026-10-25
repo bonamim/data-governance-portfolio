@@ -101,14 +101,18 @@ Owning a definition and publishing data are separate responsibilities of the sam
 data element's description, the compiled semantic models, the generated mappings). Open them in any
 Ossie tool. The
 open-source [Ossie Visualizer](https://github.com/blankmeadow/ossie-visualizer) (Apache-2.0, runs
-locally in the browser) reads them as they are — entity types and relationships as a graph, the
-definitions, search and one/two-hop focus:
+in the browser) reads them as they are — entity types and relationships as a graph, the
+definitions, search and one/two-hop focus. It is packaged ready to run:
 
 ```bash
-git clone https://github.com/blankmeadow/ossie-visualizer && cd ossie-visualizer
-git checkout d6368a3   # the commit tested; the project is young
-npm ci && npm run dev   # http://127.0.0.1:4178 → Import document → build/ossie/commerce.ontology.yaml
+make ossie-ui        # builds the bundle, starts the Visualizer on http://127.0.0.1:4178
+                     # → Import document → build/ossie/commerce.ontology.yaml
+make ossie-ui-down
 ```
+
+The image (`platform/context/semantics/visualizer/`) is built from a pinned upstream commit whose
+source is verified by checksum — the project is young, so an upgrade is a deliberate commit +
+checksum change, tested before it lands.
 
 Its interface follows the browser's language and is in Chinese by default on a Chinese-language
 browser; switch it to English with the **EN** button (top right) or `?lang=en`. Ossie itself has no

@@ -1,0 +1,13 @@
+# Ossie Visualizer — shows the Ossie bundle (`make ossie-build` -> build/ossie/) as a graph: entity
+# types, relationships, definitions, the compiled semantic models and mappings. Its own compose
+# project; local only (127.0.0.1). Start with `make ossie-ui`, then Import a file from build/ossie/.
+name: dgp-ossie
+
+services:
+  ossie-visualizer:
+    build:
+      context: .
+    image: dgp-ossie-visualizer:d6368a3
+    ports:
+      - "127.0.0.1:${OSSIE_UI_PORT:-4178}:80"
+    restart: unless-stopped

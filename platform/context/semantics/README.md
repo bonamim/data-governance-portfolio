@@ -32,6 +32,7 @@ compiles the derived expression.
 | `make bi-publish` | Publish each Ossie model to Superset — the warehouse connection, the dataset, and its metrics, generated from the spec (not hand-typed). Idempotent. |
 | `make bi-check-drift` | **Fail if Superset's metrics no longer match the Ossie models** (e.g. edited in the UI). This is what makes "one definition" binding rather than a one-time copy. |
 | `make ossie-build` | Build the Ossie bundle in `build/ossie/`: the ontology (each value type with the description its domain keeps in `domains/<d>/contracts/definitions/`), the compiled semantic models and the generated mappings — every document checked with Ossie's own validator (`vendor/ossie/`, ADR-0027). |
+| `make ossie-ui` | Build the bundle and start the Ossie Visualizer on http://127.0.0.1:4178 to explore it as a graph (`visualizer/`: a pinned upstream build, nothing vendored). `make ossie-ui-down` stops it. |
 
 ## Switching the warehouse (e.g. to Snowflake with views)
 

@@ -7,7 +7,7 @@ Organised by the three pillars of data governance, on top of the core they gover
 |---|---|---|
 | [`access/`](access/) | **Who may read what?** | role-based masking views, consumer grants, landing-zone access policies, the dbt-state bucket policy |
 | [`quality/`](quality/README.md) | **Is the data right?** | the quality engine behind the landing contract gate (`dgp_platform_quality`) |
-| [`context/`](context/) | **What does it mean, where does it come from?** | [`catalog/`](context/catalog/README.md) (DataHub: deployment, recipes, governance and quality publishing), [`semantics/`](context/semantics/README.md) (Apache Ossie: reader, bundle, Superset publisher) |
+| [`context/`](context/) | **What does it mean, where does it come from?** | [`catalog/`](context/catalog/README.md) (DataHub: deployment, recipes, governance and quality publishing), [`semantics/`](context/semantics/README.md) (Apache Ossie: reader, bundle, Superset publisher, Visualizer) |
 | [`core/`](core/) | **The platform the pillars govern** | [`contracts/`](core/contracts/README.md) (the one ODCS reader), [`ingestion/`](core/ingestion/README.md), `transform/` (dbt), [`orchestration/`](core/orchestration/README.md) (Airflow), `infra/`, `recovery/` |
 
 Contracts sit in the core, not in a pillar, because every pillar reads them: access takes the
@@ -22,7 +22,8 @@ masking policies, quality the rules, context the meaning. The rules a domain *mu
 - **Code a domain would otherwise copy** is a platform capability; a domain ships configuration
   only (ADR-0008 §2).
 - **Third-party code** is vendored only when we import it and there is no release to pin
-  (`context/semantics/vendor/ossie/`).
+  (`context/semantics/vendor/ossie/`); a third-party *application* is built from a pinned upstream
+  commit instead (`context/semantics/visualizer/`).
 
 ## Naming
 
@@ -34,7 +35,7 @@ masking policies, quality the rules, context the meaning. The rules a domain *mu
 | Tests | `tests/test_<subject>.py` next to the code | `tests/test_generate_dbt_ports.py` |
 | Markdown | `kebab-case.md`; `README.md` per capability | `breaking-changes.md` |
 | YAML | `.yaml`, except names a tool fixes | `dbt_project.yml`, `docker-compose.<tool>.yml` |
-| Compose files | `docker-compose.<tool>.yml`, with an explicit `name:` | `docker-compose.datahub.yml` |
+| Compose files | `docker-compose.<tool>.yml`, with an explicit `name:` | `docker-compose.visualizer.yml` |
 
 **Scripts that produce something are named by where the output goes**, verb first — the verb says
 whether it is reviewed in git, deployed as a file, or changes a running system

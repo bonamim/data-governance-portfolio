@@ -200,7 +200,7 @@ platform/                 Self-serve platform (owned by the platform team; map: 
   quality/                Pillar — is the data right: the contract gate's quality engine
   context/                Pillar — what the data means and where it comes from
     catalog/              DataHub: deployment, recipes, governance + quality publishing
-    semantics/            Apache Ossie: reader, bundle build, Superset publisher
+    semantics/            Apache Ossie: reader, bundle build, Superset publisher, Visualizer
   core/                   The foundation the pillars govern
     contracts/            The one ODCS contract reader (every pillar uses it)
     ingestion/            Landing zone, contract gate, raw load, ingestion ledger

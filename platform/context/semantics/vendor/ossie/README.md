@@ -11,6 +11,7 @@ layout so `validation/validate.py` resolves the schemas it references offline:
 | `ontology/mapping.json` | `ontology/mapping.json` |
 | `core-spec/ossie-schema.json` | `core-spec/ossie-schema.json` — the semantic model spec the ontology schema references |
 
-`governance/policies/check_ontology.py` and `platform/semantics/export_ontology.py` validate the
-ontology with it (ADR-0027). Upgrading Ossie = re-copy these files from a newer commit and update
+`governance/policies/check_ontology.py` and `platform/context/semantics/build_ossie.py` validate the
+Ossie documents with it (ADR-0027). The Ossie Visualizer is not vendored: it is an application,
+not a library we import, so `../../visualizer/` builds it from a pinned upstream commit instead. Upgrading Ossie = re-copy these files from a newer commit and update
 the commit above; never edit them here.
