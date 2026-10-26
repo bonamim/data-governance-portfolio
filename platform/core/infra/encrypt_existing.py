@@ -43,9 +43,12 @@ def main() -> int:
                 if s3.head_object(Bucket=bucket, Key=key).get("ServerSideEncryption"):
                     continue
                 s3.copy_object(
-                    Bucket=bucket, Key=key, CopySource={"Bucket": bucket, "Key": key},
-                    ServerSideEncryption="AES256", MetadataDirective="COPY",
-                )  # fmt: skip
+                    Bucket=bucket,
+                    Key=key,
+                    CopySource={"Bucket": bucket, "Key": key},
+                    ServerSideEncryption="AES256",
+                    MetadataDirective="COPY",
+                )
                 rewritten += 1
                 print(f"  encrypted s3://{bucket}/{key}")
     print(f"{rewritten} object(s) rewritten with SSE; every current object is encrypted at rest.")

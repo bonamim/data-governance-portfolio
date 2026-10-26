@@ -64,7 +64,22 @@ target-version = "py311"
 extend-exclude = ["platform/context/semantics/src/dgp_platform_semantics/vendor"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = [
+    "E", "F", "I", "UP", "B",
+    "A",       # no shadowed builtins
+    "BLE",     # no blind `except Exception`
+    "C4", "PIE", "SIM",
+    "C90",     # McCabe complexity: a function over 10 branches is split
+    "S",       # security (bandit)
+    "RUF100",  # a `noqa` that suppresses nothing is removed
+]
+ignore = [
+    "S603", "S607",  # subprocess runs git, docker, dbt and datacontract with argument lists, no shell
+    "S608",          # SQL interpolates only constant or governed identifiers; values are bound
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"]  # pytest asserts
 
 [tool.pytest.ini_options]
 testpaths = ["platform", "governance", "ai", "proofs"]

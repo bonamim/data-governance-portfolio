@@ -36,9 +36,20 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SECRET_KEY = re.compile(r"(PASSWORD|SECRET|_KEY|TOKEN|SALT)")
 KNOWN_DEFAULTS = {
-    "admin", "password", "postgres", "datahub", "minioadmin", "airflow", "superset",
-    "changeme", "change_me", "secret", "root", "test", "johnsnowknowsnothing",
-}  # fmt: skip
+    "admin",
+    "password",
+    "postgres",
+    "datahub",
+    "minioadmin",
+    "airflow",
+    "superset",
+    "changeme",
+    "change_me",
+    "secret",
+    "root",
+    "test",
+    "johnsnowknowsnothing",
+}
 DEV_MARKERS = ("local_", "dev_only")
 MIN_LENGTH = 16
 DEFAULT_USERS = {"SUPERSET_ADMIN": {"admin"}, "MINIO_ROOT_USER": {"minioadmin", "minio_admin"}}
