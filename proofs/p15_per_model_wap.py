@@ -25,16 +25,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 import psycopg
+from _checks import Checks, warehouse
+from dgp_governance.repo import root
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 PORT, PERF = "sales_silver.orders", "sales_gold.sales_performance"
 INSERT = (
     "INSERT INTO sales_raw.orders (order_id, customer_id, order_status, order_purchase_timestamp)"
@@ -44,24 +44,11 @@ CONSUMER = "sales_gold.p15_consumer"
 WINDOW = ["--event-time-start", "2017-01-01", "--event-time-end", "2017-02-01"]
 SCHED = "governance-platform-airflow-scheduler-1"
 
-failures: list[str] = []
-
-
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
+check = Checks("P15")
 
 
 def conn(user: str, pw_env: str) -> psycopg.Connection:
-    return psycopg.connect(
-        f"host={os.environ.get('ANALYTICS_HOST', 'localhost')} "
-        f"port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} "
-        f"user={user} password={os.environ[pw_env]}",
-        autocommit=True,
-    )
+    return warehouse(user, pw_env, autocommit=True)
 
 
 def sales(sql: str, *args):
@@ -77,10 +64,18 @@ def raw(sql: str, *args) -> None:
 
 def publish(*extra: str) -> tuple[int, str]:
     r = subprocess.run(
-        [sys.executable, str(REPO / "platform" / "core" / "transform" / "publish.py"),
-         "--domain", "sales", "--no-state", *extra],
-        cwd=REPO, capture_output=True, text=True,
-    )  # fmt: skip
+        [
+            sys.executable,
+            str(REPO / "platform" / "core" / "transform" / "publish.py"),
+            "--domain",
+            "sales",
+            "--no-state",
+            *extra,
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     return r.returncode, r.stdout + r.stderr
 
 
@@ -96,10 +91,14 @@ def snapshot() -> dict:
 
 
 def leftovers() -> list[str]:
-    return [r[0] for r in sales(
-        "SELECT n.nspname || '.' || c.relname FROM pg_class c JOIN pg_namespace n ON n.oid ="
-        " c.relnamespace WHERE n.nspname LIKE 'sales\\_%%' AND c.relname ~ '__(candidate|audit)$'"
-    )]  # fmt: skip
+    return [
+        r[0]
+        for r in sales(
+            "SELECT n.nspname || '.' || c.relname FROM pg_class c"
+            " JOIN pg_namespace n ON n.oid = c.relnamespace"
+            " WHERE n.nspname LIKE 'sales\\_%%' AND c.relname ~ '__(candidate|audit)$'"
+        )
+    ]
 
 
 def step_promote(base: dict) -> None:
@@ -127,19 +126,32 @@ def step_quarantine(base: dict, label: str, row: tuple, rule: str) -> None:
     try:
         rc, log = publish(*WINDOW)
     finally:
-        raw("DELETE FROM sales_raw.orders WHERE order_purchase_timestamp = '2017-01-15 10:00:00'"
-            " AND order_status = 'delivered' AND order_id = %s", row[0])  # fmt: skip
+        raw(
+            "DELETE FROM sales_raw.orders WHERE order_purchase_timestamp = '2017-01-15 10:00:00'"
+            " AND order_status = 'delivered' AND order_id = %s",
+            row[0],
+        )
     check(rc != 0, f"{label}: publish reports the quarantine (non-zero exit)")
     check(rule in log, f"{label}: the failing rule is named", rule)
     check("QUARANTINED sales_silver.orders" in log, f"{label}: orders quarantined")
-    check("skipped sales.sales_performance: an upstream audit failed" in log,
-          f"{label}: sales_performance not rebuilt from the bad batch")  # fmt: skip
+    check(
+        "skipped sales.sales_performance: an upstream audit failed" in log,
+        f"{label}: sales_performance not rebuilt from the bad batch",
+    )
     after = snapshot()
-    check(after["orders"] == base["orders"], f"{label}: port keeps its last good rows",
-          f"{after['orders']} rows")  # fmt: skip
-    check(not sales(f"SELECT 1 FROM {PORT} WHERE order_id = %s AND customer_id IS NOT DISTINCT FROM"
-                    " %s::text AND order_purchase_timestamp = '2017-01-15 10:00:00'", *row),
-          f"{label}: the bad row is not in the published table")  # fmt: skip
+    check(
+        after["orders"] == base["orders"],
+        f"{label}: port keeps its last good rows",
+        f"{after['orders']} rows",
+    )
+    check(
+        not sales(
+            f"SELECT 1 FROM {PORT} WHERE order_id = %s AND customer_id IS NOT DISTINCT FROM"
+            " %s::text AND order_purchase_timestamp = '2017-01-15 10:00:00'",
+            *row,
+        ),
+        f"{label}: the bad row is not in the published table",
+    )
     check(after["perf_rows"] == base["perf_rows"], f"{label}: sales_performance untouched")
     check(not leftovers(), f"{label}: candidate and audit view dropped", ", ".join(leftovers()))
 
@@ -180,11 +192,18 @@ def step_airflow(base: dict) -> None:
     print("5. Airflow: one task group per model; a quarantine stops the published/sales event")
     tasks = _airflow("tasks", "list", "sales_transform").split()
     check(
-        {"models.brz_orders.run", "models.brz_orders.test", "wap_orders.audit",
-         "wap_orders.publish", "wap_sales_performance.audit", "save_state"} <= set(tasks),
+        {
+            "models.brz_orders.run",
+            "models.brz_orders.test",
+            "wap_orders.audit",
+            "wap_orders.publish",
+            "wap_sales_performance.audit",
+            "save_state",
+        }
+        <= set(tasks),
         "Cosmos renders per-model tasks + a WAP pipeline per opted-in port",
         f"{len(tasks)} tasks",
-    )  # fmt: skip
+    )
     _airflow("dags", "unpause", "sales_transform")
     raw(INSERT, "p15airflow", None)
     try:
@@ -198,17 +217,24 @@ def step_airflow(base: dict) -> None:
     )
     check(ts.get("wap_orders.quarantine") == "success", "wap_orders.quarantine ran")
     check(ts.get("wap_orders.publish") == "upstream_failed", "wap_orders.publish did not run")
-    check(ts.get("wap_sales_performance.plan") == "upstream_failed",
-          "sales_performance not rebuilt from it")  # fmt: skip
+    check(
+        ts.get("wap_sales_performance.plan") == "upstream_failed",
+        "sales_performance not rebuilt from it",
+    )
     check(ts.get("grant") == "success", "grants re-applied anyway")
-    check(ts.get("save_state") != "success",
-          "save_state (the only published/sales outlet) did not run — consumers not triggered",
-          ts.get("save_state"))  # fmt: skip
+    check(
+        ts.get("save_state") != "success",
+        "save_state (the only published/sales outlet) did not run — consumers not triggered",
+        ts.get("save_state"),
+    )
     check(state == "failed", "the DAG run is failed, so the breach is visible", state)
     check(snapshot()["orders"] == base["orders"], "port unchanged after the Airflow quarantine")
     state, ts = _run({"event_time_start": "2017-01-01", "event_time_end": "2017-02-01"})
-    check(state == "success" and ts.get("save_state") == "success",
-          "the clean re-run publishes and emits published/sales", state)  # fmt: skip
+    check(
+        state == "success" and ts.get("save_state") == "success",
+        "the clean re-run publishes and emits published/sales",
+        state,
+    )
 
 
 def main() -> int:
@@ -226,8 +252,10 @@ def main() -> int:
         print("2. Bad batch: a row breaking a column rule is quarantined, never published")
         step_quarantine(base, "null key", ("p15null", None), "not_null_orders_customer_id")
         print("3. Table rule: a batch clean on its own but duplicating the table is quarantined")
-        dup = sales(f"SELECT order_id FROM {PORT} WHERE order_purchase_timestamp >= '2018-01-01'"
-                    " ORDER BY order_id LIMIT 1")[0][0]  # fmt: skip
+        dup = sales(
+            f"SELECT order_id FROM {PORT} WHERE order_purchase_timestamp >= '2018-01-01'"
+            " ORDER BY order_id LIMIT 1"
+        )[0][0]
         step_quarantine(base, "cross-batch duplicate", (dup, "p15c"), "unique_orders_order_id")
         step_recover(base)
         if not args.skip_airflow:
@@ -237,16 +265,12 @@ def main() -> int:
                 print("5. Airflow: not running — skipped (`make airflow-up`)")
     finally:
         sales(f"DROP VIEW IF EXISTS {CONSUMER}")
-    if failures:
-        print(f"\nP15 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP15 proven: each opted-in model is written to a candidate, audited as the table"
-        " consumers would get, and promoted in place (dependents and grants intact) or quarantined"
-        " on its own; nothing downstream is built from a quarantined model and no published event"
-        " is emitted."
+    return check.verdict(
+        "each opted-in model is written to a candidate, audited as the table consumers "
+        "would get, and promoted in place (dependents and grants intact) or quarantined "
+        "on its own; nothing downstream is built from a quarantined model and no "
+        "published event is emitted."
     )
-    return 0
 
 
 if __name__ == "__main__":

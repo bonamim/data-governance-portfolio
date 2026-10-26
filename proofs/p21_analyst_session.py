@@ -36,26 +36,43 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import yaml
+from dgp_governance.repo import root
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 SETTINGS = REPO / "ai" / "analyst.settings.json"
 MCP = REPO / "ai" / "analyst.mcp.json"
 RECIPES = REPO / "platform" / "context" / "catalog" / "recipes"
 
 ALLOWED_ENV = {
-    "HOME", "USER", "PATH", "TERM", "LANG", "TMPDIR",
-    "ANTHROPIC_API_KEY", "CLAUDE_CONFIG_DIR", "DGP_REPO", "SEMANTIC_WAREHOUSE_URI",
+    "HOME",
+    "USER",
+    "PATH",
+    "TERM",
+    "LANG",
+    "TMPDIR",
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CONFIG_DIR",
+    "DGP_REPO_ROOT",
+    "SEMANTIC_WAREHOUSE_URI",
     "__CF_USER_TEXT_ENCODING",  # macOS sets this text-encoding hint on every process
     # Owners' alert webhooks, for the semantic server's request notification (not a data path).
-    "ALERT_WEBHOOK_SALES", "ALERT_WEBHOOK_CUSTOMER", "ALERT_WEBHOOK_MARKETPLACE",
-    "ALERT_WEBHOOK_CUSTOMER_EXPERIENCE", "ALERT_WEBHOOK_REFERENCE",
-}  # fmt: skip
+    "ALERT_WEBHOOK_SALES",
+    "ALERT_WEBHOOK_CUSTOMER",
+    "ALERT_WEBHOOK_MARKETPLACE",
+    "ALERT_WEBHOOK_CUSTOMER_EXPERIENCE",
+    "ALERT_WEBHOOK_REFERENCE",
+}
 # Tools that run commands, write, spawn an unrestricted helper or fetch arbitrary URLs.
 MUST_DENY_TOOLS = {"Bash", "Monitor", "Edit", "Write", "NotebookEdit", "Agent", "WebFetch"}
 MUST_DENY_READS = {
-    "Read(./.env)", "Read(./.env.*)", "Read(./.mcp.json)", "Read(./data/**)",
-    "Read(**/*.csv)", "Read(./platform/core/infra/tls/out/**)", "Read(**/*.key)",
-}  # fmt: skip
+    "Read(./.env)",
+    "Read(./.env.*)",
+    "Read(./.mcp.json)",
+    "Read(./data/**)",
+    "Read(**/*.csv)",
+    "Read(./platform/core/infra/tls/out/**)",
+    "Read(**/*.key)",
+}
 GOVERNED_SERVERS = {"datahub", "semantic"}
 REQUIRED_ARGS = [
     ["--settings", "ai/analyst.settings.json"],
@@ -65,14 +82,14 @@ REQUIRED_ARGS = [
 ]
 
 STUB = """import json, os, sys
-json.dump({"env": dict(os.environ), "argv": sys.argv[2:]}, open(sys.argv[1], "w"))
+json.dump({"env": dict(os.environ), "argv": sys.argv[2:]}, open(sys.argv[1], "w", encoding="utf-8"))
 """
 
 
 def _env_file() -> dict[str, str]:
     path = REPO / ".env" if (REPO / ".env").exists() else REPO / ".env.example"
     out = {}
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
@@ -145,12 +162,13 @@ def catalog_problems(recipes: dict[str, dict]) -> list[str]:
 def _capture_launch() -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         stub, out = Path(tmp) / "stub.py", Path(tmp) / "out.json"
-        stub.write_text(STUB)
+        stub.write_text(STUB, encoding="utf-8")
         subprocess.run(
             ["make", "-s", "ai-chat", f"CLAUDE={sys.executable} {stub} {out}"],
-            cwd=REPO, check=True,
-        )  # fmt: skip
-        return json.loads(out.read_text())
+            cwd=REPO,
+            check=True,
+        )
+        return json.loads(out.read_text(encoding="utf-8"))
 
 
 def _live(secrets: dict[str, str]) -> list[str]:
@@ -160,14 +178,17 @@ def _live(secrets: dict[str, str]) -> list[str]:
     )
     run = subprocess.run(
         ["make", "-s", "ai-chat", f"ARGS=-p '{prompt}' --output-format text"],
-        cwd=REPO, capture_output=True, text=True, timeout=600,
-    )  # fmt: skip
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
     out = run.stdout + run.stderr
     print("  live session said:\n    " + "\n    ".join(out.strip().splitlines()[:12]))
     problems = [f"live session printed the {k} secret" for k, v in secrets.items() if v in out]
     raw = REPO / "data" / "olist" / "olist_customers_dataset.csv"
     if raw.exists():
-        for row in raw.read_text().splitlines()[1:4]:
+        for row in raw.read_text(encoding="utf-8").splitlines()[1:4]:
             uid = row.split(",")[1].strip('"')
             if uid in out:
                 problems.append(f"live session printed a raw customer_unique_id ({uid[:6]}…)")
@@ -191,9 +212,11 @@ def _expect_caught(label: str, problems: list[str], failures: list[str]) -> None
 def main() -> int:
     failures: list[str] = []
     secrets = _secrets(_env_file())
-    settings = json.loads(SETTINGS.read_text())
-    mcp_text = MCP.read_text()
-    recipes = {p.name: yaml.safe_load(p.read_text()) for p in sorted(RECIPES.glob("*.yml"))}
+    settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
+    mcp_text = MCP.read_text(encoding="utf-8")
+    recipes = {
+        p.name: yaml.safe_load(p.read_text(encoding="utf-8")) for p in sorted(RECIPES.glob("*.yml"))
+    }
 
     # 1-4. The real launcher, settings, MCP config and catalog recipes.
     _expect(

@@ -30,63 +30,48 @@ import re
 import subprocess
 import sys
 import time
-import urllib.request
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
-import boto3
-import psycopg
+from _checks import Checks, object_store, warehouse
+from dgp_governance.repo import root
+from dgp_platform_catalog.gms import Gms
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 SCHED = "governance-platform-airflow-scheduler-1"
 DAG = "customer_experience_ingestion"
 PREFIX = "olist/reviews/"
 REAL = REPO / "data" / "olist" / "olist_order_reviews_dataset.csv"
-GQL = f"http://localhost:{os.environ.get('DATAHUB_MAPPED_GMS_PORT', '8081')}/api/graphql"
-HEADER = ["review_id", "order_id", "review_score", "review_comment_title",
-          "review_comment_message", "review_creation_date", "review_answer_timestamp"]  # fmt: skip
+HEADER = [
+    "review_id",
+    "order_id",
+    "review_score",
+    "review_comment_title",
+    "review_comment_message",
+    "review_creation_date",
+    "review_answer_timestamp",
+]
 
-failures: list[str] = []
+check = Checks("P17")
 
 
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
-
-
-def sql(query: str, *args):
-    with psycopg.connect(
-        f"host=localhost port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} "
-        f"user=platform_loader password={os.environ['PLATFORM_LOADER_PASSWORD']}"
-    ) as c:
+def sql(query: str, *args: object) -> list[tuple]:
+    with warehouse("platform_loader", "PLATFORM_LOADER_PASSWORD") as c:
         cur = c.execute(query, args)
         return cur.fetchall() if cur.description else []
 
 
 def queue_rows(keys: list[str]) -> int:
-    with psycopg.connect(
-        f"host=localhost port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} "
-        f"user=landing_events password={os.environ['LANDING_EVENTS_PASSWORD']}"
-    ) as c:
-        rows = c.execute("SELECT event_data #>> '{Records,0,s3,object,key}' FROM "
-                         "landing_events.arrivals").fetchall()  # fmt: skip
+    with warehouse("landing_events", "LANDING_EVENTS_PASSWORD") as c:
+        rows = c.execute(
+            "SELECT event_data #>> '{Records,0,s3,object,key}' FROM landing_events.arrivals"
+        ).fetchall()
     from urllib.parse import unquote_plus
 
     return sum(1 for (k,) in rows if unquote_plus(k) in keys)
 
 
 def partner():
-    return boto3.client(
-        "s3",
-        endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000"),
-        aws_access_key_id="partner-olist",
-        aws_secret_access_key=os.environ["LANDING_PARTNER_OLIST_SECRET"],
-        region_name="us-east-1",
-    )
+    return object_store("partner-olist", os.environ["LANDING_PARTNER_OLIST_SECRET"])
 
 
 def _csv(n: int = 1001) -> bytes:
@@ -101,8 +86,9 @@ def _csv(n: int = 1001) -> bytes:
 
 
 def airflow(*args: str) -> str:
-    return subprocess.run(["docker", "exec", SCHED, "airflow", *args],
-                          capture_output=True, text=True).stdout  # fmt: skip
+    return subprocess.run(
+        ["docker", "exec", SCHED, "airflow", *args], capture_output=True, text=True
+    ).stdout
 
 
 def _json(out: str):
@@ -128,8 +114,14 @@ def gated(keys: list[str], since: datetime, timeout: int = 240) -> list[tuple]:
 
 def wait_run(run_id: str, timeout: int = 240) -> str:
     for _ in range(timeout // 5):
-        state = next((r["state"] for r in _json(airflow("dags", "list-runs", DAG, "-o", "json"))
-                      if r["run_id"] == run_id), "")  # fmt: skip
+        state = next(
+            (
+                r["state"]
+                for r in _json(airflow("dags", "list-runs", DAG, "-o", "json"))
+                if r["run_id"] == run_id
+            ),
+            "",
+        )
         if state in ("success", "failed"):
             return state
         time.sleep(5)
@@ -171,12 +163,22 @@ def step_outcome(run_id: str, good: str, junk: list[str], since: datetime) -> No
     status, checks = rows[good][1], rows[good][3]
     check(status == "accepted", "good file accepted", status)
     integrity = [c for c in checks if c["check"] == "integrity.checksum_sha256"]
-    check(bool(integrity) and integrity[0]["passed"], "the partner's SHA-256 was verified",
-          integrity[0]["detail"] if integrity else "no integrity check")  # fmt: skip
-    loaded = sql("SELECT row_count FROM platform_meta.ingestion_ledger WHERE source_identifier = %s"
-                 " AND status = 'loaded' AND run_id = %s", good, run_id)  # fmt: skip
-    check(bool(loaded) and loaded[0][0] == 1001, "loaded into raw by the same run",
-          f"{loaded[0][0] if loaded else 0} rows")  # fmt: skip
+    check(
+        bool(integrity) and integrity[0]["passed"],
+        "the partner's SHA-256 was verified",
+        integrity[0]["detail"] if integrity else "no integrity check",
+    )
+    loaded = sql(
+        "SELECT row_count FROM platform_meta.ingestion_ledger WHERE source_identifier = %s"
+        " AND status = 'loaded' AND run_id = %s",
+        good,
+        run_id,
+    )
+    check(
+        bool(loaded) and loaded[0][0] == 1001,
+        "loaded into raw by the same run",
+        f"{loaded[0][0] if loaded else 0} rows",
+    )
     check(all(rows[k][1] == "quarantined" for k in junk), "the 4 misnamed files quarantined")
     alerts = sql(
         "SELECT count(*) FROM platform_meta.alerts WHERE kind = 'landing.quarantine'"
@@ -184,11 +186,9 @@ def step_outcome(run_id: str, good: str, junk: list[str], since: datetime) -> No
         since,
     )[0][0]
     check(alerts == 4, "each quarantine alerted the owning domain", f"{alerts} alerts")
-    loader = boto3.client(
-        "s3", endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000"),
-        aws_access_key_id=os.environ["LANDING_LOADER_USER"],
-        aws_secret_access_key=os.environ["LANDING_LOADER_SECRET_KEY"], region_name="us-east-1",
-    )  # fmt: skip
+    loader = object_store(
+        os.environ["LANDING_LOADER_USER"], os.environ["LANDING_LOADER_SECRET_KEY"]
+    )
     left = loader.list_objects_v2(Bucket="landing-inbox", Prefix=PREFIX).get("KeyCount", 0)
     check(left == 0, "the inbox is drained", f"{left} objects left")
     for _ in range(24):
@@ -201,28 +201,34 @@ def step_outcome(run_id: str, good: str, junk: list[str], since: datetime) -> No
 def step_freshness(good: str, put_at: datetime) -> None:
     print("4. Freshness: DataHub records the delivery at the time it landed")
     urn = "urn:li:dataset:(urn:li:dataPlatform:s3,landing-archive/accepted/olist/reviews,PROD)"
-    q = ('{ dataset(urn:"' + urn + '"){ operations(limit:20){ lastUpdatedTimestamp '
-         'customOperationType customProperties{key value} } } }')  # fmt: skip
+    q = (
+        "query($urn: String!) { dataset(urn: $urn) { operations(limit: 20) {"
+        " lastUpdatedTimestamp customOperationType customProperties { key value } } } }"
+    )
     try:
-        req = urllib.request.Request(GQL, data=json.dumps({"query": q}).encode(),
-                                     headers={"Content-Type": "application/json"})  # fmt: skip
-        ops = json.load(urllib.request.urlopen(req))["data"]["dataset"]["operations"]  # noqa: S310
+        ops = Gms().graphql(q, {"urn": urn})["dataset"]["operations"]
     except OSError:
         print("  (DataHub not running — skipped)")
         return
-    mine = [o for o in ops if {"key": "file", "value": f"s3://landing-inbox/{good}"}
-            in (o["customProperties"] or [])]  # fmt: skip
+    mine = [
+        o
+        for o in ops
+        if {"key": "file", "value": f"s3://landing-inbox/{good}"} in (o["customProperties"] or [])
+    ]
     if not check(bool(mine), "an ARRIVAL operation for the delivered file"):
         return
     landed = datetime.fromtimestamp(mine[0]["lastUpdatedTimestamp"] / 1000, UTC)
-    check(abs((landed - put_at).total_seconds()) < 5, "stamped with the upload time",
-          f"{landed:%H:%M:%S} vs upload {put_at:%H:%M:%S}")  # fmt: skip
+    check(
+        abs((landed - put_at).total_seconds()) < 5,
+        "stamped with the upload time",
+        f"{landed:%H:%M:%S} vs upload {put_at:%H:%M:%S}",
+    )
 
 
 def step_restore(since: datetime) -> None:
     print("5. Restore: the real Olist file, delivered the same way, is loaded back")
     if not REAL.exists():
-        check(False, f"{REAL} present", "run `make acquire` first")
+        check(False, f"{REAL} present", "download it first: `uv run dgp-ingest acquire`")
         return
     key = f"{PREFIX}olist_order_reviews_{(datetime.now(UTC) - timedelta(days=1)):%Y%m%d}.csv"
     partner().upload_file(str(REAL), "landing-inbox", key)
@@ -258,14 +264,10 @@ def main() -> int:
         step_freshness(good, put_at)
     step_restore(since)
     step_deadlines()
-    if failures:
-        print(f"\nP17 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP17 proven: a partner's upload alone runs the pipeline — one run per burst, every file"
-        " gated, verified, alerted on and acked — and DataHub dates it from its arrival."
+    return check.verdict(
+        "a partner's upload alone runs the pipeline — one run per burst, every file "
+        "gated, verified, alerted on and acked — and DataHub dates it from its arrival."
     )
-    return 0
 
 
 if __name__ == "__main__":

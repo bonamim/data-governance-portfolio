@@ -24,13 +24,13 @@ import os
 import subprocess
 import sys
 import uuid
-from pathlib import Path
 
-import boto3
 import psycopg
+from _checks import Checks, object_store
+from dgp_governance.repo import root
 from psycopg import errors
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 CA = os.environ.get(
     "PGSSLROOTCERT", str(REPO / "platform" / "core" / "infra" / "tls" / "out" / "ca.crt")
 )
@@ -43,16 +43,12 @@ OLTP = (
     f"dbname={os.environ.get('OLTP_DB', 'shop_oltp')}"
 )
 ADMIN_ROLES = ["access_admin", "catalog_reader", "analytics_reader", "compliance"]
-failures: list[str] = []
+check = Checks("P13")
 
 
-def check(ok: bool, label: str, detail: str = "") -> None:
-    print(f"  {'ok  ' if ok else 'FAIL'} {label}{' — ' + detail if detail else ''}")
-    if not ok:
-        failures.append(label)
-
-
-def connect(base: str, user: str, pw_env: str, mode: str = "verify-full", app: str = "p13"):
+def connect(
+    base: str, user: str, pw_env: str, mode: str = "verify-full", app: str = "p13"
+) -> psycopg.Connection:
     return psycopg.connect(
         f"{base} user={user} password={os.environ[pw_env]} sslmode={mode} sslrootcert={CA} "
         f"application_name={app}"
@@ -99,17 +95,22 @@ def least_privilege() -> None:
             (ADMIN_ROLES,),
         ).fetchall()
         powerful = [r[0] for r in rows if any(r[1:])]
-        check(not powerful and len(rows) >= len(ADMIN_ROLES) + 1,
-              "admin/catalog/consumer/agent roles hold no superuser, CREATEROLE or CREATEDB",
-              f"{len(rows)} roles")  # fmt: skip
+        check(
+            not powerful and len(rows) >= len(ADMIN_ROLES) + 1,
+            "admin/catalog/consumer/agent roles hold no superuser, CREATEROLE or CREATEDB",
+            f"{len(rows)} roles",
+        )
         owners = {
             r[0]
             for r in c.execute(
                 "SELECT viewowner FROM pg_views WHERE schemaname LIKE '%%\\_masked'"
             ).fetchall()
         }
-        check(owners == {"access_admin"}, "masking views owned by access_admin, not the superuser",
-              str(sorted(owners)))  # fmt: skip
+        check(
+            owners == {"access_admin"},
+            "masking views owned by access_admin, not the superuser",
+            str(sorted(owners)),
+        )
     with connect(ANALYTICS, "catalog_reader", "CATALOG_READER_PASSWORD") as c:
         seen = c.execute(
             "SELECT count(*) FROM information_schema.tables WHERE table_schema LIKE '%%\\_raw'"
@@ -131,29 +132,33 @@ def audit_logging() -> None:
             k: c.execute(f"SHOW {k}").fetchone()[0]
             for k in ("log_connections", "log_disconnections", "log_statement")
         }
-    check(settings == {"log_connections": "on", "log_disconnections": "on", "log_statement": "ddl"},
-          "connection, disconnection and DDL logging on", str(settings))  # fmt: skip
+    check(
+        settings == {"log_connections": "on", "log_disconnections": "on", "log_statement": "ddl"},
+        "connection, disconnection and DDL logging on",
+        str(settings),
+    )
     cid = subprocess.run(
         ["docker", "ps", "-q", "--filter", "label=com.docker.compose.service=postgres-analytics"],
-        capture_output=True, text=True, check=True,
-    ).stdout.split()  # fmt: skip
-    logs = subprocess.run(
-        ["docker", "logs", "--since", "2m", cid[0]], capture_output=True, text=True
-    ) if cid else None  # fmt: skip
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    logs = (
+        subprocess.run(["docker", "logs", "--since", "2m", cid[0]], capture_output=True, text=True)
+        if cid
+        else None
+    )
     text = (logs.stdout + logs.stderr) if logs else ""
-    check(f"application_name={marker}" in text and "SSL enabled" in text,
-          "this proof's TLS connection is in the server log", marker)  # fmt: skip
+    check(
+        f"application_name={marker}" in text and "SSL enabled" in text,
+        "this proof's TLS connection is in the server log",
+        marker,
+    )
 
 
 def encryption_at_rest() -> None:
     print("X7 — encryption at rest")
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000") or None,
-        aws_access_key_id=os.environ.get("MINIO_ROOT_USER"),
-        aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD"),
-        region_name="us-east-1",
-    )
+    s3 = object_store(os.environ.get("MINIO_ROOT_USER"), os.environ.get("MINIO_ROOT_PASSWORD"))
     buckets = [
         os.environ.get("LANDING_INBOX_BUCKET", "landing-inbox"),
         os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive"),
@@ -169,29 +174,42 @@ def encryption_at_rest() -> None:
             for o in page.get("Contents", [])
         ]
         plain = [k for k in keys if not s3.head_object(Bucket=b, Key=k).get("ServerSideEncryption")]
-        check(algo == "AES256" and not plain, f"{b}: SSE by default, every object encrypted",
-              f"{len(keys)} objects, {len(plain)} plain")  # fmt: skip
+        check(
+            algo == "AES256" and not plain,
+            f"{b}: SSE by default, every object encrypted",
+            f"{len(keys)} objects, {len(plain)} plain",
+        )
 
 
 def gates() -> None:
     print("X2 / X8 / X10 — executable gates")
     pre = subprocess.run(
         [sys.executable, str(REPO / "platform" / "core" / "infra" / "preflight.py")],
-        env={**os.environ, "DGP_ENV": "prod"}, capture_output=True, text=True,
-    )  # fmt: skip
-    check(pre.returncode == 1, "X2: production preflight refuses the shipped dev credentials",
-          pre.stdout.splitlines()[0][:90] if pre.stdout else "")  # fmt: skip
+        env={**os.environ, "DGP_ENV": "prod"},
+        capture_output=True,
+        text=True,
+    )
+    check(
+        pre.returncode == 1,
+        "X2: production preflight refuses the shipped dev credentials",
+        pre.stdout.splitlines()[0][:90] if pre.stdout else "",
+    )
     pin = subprocess.run(
         [sys.executable, str(REPO / "governance" / "policies" / "check_pinned_images.py")],
-        capture_output=True, text=True,
-    )  # fmt: skip
+        capture_output=True,
+        text=True,
+    )
     check(pin.returncode == 0, "X8: every image and action pinned", pin.stdout.strip()[:90])
     dr = subprocess.run(
         [sys.executable, str(REPO / "platform" / "core" / "recovery" / "status.py")],
-        capture_output=True, text=True,
-    )  # fmt: skip
-    check(dr.returncode == 0, "X10: backups fresh and a drill passed recently",
-          dr.stdout.strip().splitlines()[-1] if dr.stdout else dr.stderr[-200:])  # fmt: skip
+        capture_output=True,
+        text=True,
+    )
+    check(
+        dr.returncode == 0,
+        "X10: backups fresh and a drill passed recently",
+        dr.stdout.strip().splitlines()[-1] if dr.stdout else dr.stderr[-200:],
+    )
 
 
 def main() -> int:
@@ -200,13 +218,9 @@ def main() -> int:
     audit_logging()
     encryption_at_rest()
     gates()
-    if failures:
-        print(f"\nP13 FAILED ({len(failures)}):")
-        for f in failures:
-            print(f"  - {f}")
-        return 1
-    print("\nP13 OK: TLS-only, least privilege, audit logging, encryption at rest, gates all hold.")
-    return 0
+    return check.verdict(
+        "TLS-only, least privilege, audit logging, encryption at rest, gates all hold."
+    )
 
 
 if __name__ == "__main__":

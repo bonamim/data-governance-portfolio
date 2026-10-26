@@ -34,35 +34,32 @@ import os
 import subprocess
 import sys
 import time
-import urllib.request
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
-import boto3
 import psycopg
+from _checks import Checks, object_store
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
+from dgp_governance.repo import root
+from dgp_platform_catalog.gms import Gms
 from dgp_platform_ingestion import db, layout, pipeline
 from dgp_platform_ingestion.objectstore import ObjectStore
 from dgp_platform_ingestion.settings import Settings
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 DOMAIN, SOURCE, DATASET = "customer_experience", "olist", "reviews"
 REAL = REPO / "data" / "olist" / "olist_order_reviews_dataset.csv"
-GQL = f"http://localhost:{os.environ.get('DATAHUB_MAPPED_GMS_PORT', '8081')}/api/graphql"
 HEADER = [
-    "review_id", "order_id", "review_score", "review_comment_title",
-    "review_comment_message", "review_creation_date", "review_answer_timestamp",
-]  # fmt: skip
+    "review_id",
+    "order_id",
+    "review_score",
+    "review_comment_title",
+    "review_comment_message",
+    "review_creation_date",
+    "review_answer_timestamp",
+]
 
-failures: list[str] = []
-
-
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
+check = Checks("P14")
 
 
 def _csv(rows: list[list[str]]) -> bytes:
@@ -93,12 +90,8 @@ class Ctx:
         if not secret:
             sys.exit("LANDING_PARTNER_OLIST_SECRET is not set — run `make up` with the new .env")
         self.partner = ObjectStore(self.settings.objectstore, access, secret).client
-        self.root = boto3.client(
-            "s3",
-            endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000") or None,
-            aws_access_key_id=os.environ.get("MINIO_ROOT_USER"),
-            aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD"),
-            region_name="us-east-1",
+        self.root = object_store(
+            os.environ.get("MINIO_ROOT_USER"), os.environ.get("MINIO_ROOT_PASSWORD")
         )
         self.inbox, self.archive = self.loader.inbox, self.loader.archive
         self.stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -232,8 +225,11 @@ def step_future_date(c: Ctx) -> None:
     run_id, out = c.run("future")
     (lid, status, partition, key, checks) = c.ledger(run_id)[-1]
     failed = [x["check"] for x in checks if not x["passed"]]
-    check(status == "quarantined" and failed == ["naming.business_date"],
-          "quarantined by the business-date rule only", ", ".join(failed))  # fmt: skip
+    check(
+        status == "quarantined" and failed == ["naming.business_date"],
+        "quarantined by the business-date rule only",
+        ", ".join(failed),
+    )
     check(c.inbox_empty(), "inbox drained")
 
 
@@ -286,7 +282,7 @@ def step_good(c: Ctx) -> None:
 def step_real_and_resend(c: Ctx) -> None:
     print("4. Real Olist file: accepted and loaded (restores the real data)")
     if not REAL.exists():
-        check(False, f"{REAL} present", "run `make acquire` first")
+        check(False, f"{REAL} present", "download it first: `uv run dgp-ingest acquire`")
         return
     body = REAL.read_bytes()
     name = f"olist_order_reviews_{c.today:%Y%m%d}.csv"
@@ -367,12 +363,7 @@ def _assertion_runs() -> list[dict]:
       info{ datasetAssertion{ nativeType fields{ path } } }
       runEvents(status:COMPLETE, limit:200){ runEvents{ partitionSpec{partition}
         result{ type nativeResults{key value} } } } } } } }"""
-    req = urllib.request.Request(
-        GQL,
-        data=json.dumps({"query": q, "variables": {"urn": urn}}).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    data = json.load(urllib.request.urlopen(req))["data"]["dataset"]  # noqa: S310 (local GMS)
+    data = Gms().graphql(q, {"urn": urn})["dataset"]
     out = []
     for a in (data or {}).get("assertions", {}).get("assertions", []):
         da = a["info"]["datasetAssertion"]
@@ -380,9 +371,14 @@ def _assertion_runs() -> list[dict]:
         for e in a["runEvents"]["runEvents"]:
             native = {kv["key"]: kv["value"] for kv in e["result"].get("nativeResults") or []}
             out.append(
-                {"check": da["nativeType"], "column": col, "result": e["result"]["type"],
-                 "partition": e["partitionSpec"]["partition"], "ledger_id": native.get("ledger_id")}
-            )  # fmt: skip
+                {
+                    "check": da["nativeType"],
+                    "column": col,
+                    "result": e["result"]["type"],
+                    "partition": e["partitionSpec"]["partition"],
+                    "ledger_id": native.get("ledger_id"),
+                }
+            )
     return out
 
 
@@ -427,8 +423,10 @@ def _airflow_pause(pause: bool) -> None:
     itself, the DAG is paused so one gate at a time works the inbox."""
     if subprocess.run(["docker", "inspect", SCHED], capture_output=True).returncode == 0:
         verb = "pause" if pause else "unpause"
-        subprocess.run(["docker", "exec", SCHED, "airflow", "dags", verb,
-                        f"{DOMAIN}_ingestion"], capture_output=True)  # fmt: skip
+        subprocess.run(
+            ["docker", "exec", SCHED, "airflow", "dags", verb, f"{DOMAIN}_ingestion"],
+            capture_output=True,
+        )
 
 
 def main() -> int:
@@ -455,16 +453,12 @@ def main() -> int:
             step_catalog(c)
     finally:
         _airflow_pause(False)
-    if failures:
-        print(f"\nP14 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP14 proven: the gate files a partner's file to accepted/ (locked) or quarantine/ "
-        "(with its reason) before anything is loaded, load_raw loads only accepted files, the "
-        "inbox is always drained, access is least-privilege, and every rule's result is visible "
+    return check.verdict(
+        "the gate files a partner's file to accepted/ (locked) or quarantine/ (with its "
+        "reason) before anything is loaded, load_raw loads only accepted files, the inbox "
+        "is always drained, access is least-privilege, and every rule's result is visible "
         "in DataHub."
     )
-    return 0
 
 
 if __name__ == "__main__":

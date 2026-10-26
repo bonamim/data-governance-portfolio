@@ -2,7 +2,7 @@
 """Proof P8 — access control: consumers see PII masked and are denied raw/staging (ADR-0013, M8).
 
 The masking policy is declared on the column in ODCS and enforced as a role-aware Postgres view
-(platform/access/apply_masking.py). This proves the three guarantees, against the live warehouse:
+(dgp_platform_access.apply_masking). This proves the three guarantees, against the live warehouse:
 
   1. a least-privilege consumer (``analytics_reader``) is **denied** the raw schema and the base
      output-port table — it can only reach the masking view;
@@ -39,7 +39,7 @@ def _conn(role: str, pw_env: str) -> psycopg.Connection:
 def _denied(conn: psycopg.Connection, relation: str) -> bool:
     try:
         with conn.cursor() as cur:
-            cur.execute(f"SELECT * FROM {relation} LIMIT 1")  # noqa: S608 (fixed internal identifiers)
+            cur.execute(f"SELECT * FROM {relation} LIMIT 1")
             cur.fetchone()
         return False
     except errors.InsufficientPrivilege:

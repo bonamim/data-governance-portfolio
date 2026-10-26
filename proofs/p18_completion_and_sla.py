@@ -30,13 +30,13 @@ import threading
 import time
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 
-import boto3
+from _checks import Checks, object_store
+from dgp_governance.repo import root
 from dgp_platform_ingestion import db, layout, pipeline, sla
 from dgp_platform_ingestion.settings import Settings
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 CONTRACT = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"
 DOMAIN, PREFIX = "customer_experience", "olist/reviews/"
 REAL = REPO / "data" / "olist" / "olist_order_reviews_dataset.csv"
@@ -52,7 +52,7 @@ HEADER = [
 ]
 PER_FILE = "    value: '^olist_order_reviews_(?P<date>\\d{8})\\.csv$'\n  - property: completionSignal\n    value: per_file\n"  # noqa: E501
 
-failures: list[str] = []
+check = Checks("P18")
 received: list[dict] = []
 
 # Fresh business dates each run (a past range keyed on the clock), so a rerun never meets the
@@ -72,15 +72,8 @@ def dt(offset: int) -> str:
     return f"dt={day(offset):%Y-%m-%d}"
 
 
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
-
-
 class _Hook(BaseHTTPRequestHandler):
-    def do_POST(self):  # noqa: N802 (http.server API)
+    def do_POST(self):
         received.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
         self.send_response(204)
         self.end_headers()
@@ -113,13 +106,7 @@ def _csv(tag: str, bad: bool = False) -> bytes:
 class Ctx:
     def __init__(self):
         self.settings = Settings.from_env()
-        self.partner = boto3.client(
-            "s3",
-            endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000"),
-            aws_access_key_id="partner-olist",
-            aws_secret_access_key=os.environ["LANDING_PARTNER_OLIST_SECRET"],
-            region_name="us-east-1",
-        )
+        self.partner = object_store("partner-olist", os.environ["LANDING_PARTNER_OLIST_SECRET"])
         self.n = 0
         self.stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
 
@@ -204,13 +191,7 @@ def step_bad_batch(c: Ctx) -> None:
     rows = c.ledger(dt(2))
     good = [r for r in rows if r[0].endswith("part1.csv")]
     reason_key = rows[0][3].rsplit("/", 1)[0] + "/" + layout.REASON_FILE
-    root = boto3.client(
-        "s3",
-        endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000"),
-        aws_access_key_id=os.environ["MINIO_ROOT_USER"],
-        aws_secret_access_key=os.environ["MINIO_ROOT_PASSWORD"],
-        region_name="us-east-1",
-    )
+    root = object_store(os.environ["MINIO_ROOT_USER"], os.environ["MINIO_ROOT_PASSWORD"])
     reason = json.load(root.get_object(Bucket="landing-archive", Key=reason_key)["Body"])
     check(
         sorted(reason["batch"]["files"]) == [name(2, "_part1"), name(2, "_part2")],
@@ -241,12 +222,8 @@ def step_marker(c: Ctx) -> None:
     c.put(f"_DONE_{day(4):%Y%m%d}", b"")
     out = c.gate()
     check(out["accepted"] == 1, "the marker closes the batch: accepted", str(out))
-    loader = boto3.client(
-        "s3",
-        endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000"),
-        aws_access_key_id=os.environ["LANDING_LOADER_USER"],
-        aws_secret_access_key=os.environ["LANDING_LOADER_SECRET_KEY"],
-        region_name="us-east-1",
+    loader = object_store(
+        os.environ["LANDING_LOADER_USER"], os.environ["LANDING_LOADER_SECRET_KEY"]
     )
     left = loader.list_objects_v2(Bucket="landing-inbox", Prefix=PREFIX).get("KeyCount", 0)
     check(left == 0, "the marker was consumed (inbox empty)", f"{left} left")
@@ -267,7 +244,7 @@ def step_restore(c: Ctx, original: str) -> None:
     print("5. Restore: contract back to per_file, the real file loaded again")
     CONTRACT.write_text(original, encoding="utf-8")
     if not REAL.exists():
-        check(False, f"{REAL} present", "run `make acquire` first")
+        check(False, f"{REAL} present", "download it first: `uv run dgp-ingest acquire`")
         return
     yesterday = datetime.now(UTC) - timedelta(days=1)
     key = f"{PREFIX}olist_order_reviews_{yesterday:%Y%m%d}.csv"
@@ -319,15 +296,11 @@ def main() -> int:
         CONTRACT.write_text(original, encoding="utf-8")
         _pause(False)
         server.shutdown()
-    if failures:
-        print(f"\nP18 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP18 proven: multi-file deliveries are decided per complete batch (by count or by the"
-        " partner's marker), a partial, rejected or missing delivery is caught at its deadline,"
-        " and the owning domain is alerted once, on its own route."
+    return check.verdict(
+        "multi-file deliveries are decided per complete batch (by count or by the "
+        "partner's marker), a partial, rejected or missing delivery is caught at its "
+        "deadline, and the owning domain is alerted once, on its own route."
     )
-    return 0
 
 
 if __name__ == "__main__":

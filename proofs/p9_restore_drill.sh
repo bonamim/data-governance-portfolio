@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-RECOVERY=(uv run --no-project --with boto3 --with 'psycopg[binary]' --with pyyaml python)
+RECOVERY=(uv run python)
 
 echo "### P9.1 — back up every non-regenerable store"
 "${RECOVERY[@]}" platform/core/recovery/backup.py

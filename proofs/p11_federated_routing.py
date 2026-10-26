@@ -23,122 +23,126 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "ai" / "orchestrator"))
-sys.path.insert(0, str(REPO / "ai" / "semantic_mcp"))
-sys.path.insert(0, str(REPO / "platform" / "context" / "semantics"))
-sys.path.insert(0, str(REPO / "platform" / "access"))
-import apply_grants  # noqa: E402  (the grants the warehouse enforces, from the definitions)
-import ossie  # noqa: E402
-import registry  # noqa: E402
-import router  # noqa: E402
-import semantic  # noqa: E402
+import psycopg
+from dgp_ai import agents as registry
+from dgp_ai.router import Router
+from dgp_ai.semantic import SCOPED_URI_ENV, SemanticLayer
+from dgp_governance.repo import domain_of
+from dgp_platform_access import apply_grants
+from dgp_platform_semantics import ossie
+from psycopg import errors, sql
 
 URI = os.environ.get("SEMANTIC_WAREHOUSE_URI")
 TOL = 1e-6
 
 
-def _can_read(uri: str, relation: str) -> bool:
-    import psycopg
-    from psycopg import errors
-
+def _can_read(uri: str, schema: str, table: str) -> bool:
     with psycopg.connect(uri) as conn:
         try:
-            conn.execute(f"SELECT 1 FROM {relation} LIMIT 1")  # noqa: S608 (internal identifiers)
+            conn.execute(sql.SQL("SELECT 1 FROM {} LIMIT 1").format(sql.Identifier(schema, table)))
             return True
         except errors.InsufficientPrivilege:
             return False
 
 
-def _warehouse_value(sql: str) -> float:
-    import psycopg
-
+def _warehouse_value(query: str) -> float:
     with psycopg.connect(URI) as conn, conn.cursor() as cur:
-        cur.execute(sql)
+        cur.execute(query)
         return float(cur.fetchone()[0])
 
 
-def main() -> int:
-    failures: list[str] = []
-    agents = registry.agents()
-    if not agents:
-        print("P11: no domain agents registered (no governed products yet).")
-        return 0
-
-    # 1. Domain isolation — each agent sees only its own products; others are invisible.
+def check_isolation(router: Router, agents: list[dict]) -> list[str]:
+    """1. Each domain's agent sees only its own products; another domain's are invisible to it."""
+    failures = []
     all_products = {p["data_product"]: p["domain"] for p in router.catalog()}
     for agent in agents:
         domain = agent["domain"]
-        with router._scoped(domain):
-            visible = {p["data_product"] for p in semantic.list_data_products()}
+        layer = SemanticLayer(domain)
+        visible = {p["data_product"] for p in layer.list_data_products()}
         own = {p for p, d in all_products.items() if d == domain}
         if visible != own:
             failures.append(f"{agent['agent']}: sees {visible}, should see exactly {own}")
         foreign = next((p for p, d in all_products.items() if d != domain), None)
         if foreign:
-            with router._scoped(domain):
-                try:
-                    semantic.list_metrics(foreign)
-                    failures.append(f"{agent['agent']}: answered foreign product '{foreign}'")
-                except ValueError:
-                    pass  # correct: another domain's product is invisible to this agent
+            try:
+                layer.list_metrics(foreign)
+                failures.append(f"{agent['agent']}: answered foreign product '{foreign}'")
+            except ValueError:
+                pass  # correct: another domain's product is invisible to this agent
         print(f"  OK isolation: {agent['agent']} serves only {sorted(own)}")
+    return failures
 
-    # 2. Deterministic routing — every product resolves to the domain that owns it (by folder).
+
+def check_routing(router: Router) -> list[str]:
+    """2. Every product is routed to the domain that owns it (by where its model lives)."""
+    failures = []
     for path in ossie.models():
-        owner = ossie.domain_of(path)
+        owner = domain_of(path)
         for ds in ossie.datasets(ossie.load(path)):
-            product = ds["name"]
-            routed = router.owning_domain(product)
+            routed = router.owning_domain(ds["name"])
             if routed != owner:
-                failures.append(f"routing '{product}' -> '{routed}', should be '{owner}'")
+                failures.append(f"routing '{ds['name']}' -> '{routed}', should be '{owner}'")
             else:
-                print(f"  OK routing: '{product}' -> {routed}")
+                print(f"  OK routing: '{ds['name']}' -> {routed}")
+    return failures
 
-    # 3. Federation preserves the number (needs the live warehouse).
+
+def check_values(router: Router) -> list[str]:
+    """3. Federation preserves the number: a routed metric equals the direct Ossie SQL."""
     if not URI:
         print("  SKIP value check: set SEMANTIC_WAREHOUSE_URI to compare routed vs direct (P10).")
-    else:
-        for path in ossie.models():
-            spec = ossie.load(path)
-            for ds in ossie.datasets(spec):
-                for metric in ossie.metrics(spec):
-                    name = metric["name"]
-                    routed = router.route_query(ds["name"], [name])
-                    via = float(routed["rows"][0][name])
-                    direct = _warehouse_value(ossie.metric_sql(spec, ds, [name]))
-                    agent = registry.agent_for_domain(routed["domain"])
-                    if abs(via - direct) > TOL:
-                        failures.append(f"{ds['name']}.{name}: routed {via} != direct {direct}")
-                    elif routed["routed_to"] != (agent or {}).get("agent"):
-                        failures.append(
-                            f"{ds['name']}.{name}: wrong routed_to {routed['routed_to']}"
-                        )
-                    else:
-                        print(f"  OK value: {ds['name']}.{name} via {routed['routed_to']} = {via}")
+        return []
+    failures = []
+    for path in ossie.models():
+        spec = ossie.load(path)
+        for ds, metric in ((d, m) for d in ossie.datasets(spec) for m in ossie.metrics(spec)):
+            name = metric["name"]
+            routed = router.route_query(ds["name"], [name])
+            via = float(routed["rows"][0][name])
+            direct = _warehouse_value(ossie.metric_sql(spec, ds, [name]))
+            agent = registry.agent_for_domain(routed["domain"])
+            if abs(via - direct) > TOL:
+                failures.append(f"{ds['name']}.{name}: routed {via} != direct {direct}")
+            elif routed["routed_to"] != (agent or {}).get("agent"):
+                failures.append(f"{ds['name']}.{name}: wrong routed_to {routed['routed_to']}")
+            else:
+                print(f"  OK value: {ds['name']}.{name} via {routed['routed_to']} = {via}")
+    return failures
 
-    # 4. Isolation in the warehouse — each agent's role is denied other domains' ports.
-    grants = apply_grants._grants()
-    all_ports = {f"{s}.{t}" for _, s, t in grants}
+
+def check_warehouse_isolation(agents: list[dict]) -> list[str]:
+    """4. In the warehouse, each agent's role reads its own ports and is denied the others."""
+    failures = []
+    grants = apply_grants.grants()
+    all_ports = {(g.schema, g.table) for g in grants}
     for agent in agents:
-        domain = agent["domain"]
-        uri = os.environ.get(semantic.SCOPED_URI_ENV.format(domain.upper()))
+        env = SCOPED_URI_ENV.format(agent["domain"].upper())
+        uri = os.environ.get(env)
         if not uri:
-            print(f"  SKIP db isolation: {semantic.SCOPED_URI_ENV.format(domain.upper())} not set")
+            print(f"  SKIP db isolation: {env} not set")
             continue
-        own = {f"{s}.{t}" for r, s, t in grants if r == agent["consumer_role"]}
+        own = {(g.schema, g.table) for g in grants if g.role == agent["consumer_role"]}
         for port in sorted(all_ports):
-            allowed = _can_read(uri, port)
+            allowed = _can_read(uri, *port)
             if (port in own) != allowed:
                 verb = "could read" if allowed else "was denied"
-                failures.append(f"{agent['consumer_role']} {verb} {port}")
+                failures.append(f"{agent['consumer_role']} {verb} {'.'.join(port)}")
         print(
-            f"  OK db isolation: {agent['consumer_role']} reads {sorted(own)}, "
-            f"denied {len(all_ports - own)} other port(s)"
+            f"  OK db isolation: {agent['consumer_role']} reads "
+            f"{sorted('.'.join(p) for p in own)}, denied {len(all_ports - own)} other port(s)"
         )
+    return failures
 
+
+def main() -> int:
+    agents = registry.agents()
+    if not agents:
+        print("P11: no domain agents registered (no governed products yet).")
+        return 0
+    router = Router()
+    failures = check_isolation(router, agents) + check_routing(router)
+    failures += check_values(router) + check_warehouse_isolation(agents)
     if failures:
         print("\nP11 FAILED:")
         for f in failures:

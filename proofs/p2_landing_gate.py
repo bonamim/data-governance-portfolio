@@ -13,10 +13,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+from dgp_governance.repo import root
 from dgp_platform_quality.engine import validate_file
 from dgp_platform_quality.rules import load_contract
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 CONTRACT = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"
 
 HEADER = [
@@ -42,7 +43,7 @@ def _rows(inject_bad: bool) -> list[list[str]]:
 
 def _write(rows: list[list[str]]) -> Path:
     fd, name = tempfile.mkstemp(suffix=".csv")
-    with open(fd, "w", newline="") as f:
+    with open(fd, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(HEADER)
         w.writerows(rows)

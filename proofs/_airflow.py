@@ -20,7 +20,7 @@ def cli(*args: str) -> str:
     ).stdout
 
 
-def as_json(out: str):
+def as_json(out: str) -> list | dict:
     """The CLI's JSON, skipping any log lines printed before it."""
     m = re.search(r"^\[(\{|\])", out, re.M)
     # strict=False: error payloads carry raw newlines (stack traces) inside strings.

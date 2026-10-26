@@ -18,20 +18,12 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
 import psycopg
-import requests
+from dgp_ai.semantic import SemanticLayer
+from dgp_platform_semantics import ossie
+from dgp_platform_semantics.superset import Superset
 
-REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "ai" / "semantic_mcp"))
-sys.path.insert(0, str(REPO / "platform" / "context" / "semantics"))
-import ossie  # noqa: E402  (the shared Ossie->SQL reader BI and AI both compile)
-import semantic  # noqa: E402  (the AI path — same reader, run as the consumer role)
-
-SUPERSET = os.environ.get("SUPERSET_URL", "http://localhost:8088")
-ADMIN = os.environ.get("SUPERSET_ADMIN", "admin")
-ADMIN_PW = os.environ.get("SUPERSET_ADMIN_PASSWORD", "admin")
 URI = os.environ.get("SEMANTIC_WAREHOUSE_URI")
 TOL = 1e-6
 
@@ -44,29 +36,7 @@ REFUSALS = [
 ]
 
 
-def _superset() -> requests.Session:
-    s = requests.Session()
-    r = s.post(
-        f"{SUPERSET}/api/v1/security/login",
-        json={"username": ADMIN, "password": ADMIN_PW, "provider": "db", "refresh": True},
-        timeout=30,
-    )
-    r.raise_for_status()
-    s.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
-    s.headers["X-CSRFToken"] = s.get(f"{SUPERSET}/api/v1/security/csrf_token/").json()["result"]
-    s.headers["Referer"] = SUPERSET
-    return s
-
-
-def _dataset(s: requests.Session, table: str) -> dict | None:
-    r = s.get(f"{SUPERSET}/api/v1/dataset/", params={"page_size": 100}, timeout=30).json()
-    for item in r.get("result", []):
-        if item.get("table_name") == table:
-            return s.get(f"{SUPERSET}/api/v1/dataset/{item['id']}", timeout=30).json()["result"]
-    return None
-
-
-def _bi_value(s: requests.Session, ds_id: int, metric: str) -> float:
+def _bi_value(superset: Superset, ds_id: int, metric: str) -> float:
     """The number Superset itself computes for the metric (executed against the warehouse)."""
     payload = {
         "datasource": {"id": ds_id, "type": "table"},
@@ -74,9 +44,7 @@ def _bi_value(s: requests.Session, ds_id: int, metric: str) -> float:
         "result_type": "results",
         "queries": [{"metrics": [metric], "row_limit": 1, "is_timeseries": False}],
     }
-    r = s.post(f"{SUPERSET}/api/v1/chart/data", json=payload, timeout=60)
-    r.raise_for_status()
-    rows = r.json()["result"][0]["data"]
+    rows = superset.post("chart/data", payload, timeout=60)["result"][0]["data"]
     return float(rows[0][metric])
 
 
@@ -90,69 +58,80 @@ def _norm(expr: str) -> str:
     return "".join((expr or "").split()).upper()
 
 
-def main() -> int:
-    if not URI:
-        print("SEMANTIC_WAREHOUSE_URI is required (the consumer-role warehouse URI).")
-        return 2
-    s = _superset()
-    failures: list[str] = []
-    checked = 0
+def _metric_failures(
+    s: Superset, ai_layer: SemanticLayer, spec: dict, ds: dict, published: dict
+) -> list[str]:
+    """One dataset's metrics: Superset stores the governed expression, and AI, BI and a direct
+    Ossie control return the same value."""
+    failures = []
+    table = ossie.source_table(ds)
+    stored = {m["metric_name"]: m.get("expression", "") for m in published["metrics"]}
+    for metric in ossie.metrics(spec):
+        name = metric["name"]
+        want_expr = ossie.superset_metric_expr(metric, ds["name"])
+        got_expr = stored.get(name)
+        if got_expr is None:
+            failures.append(f"{table}.{name}: metric missing in Superset")
+            continue
+        if _norm(got_expr) != _norm(want_expr):
+            failures.append(f"{table}.{name}: Superset expr '{got_expr}' != governed '{want_expr}'")
+        ai = float(ai_layer.query_metric(ds["name"], [name])["rows"][0][name])
+        direct = _warehouse_value(ossie.metric_sql(spec, ds, [name]))
+        bi = _bi_value(s, published["id"], name)
+        if abs(ai - direct) > TOL or abs(ai - bi) > TOL:
+            failures.append(f"{table}.{name}: disagreement AI={ai} BI={bi} Ossie={direct}")
+        else:
+            print(f"  OK {table}.{name}: AI=BI=Ossie={ai}")
+    return failures
 
+
+def check_agreement(s: Superset, ai_layer: SemanticLayer) -> tuple[list[str], int]:
+    """(failures, metrics checked) across every governed dataset."""
+    failures, checked = [], 0
     for path in ossie.models():
         spec = ossie.load(path)
         for ds in ossie.datasets(spec):
-            table = str(ds.get("source", "")).split(".")[-1]
-            superset_ds = _dataset(s, table)
-            if superset_ds is None:
+            published = s.dataset_by_table(ossie.source_table(ds))
+            if published is None:
+                table = ossie.source_table(ds)
                 failures.append(f"{table}: not published to Superset — run `make bi-publish`")
                 continue
-            ds_id = superset_ds["id"]
-            superset_exprs = {
-                m["metric_name"]: m.get("expression", "") for m in superset_ds["metrics"]
-            }
+            checked += len(ossie.metrics(spec))
+            failures += _metric_failures(s, ai_layer, spec, ds, published)
+    return failures, checked
 
-            for metric in ossie.metrics(spec):
-                name = metric["name"]
-                checked += 1
 
-                # Definition parity: Superset stores the governed expression.
-                want_expr = ossie.superset_metric_expr(metric, ds["name"])
-                got_expr = superset_exprs.get(name)
-                if got_expr is None:
-                    failures.append(f"{table}.{name}: metric missing in Superset")
-                    continue
-                if _norm(got_expr) != _norm(want_expr):
-                    failures.append(
-                        f"{table}.{name}: Superset expr '{got_expr}' != governed '{want_expr}'"
-                    )
-
-                # Value parity: AI == BI == direct-Ossie control.
-                ai = float(semantic.query_metric(ds["name"], [name])["rows"][0][name])
-                direct = _warehouse_value(ossie.metric_sql(spec, ds, [name]))
-                bi = _bi_value(s, ds_id, name)
-                if abs(ai - direct) > TOL or abs(ai - bi) > TOL:
-                    failures.append(f"{table}.{name}: disagreement AI={ai} BI={bi} Ossie={direct}")
-                else:
-                    print(f"  OK {table}.{name}: AI=BI=Ossie={ai}")
-
-    # Refusal: the AI path has no route to an ungoverned column, metric or product.
+def check_refusals(ai_layer: SemanticLayer) -> list[str]:
+    """The AI path has no route to an ungoverned column, metric or product."""
+    failures = []
     for product, metrics, dims, expect in REFUSALS:
         try:
-            semantic.query_metric(product, metrics, dims)
+            ai_layer.query_metric(product, metrics, dims)
             failures.append(f"{product} {metrics} by {dims}: answered, should be refused")
         except ValueError as e:
             if expect not in str(e):
                 failures.append(f"{product} {metrics} by {dims}: refused without '{expect}': {e}")
             else:
                 print(f"  OK refused {product} {metrics} by {dims}: {expect}")
+    return failures
 
-    # Discovery: an ungoverned product is explained (owner + next step), not an error.
-    listing = semantic.list_metrics("customers")
+
+def check_discovery(ai_layer: SemanticLayer) -> list[str]:
+    """An ungoverned product is explained — its owner and the next step — not an error."""
+    listing = ai_layer.list_metrics("customers")
     if listing.get("governed") is not False or not listing.get("owner_contact"):
-        failures.append(f"list_metrics('customers') should name its owner, got {listing}")
-    else:
-        print(f"  OK list_metrics customers: ungoverned, owner {listing['owner_contact']}")
+        return [f"list_metrics('customers') should name its owner, got {listing}"]
+    print(f"  OK list_metrics customers: ungoverned, owner {listing['owner_contact']}")
+    return []
 
+
+def main() -> int:
+    if not URI:
+        print("SEMANTIC_WAREHOUSE_URI is required (the consumer-role warehouse URI).")
+        return 2
+    ai_layer = SemanticLayer()
+    failures, checked = check_agreement(Superset(), ai_layer)
+    failures += check_refusals(ai_layer) + check_discovery(ai_layer)
     if failures:
         print("\nP10 FAILED — BI and AI do not agree:")
         for f in failures:

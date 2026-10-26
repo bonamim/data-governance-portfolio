@@ -15,34 +15,22 @@ Needs the platform and Airflow up (``make airflow-up``). Run: ``make prove-p4``.
 
 from __future__ import annotations
 
-import os
 import sys
 import time
 from datetime import UTC, datetime
 
 import _airflow as af
-import psycopg
+from _checks import Checks, warehouse
 
 PRODUCER, CONSUMER = "customer_transform", "sales_transform"
 # Clock-scheduled platform DAGs may run during the proof; they are not domain reactions.
 CLOCKED = {"platform_landing_sla"}
 
-failures: list[str] = []
-
-
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
+check = Checks("P4")
 
 
 def perf_version() -> str:
-    with psycopg.connect(
-        f"host=localhost port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} "
-        f"user=sales_role password={os.environ['SALES_ROLE_PASSWORD']}"
-    ) as c:
+    with warehouse("sales_role", "SALES_ROLE_PASSWORD") as c:
         return c.execute("SELECT min(xmin::text) FROM sales_gold.sales_performance").fetchone()[0]
 
 
@@ -60,8 +48,10 @@ def main() -> int:
     print("1. Publish: the customer domain republishes its output ports")
     run = af.trigger(PRODUCER)
     check(af.wait(PRODUCER, run) == "success", f"{PRODUCER} succeeded", run)
-    check(af.tasks(PRODUCER, run).get("save_state") == "success",
-          "it emitted published/customer (save_state)")  # fmt: skip
+    check(
+        af.tasks(PRODUCER, run).get("save_state") == "success",
+        "it emitted published/customer (save_state)",
+    )
 
     print("2. React: the consumer rebuilds because its input changed")
     reaction = ""
@@ -71,8 +61,11 @@ def main() -> int:
             reaction = new[0]["run_id"]
             break
         time.sleep(5)
-    check(reaction.startswith("asset_triggered__"), f"{CONSUMER} was triggered by the asset",
-          reaction or "no run")  # fmt: skip
+    check(
+        reaction.startswith("asset_triggered__"),
+        f"{CONSUMER} was triggered by the asset",
+        reaction or "no run",
+    )
     if reaction:
         check(af.wait(CONSUMER, reaction) == "success", f"{CONSUMER} succeeded")
         check(perf_version() != version, "sales_performance was rebuilt")
@@ -80,18 +73,17 @@ def main() -> int:
     print("3. Nothing else: no other domain DAG ran")
     af.settle(dags)
     ran = sorted(d for d in dags if {r["run_id"] for r in af.runs(d)} - before[d])
-    check(ran == sorted([PRODUCER, CONSUMER]), "only the producer and its consumer ran",
-          ", ".join(ran))  # fmt: skip
+    check(
+        ran == sorted([PRODUCER, CONSUMER]),
+        "only the producer and its consumer ran",
+        ", ".join(ran),
+    )
     print(f"   window: {start:%H:%M:%S} .. {datetime.now(UTC):%H:%M:%S} UTC")
 
-    if failures:
-        print(f"\nP4 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP4 proven: a new version of a producer's port rebuilds exactly the domains that consume"
-        " it, through assets — no schedule, no manual trigger downstream, nothing else runs."
+    return check.verdict(
+        "a new version of a producer's port rebuilds exactly the domains that consume it, "
+        "through assets — no schedule, no manual trigger downstream, nothing else runs."
     )
-    return 0
 
 
 if __name__ == "__main__":

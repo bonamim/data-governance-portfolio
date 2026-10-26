@@ -16,35 +16,23 @@ the landing gate) is asserted in ``make prove-p14``. Run: ``make prove-p6``.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
-from pathlib import Path
 
 import psycopg
+from _checks import Checks, warehouse
+from dgp_governance.repo import root
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 PORT = "sales_silver.orders"
 START, END = "2017-03-01", "2017-05-01"
 
-failures: list[str] = []
-
-
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
+check = Checks("P6")
 
 
 def versions() -> dict[str, tuple[str, bool]]:
     """order_id -> (row version, inside the backfill window)."""
-    with psycopg.connect(
-        f"host={os.environ.get('ANALYTICS_HOST', 'localhost')} "
-        f"port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} "
-        f"user=sales_role password={os.environ['SALES_ROLE_PASSWORD']}"
-    ) as c:
+    with warehouse("sales_role", "SALES_ROLE_PASSWORD") as c:
         rows = c.execute(
             f"SELECT order_id, xmin::text, order_purchase_timestamp >= %s"
             f" AND order_purchase_timestamp < %s FROM {PORT}",
@@ -55,10 +43,18 @@ def versions() -> dict[str, tuple[str, bool]]:
 
 def publish(*extra: str) -> tuple[int, str]:
     r = subprocess.run(
-        [sys.executable, str(REPO / "platform" / "core" / "transform" / "publish.py"),
-         "--domain", "sales", "--no-state", *extra],
-        cwd=REPO, capture_output=True, text=True,
-    )  # fmt: skip
+        [
+            sys.executable,
+            str(REPO / "platform" / "core" / "transform" / "publish.py"),
+            "--domain",
+            "sales",
+            "--no-state",
+            *extra,
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     return r.returncode, r.stdout + r.stderr
 
 
@@ -101,14 +97,10 @@ def main() -> int:
     check(rc == 0 and len(v3) == len(v0), "same rows, no duplicates", f"{len(v3)} rows")
     check(inside == in_window and not outside, "again only the window rewritten")
 
-    if failures:
-        print(f"\nP6 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP6 proven: a normal run touches only the latest batches, a backfill rewrites exactly the"
-        " requested range, and running it again changes nothing but those rows' versions."
+    return check.verdict(
+        "a normal run touches only the latest batches, a backfill rewrites exactly the "
+        "requested range, and running it again changes nothing but those rows' versions."
     )
-    return 0
 
 
 if __name__ == "__main__":

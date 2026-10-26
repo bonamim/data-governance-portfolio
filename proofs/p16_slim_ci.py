@@ -17,33 +17,28 @@ Edits are temporary and reverted. Run: ``make prove-p16``.
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-import psycopg
+from _checks import Checks, warehouse
+from dgp_governance.repo import root
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 MODELS = REPO / "domains" / "sales" / "dbt" / "models"
 LEAF, UPSTREAM = MODELS / "gold" / "sales_performance.sql", MODELS / "bronze" / "brz_orders.sql"
 
-failures: list[str] = []
-
-
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
+check = Checks("P16")
 
 
 def slim_ci(*args: str) -> tuple[int, dict[str, list[str]], str]:
     r = subprocess.run(
         [sys.executable, str(REPO / "platform" / "core" / "transform" / "slim_ci.py"), *args],
-        cwd=REPO, capture_output=True, text=True,
-    )  # fmt: skip
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     out = r.stdout + r.stderr
     plan = {
         m.group(1): [x for x in m.group(2).split(", ") if x != "(none)"]
@@ -52,13 +47,8 @@ def slim_ci(*args: str) -> tuple[int, dict[str, list[str]], str]:
     return r.returncode, plan, out
 
 
-def sql(query: str):
-    with psycopg.connect(
-        f"host={os.environ.get('ANALYTICS_HOST', 'localhost')} "
-        f"port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} "
-        f"user=sales_role password={os.environ['SALES_ROLE_PASSWORD']}"
-    ) as c:
+def sql(query: str) -> list[tuple]:
+    with warehouse("sales_role", "SALES_ROLE_PASSWORD") as c:
         return c.execute(query).fetchall()
 
 
@@ -85,31 +75,48 @@ def main() -> int:
     check(all(not v for v in plan.values()), "every domain plans 0 models", str(plan))
 
     print("2. Leaf change: built alone in the sandbox, its upstream deferred to what is published")
-    before = sql("SELECT 'sales_gold.sales_performance'::regclass::oid, xmin::text"
-                 " FROM sales_gold.sales_performance LIMIT 1")  # fmt: skip
+    before = sql(
+        "SELECT 'sales_gold.sales_performance'::regclass::oid, xmin::text"
+        " FROM sales_gold.sales_performance LIMIT 1"
+    )
     with edited(LEAF):
         rc, plan, out = slim_ci("--domain", "sales")
-    check(plan.get("sales") == ["sales_performance"], "plans exactly sales_performance",
-          str(plan.get("sales")))  # fmt: skip
+    check(
+        plan.get("sales") == ["sales_performance"],
+        "plans exactly sales_performance",
+        str(plan.get("sales")),
+    )
     check(rc == 0, "built and tested in the sandbox", "")
     rows = sql("SELECT count(*) FROM sales_ci.sales_performance")[0][0]
     check(rows > 0, "sales_ci.sales_performance built", f"{rows} rows")
-    check(not sql("SELECT 1 FROM pg_class WHERE relnamespace = 'sales_ci'::regnamespace"
-                  " AND relname IN ('orders', 'brz_orders')"),
-          "orders was not rebuilt in the sandbox")  # fmt: skip
-    compiled = (REPO / "domains/sales/dbt/target/ci/run/dgp_sales/models/gold/"
-                "sales_performance.sql").read_text(encoding="utf-8")  # fmt: skip
-    check('"sales_silver"."orders"' in compiled,
-          "ref('orders') deferred to the published sales_silver.orders")  # fmt: skip
-    after = sql("SELECT 'sales_gold.sales_performance'::regclass::oid, xmin::text"
-                " FROM sales_gold.sales_performance LIMIT 1")  # fmt: skip
+    check(
+        not sql(
+            "SELECT 1 FROM pg_class WHERE relnamespace = 'sales_ci'::regnamespace"
+            " AND relname IN ('orders', 'brz_orders')"
+        ),
+        "orders was not rebuilt in the sandbox",
+    )
+    compiled = (
+        REPO / "domains/sales/dbt/target/ci/run/dgp_sales/models/gold/sales_performance.sql"
+    ).read_text(encoding="utf-8")
+    check(
+        '"sales_silver"."orders"' in compiled,
+        "ref('orders') deferred to the published sales_silver.orders",
+    )
+    after = sql(
+        "SELECT 'sales_gold.sales_performance'::regclass::oid, xmin::text"
+        " FROM sales_gold.sales_performance LIMIT 1"
+    )
     check(after == before, "the published port was not touched")
 
     print("3. Upstream change: the model and its descendants, nothing else")
     with edited(UPSTREAM):
         rc, plan, _ = slim_ci("--domain", "sales", "--plan-only")
-    check(plan.get("sales") == ["brz_orders", "orders", "sales_performance"],
-          "plans brz_orders + descendants only", str(plan.get("sales")))  # fmt: skip
+    check(
+        plan.get("sales") == ["brz_orders", "orders", "sales_performance"],
+        "plans brz_orders + descendants only",
+        str(plan.get("sales")),
+    )
 
     print("4. The CI path: same selection against a git ref, no warehouse")
     # Relative to HEAD the working tree may already differ; the edit must add exactly its model.
@@ -118,20 +125,18 @@ def main() -> int:
     with edited(LEAF):
         rc, plan, out = slim_ci(*git)
     expected = sorted({*clean.get("sales", []), "sales_performance"})
-    check(rc0 == 0 and rc == 0 and plan.get("sales") == expected,
-          "git baseline plans the edited model on top of the tree's own changes",
-          f"{clean.get('sales')} -> {plan.get('sales')}")  # fmt: skip
+    check(
+        rc0 == 0 and rc == 0 and plan.get("sales") == expected,
+        "git baseline plans the edited model on top of the tree's own changes",
+        f"{clean.get('sales')} -> {plan.get('sales')}",
+    )
     if rc:
         print(out[-1500:])
 
-    if failures:
-        print(f"\nP16 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP16 proven: against the published state a change builds only the models it touched (and"
-        " their descendants) in a sandbox, reading everything else from what is published."
+    return check.verdict(
+        "against the published state a change builds only the models it touched (and "
+        "their descendants) in a sandbox, reading everything else from what is published."
     )
-    return 0
 
 
 if __name__ == "__main__":

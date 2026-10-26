@@ -8,19 +8,22 @@ cd "$(dirname "$0")/.."
 
 CF=domains/customer/contracts/customers.odcs.yaml
 SM=domains/sales/semantics/sales_performance.semantic_model.yaml
-BK_CF="$(mktemp)"
-BK_SM="$(mktemp)"
+# The definitions customer_city and customer_state inherit their meaning from (ADR-0027): a column
+# is undocumented only when neither it nor its definition says what it means.
+CITY=domains/reference/contracts/definitions/city_name.odcs.yaml
+STATE=domains/reference/contracts/definitions/state_code.odcs.yaml
+FILES=("$CF" "$SM" "$CITY" "$STATE")
+BACKUP="$(mktemp -d)"
 OUT="$(mktemp)"
-cp "$CF" "$BK_CF"
-cp "$SM" "$BK_SM"
-cleanup() { cp "$BK_CF" "$CF"; cp "$BK_SM" "$SM"; rm -f "$BK_CF" "$BK_SM" "$OUT"; }
+for f in "${FILES[@]}"; do mkdir -p "$BACKUP/$(dirname "$f")"; cp "$f" "$BACKUP/$f"; done
+restore() { for f in "${FILES[@]}"; do cp "$BACKUP/$f" "$f"; done; }
+cleanup() { restore; rm -rf "$BACKUP" "$OUT"; }
 trap cleanup EXIT
 
 # Apply a Python edit to the YAML document `d` loaded from file $1.
 edit() {
   uv run python -c "import yaml,sys;f=sys.argv[1];d=yaml.safe_load(open(f));$2;yaml.safe_dump(d,open(f,'w'),sort_keys=False)" "$1"
 }
-restore() { cp "$BK_CF" "$CF"; cp "$BK_SM" "$SM"; }
 
 # Expect the gate (make target $1) to block, with $2 in its output.
 expect_blocked() {
@@ -34,13 +37,15 @@ make -s check-output-ports >"$OUT" 2>&1 || { echo "FAIL: baseline should pass"; 
 make -s check-semantics >>"$OUT" 2>&1 || { echo "FAIL: baseline should pass"; cat "$OUT"; exit 1; }
 echo "  OK — both gates pass on the fully documented ports"
 
-echo "### P12.2 — a column with no description  ->  expect BLOCKED"
+echo "### P12.2 — a column with no description, here or in its definition  ->  expect BLOCKED"
 edit "$CF" "[p.pop('description') for p in d['schema'][0]['properties'] if p['name']=='customer_city']"
+edit "$CITY" "d.pop('description')"
 expect_blocked check-output-ports "column 'customer_city' has no description"
 restore
 
-echo "### P12.3 — a column with no classification  ->  expect BLOCKED"
-edit "$CF" "[p.pop('classification') for p in d['schema'][0]['properties'] if p['name']=='customer_state']"
+echo "### P12.3 — a column with no classification, here or in its definition  ->  expect BLOCKED"
+edit "$CF" "[p.pop('classification', None) for p in d['schema'][0]['properties'] if p['name']=='customer_state']"
+edit "$STATE" "d.pop('classification')"
 expect_blocked check-output-ports "column 'customer_state' has no classification"
 restore
 
@@ -49,11 +54,13 @@ edit "$CF" "d['schema'][0].pop('description')"
 expect_blocked check-output-ports "table 'customers' has no description"
 restore
 
-echo "### P12.5 — a semantic field the AI reads with no description  ->  expect BLOCKED"
-edit "$SM" "[f.pop('description') for f in d['datasets'][0]['fields'] if f['name']=='num_customers']"
-expect_blocked check-semantics "field 'num_customers' has no description"
+# A field that is a contract column takes its description from the contract (ADR-0027); what the
+# model itself must describe is what the contract can't: its metrics and derived fields.
+echo "### P12.5 — a metric the AI reads with no description  ->  expect BLOCKED"
+edit "$SM" "[m.pop('description') for m in d['metrics'] if m['name']=='customer_count']"
+expect_blocked check-semantics "metric 'customer_count' has no description"
 restore
 
 echo
 echo "P12 proven: an output port can't be published undocumented — every table, column and"
-echo "semantic field a consumer or AI agent reads says what it means."
+echo "metric a consumer or AI agent reads says what it means, here or in its definition."

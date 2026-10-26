@@ -26,10 +26,11 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-import psycopg
 import yaml
+from _checks import Checks, warehouse
+from dgp_governance.repo import root
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 C = REPO / "domains" / "customer"
 V1_CONTRACT, V1_DEF = C / "contracts/customers.odcs.yaml", C / "data_products/customers.yaml"
 V1_SQL = C / "dbt/models/silver/customers.sql"
@@ -43,14 +44,7 @@ NEW = [V2_CONTRACT, V2_DEF, V2_SQL, APPROVAL]
 DROPPED = "customer_zip_code_prefix"
 SUNSET = date.today() + timedelta(days=60)
 
-failures: list[str] = []
-
-
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
+check = Checks("P19")
 
 
 def run(*cmd: str, **env: str) -> tuple[int, str]:
@@ -68,12 +62,10 @@ def gate() -> tuple[int, str]:
     return py("governance/policies/check_breaking_changes.py", BASE_REF="HEAD")
 
 
-def sql(query: str, user: str = "analytics_reader", pw: str = "ANALYTICS_READER_PASSWORD"):
-    with psycopg.connect(
-        f"host=localhost port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} user={user} "
-        f"password={os.environ[pw]}"
-    ) as c:
+def sql(
+    query: str, user: str = "analytics_reader", pw: str = "ANALYTICS_READER_PASSWORD"
+) -> list[tuple]:
+    with warehouse(user, pw) as c:
         return c.execute(query).fetchall()
 
 
@@ -138,7 +130,7 @@ def step_release() -> None:
         rc == 0 and "customers_v2: new output-port contract" in out and "BLOCKED" not in out,
         "the gate passes with NO approval: nothing a consumer reads has changed",
     )
-    if failures and failures[-1].startswith("the gate passes"):
+    if check.failures and check.failures[-1].startswith("the gate passes"):
         print(out[-1500:])
     rc, out = py("governance/policies/check_port_versions.py")
     check(
@@ -255,7 +247,13 @@ def step_migrate_and_retire() -> None:
     check(rc == 0, "the version policy is satisfied")
 
 
-def restore(saved: dict[Path, str]) -> None:
+def _tree_status() -> str:
+    """What git sees changed in the files this proof touches (empty on a clean checkout)."""
+    _, status = run("git", "status", "--short", "--", "domains", "governance/approvals")
+    return status.strip()
+
+
+def restore(saved: dict[Path, str], before: str) -> None:
     print("   restoring the repo and the warehouse")
     for f, text in saved.items():
         f.write_text(text, encoding="utf-8")
@@ -271,11 +269,13 @@ def restore(saved: dict[Path, str]) -> None:
     py("platform/core/transform/publish.py", "--domain", "customer", "--no-state")
     py("platform/core/transform/publish.py", "--domain", "sales", "--no-state")
     run("make", "-s", "dbt-manifests")
-    _, status = run("git", "status", "--short", "--", "domains", "governance/approvals")
-    check(status.strip() == "", "repo restored", status.strip() or "clean")
+    # Restored means as it was before the proof ran, which on a working branch need not be clean.
+    after = _tree_status()
+    check(after == before, "repo restored", after or "clean")
 
 
 def main() -> int:
+    before = _tree_status()
     saved = {
         f: f.read_text(encoding="utf-8")
         for f in (
@@ -294,16 +294,12 @@ def main() -> int:
         step_retire_too_early(saved)
         step_migrate_and_retire()
     finally:
-        restore(saved)
-    if failures:
-        print(f"\nP19 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP19 proven: a breaking change ships as a new port version beside the old one — nobody"
-        " breaks on release, the old version is retired only after its sunset is honoured, its"
-        " readers have migrated and its consumers have signed off."
+        restore(saved, before)
+    return check.verdict(
+        "a breaking change ships as a new port version beside the old one — nobody breaks "
+        "on release, the old version is retired only after its sunset is honoured, its "
+        "readers have migrated and its consumers have signed off."
     )
-    return 0
 
 
 if __name__ == "__main__":

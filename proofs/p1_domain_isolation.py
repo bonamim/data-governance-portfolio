@@ -15,39 +15,27 @@ Needs the platform and Airflow up (``make airflow-up``). Run: ``make prove-p1``.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 import _airflow as af
-import psycopg
+from _checks import Checks, warehouse
+from dgp_governance.repo import root
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = root()
 BROKEN = "customer_experience"
 PIPELINES = REPO / "domains" / BROKEN / "pipelines"
 DAG_FILES = [PIPELINES / f"{BROKEN}_ingestion.py", PIPELINES / f"{BROKEN}_transform.py"]
 MODEL = REPO / "domains" / BROKEN / "dbt" / "models" / "silver" / "reviews.sql"
 PORT = "customer_experience_silver.reviews"
 
-failures: list[str] = []
-
-
-def check(ok: bool, what: str, detail: str = "") -> bool:
-    print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
-    if not ok:
-        failures.append(what)
-    return ok
+check = Checks("P1")
 
 
 def port_rows() -> int:
-    with psycopg.connect(
-        f"host=localhost port={os.environ.get('ANALYTICS_PORT', '5433')} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} "
-        f"user=customer_experience_role "
-        f"password={os.environ['CUSTOMER_EXPERIENCE_ROLE_PASSWORD']}"
-    ) as c:
+    with warehouse("customer_experience_role", "CUSTOMER_EXPERIENCE_ROLE_PASSWORD") as c:
         return c.execute(f"SELECT count(*) FROM {PORT}").fetchone()[0]
 
 
@@ -145,14 +133,10 @@ def main() -> int:
         for f, text in originals.items():
             f.write_text(text, encoding="utf-8")
         MODEL.write_text(model, encoding="utf-8")
-    if failures:
-        print(f"\nP1 FAILED: {len(failures)} check(s): {', '.join(failures)}")
-        return 1
-    print(
-        "\nP1 proven: a domain's broken code or model fails only that domain — the others parse,"
-        " run and publish, and its consumers keep reading its last good port."
+    return check.verdict(
+        "a domain's broken code or model fails only that domain — the others parse, run "
+        "and publish, and its consumers keep reading its last good port."
     )
-    return 0
 
 
 if __name__ == "__main__":
