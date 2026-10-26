@@ -55,7 +55,12 @@ def request_semantic_model(data_product: str, business_need: str, requested_by: 
 
 
 def main() -> None:
-    mcp.run(transport=TRANSPORT)
+    if TRANSPORT == "stdio":
+        mcp.run(transport="stdio")
+    elif TRANSPORT == "streamable-http":
+        mcp.run(transport="streamable-http")
+    else:
+        raise SystemExit(f"MCP_TRANSPORT must be stdio or streamable-http, not {TRANSPORT!r}")
 
 
 if __name__ == "__main__":

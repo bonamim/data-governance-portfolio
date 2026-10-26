@@ -66,7 +66,9 @@ def grants() -> list[Grant]:
     out: list[Grant] = []
     for product in products.data_products():
         owner = product.owner
-        base = products.location(owner, product.name) if owner else None
+        if not owner:
+            continue
+        base = products.location(owner, product.name)
         if base is None:
             continue
         reader_target = consumer_target(owner, product.name) or base
@@ -90,7 +92,8 @@ def admin_conninfo() -> str:
 
 
 def relation_exists(conn: psycopg.Connection, relation: str) -> bool:
-    return conn.execute("SELECT to_regclass(%s) IS NOT NULL", (relation,)).fetchone()[0]
+    row = conn.execute("SELECT to_regclass(%s) IS NOT NULL", (relation,)).fetchone()
+    return row is not None and row[0]
 
 
 def main() -> int:

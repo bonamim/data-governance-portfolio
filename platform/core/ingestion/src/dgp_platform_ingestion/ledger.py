@@ -12,6 +12,7 @@ back at it. An ``accepted`` row nothing points at is waiting to be loaded.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import LiteralString, cast
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -70,7 +71,7 @@ _MIGRATIONS = [
 
 def ensure_schema(conn: psycopg.Connection) -> None:
     for stmt in _MIGRATIONS:
-        conn.execute(stmt)
+        conn.execute(cast(LiteralString, stmt))  # constant DDL over constant names
     conn.commit()
 
 

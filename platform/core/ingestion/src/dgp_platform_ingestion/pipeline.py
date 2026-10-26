@@ -52,8 +52,9 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _oltp_datasets(datasets: list[Dataset]) -> list[Dataset]:
-    return [d for d in datasets if d.source_type == "oltp"]
+def _oltp_datasets(datasets: list[Dataset]) -> list[tuple[Dataset, str]]:
+    """OLTP datasets with their source table (config validation requires one)."""
+    return [(d, d.oltp_table) for d in datasets if d.source_type == "oltp" and d.oltp_table]
 
 
 def _landing_datasets(datasets: list[Dataset]) -> list[Dataset]:
@@ -95,12 +96,12 @@ def seed_oltp(
     cache = data_dir / "olist"
     datasets = _oltp_datasets(load_datasets(repo_root, domain))
     with db.connect(settings.oltp_loader) as conn:
-        for d in datasets:
+        for d, table in datasets:
             csv_path = cache / d.olist_file
             if not csv_path.exists():
                 raise FileNotFoundError(f"{csv_path} missing — run acquire first")
-            rows = db.load_csv_file(conn, "shop", d.oltp_table, csv_path)
-            log.info("seeded shop.%s (%d rows)", d.oltp_table, rows)
+            rows = db.load_csv_file(conn, "shop", table, csv_path)
+            log.info("seeded shop.%s (%d rows)", table, rows)
         conn.commit()
 
 
@@ -300,7 +301,7 @@ class _Gate:
     def decide(self, files: list[ObjectRef], partition: str | None) -> str:
         found = [self.inspect(o) for o in files]
         batch_id = f"{self.run_id}:{partition or files[0].key}"
-        if all(i.sha256 for i in found) and self._unchanged(found):
+        if self._unchanged(found):
             for i in found:
                 ledger.record(
                     self.analytics,
@@ -320,11 +321,12 @@ class _Gate:
         return self._quarantine(found, batch_id, partition)
 
     def _unchanged(self, found: list[_Inspection]) -> bool:
+        shas = [i.sha256 for i in found if i.sha256]
+        if len(shas) < len(found):  # a file rejected on its name was never hashed
+            return False
         if len(found) == 1:
-            return ledger.unchanged(
-                self.analytics, self.dataset_id, found[0].sha256, found[0].obj.etag
-            )
-        return ledger.unchanged_batch(self.analytics, self.dataset_id, {i.sha256 for i in found})
+            return ledger.unchanged(self.analytics, self.dataset_id, shas[0], found[0].obj.etag)
+        return ledger.unchanged_batch(self.analytics, self.dataset_id, set(shas))
 
     def _accept(self, found: list[_Inspection], batch_id: str) -> str:
         for i in found:
@@ -447,14 +449,14 @@ def _load_oltp(analytics: psycopg.Connection, settings: Settings, datasets, run_
     if not oltp_sets:
         return
     with db.connect(settings.oltp_reader) as oltp, tempfile.TemporaryDirectory() as tmp:
-        for d in oltp_sets:
-            dump = Path(tmp) / f"{d.oltp_table}.csv"
-            db.export_table_to_csv(oltp, "shop", d.oltp_table, dump)
+        for d, table in oltp_sets:
+            dump = Path(tmp) / f"{table}.csv"
+            db.export_table_to_csv(oltp, "shop", table, dump)
             rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, dump)
             ledger.record(
                 analytics,
                 source_type="table",
-                source_identifier=f"shop_oltp.shop.{d.oltp_table}",
+                source_identifier=f"shop_oltp.shop.{table}",
                 target_schema=d.raw_schema,
                 target_table=d.raw_table,
                 row_count=rows,

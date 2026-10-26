@@ -42,7 +42,7 @@ def agents() -> list[dict]:
     """Every registered domain agent, derived from the mesh's definitions."""
     out: list[dict] = []
     for meta in registry.domains():
-        name = meta.get("name")
+        name = meta["name"]
         governed = governed_products(name)
         if not governed:
             continue

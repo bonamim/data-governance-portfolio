@@ -310,7 +310,7 @@ def generate() -> dict[str, str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").partition("\n")[0])
     parser.add_argument("--check", action="store_true", help="fail if the committed files drift")
     args = parser.parse_args()
 

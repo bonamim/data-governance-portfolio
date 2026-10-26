@@ -88,8 +88,10 @@ def request_semantic_model(data_product: str, business_need: str, requested_by: 
 
 def main() -> None:
     if TRANSPORT == "stdio":
-        mcp.run(transport=TRANSPORT)
+        mcp.run(transport="stdio")
         return
+    if TRANSPORT != "streamable-http":
+        raise SystemExit(f"MCP_TRANSPORT must be stdio or streamable-http, not {TRANSPORT!r}")
     security = None
     if ALLOWED_HOSTS:
         security = TransportSecuritySettings(
@@ -100,7 +102,7 @@ def main() -> None:
                 *(f"https://{h}" for h in ALLOWED_HOSTS),
             ],
         )
-    mcp.run(transport=TRANSPORT, host=HOST, port=PORT, transport_security=security)
+    mcp.run(transport="streamable-http", host=HOST, port=PORT, transport_security=security)
 
 
 if __name__ == "__main__":

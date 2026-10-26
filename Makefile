@@ -180,6 +180,10 @@ lint: ## Lint and format-check the Python code
 	uv run ruff check .
 	uv run ruff format --check .
 
+.PHONY: typecheck
+typecheck: ## Type-check the capability packages (basedpyright, standard mode)
+	uv run basedpyright
+
 .PHONY: test
 test: ## Run the Python test suite
 	uv run pytest -q

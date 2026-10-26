@@ -40,7 +40,7 @@ class Superset:
         csrf = self.get("security/csrf_token/")["result"]
         self.session.headers.update({"X-CSRFToken": csrf, "Referer": self.url})
 
-    def get(self, path: str, **params: object) -> dict:
+    def get(self, path: str, **params: str | int) -> dict:
         r = self.session.get(f"{self.url}/api/v1/{path}", params=params or None, timeout=TIMEOUT)
         r.raise_for_status()
         return r.json()

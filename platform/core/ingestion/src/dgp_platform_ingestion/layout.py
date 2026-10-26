@@ -254,11 +254,14 @@ def plan_batches(rules: LandingRules, objects: list, now: datetime) -> tuple[lis
 
 
 def _business_time(groups: dict[str, str | None]) -> datetime:
-    if groups.get("date"):
-        digits = groups["date"].replace("-", "")
+    if date := groups.get("date"):
+        digits = date.replace("-", "")
         base = datetime.strptime(digits[:8] if len(digits) >= 8 else digits + "01", "%Y%m%d")
     else:
-        base = datetime(int(groups["year"]), int(groups["month"]), int(groups.get("day") or 1))
+        year, month = groups.get("year"), groups.get("month")
+        if not (year and month):
+            raise ValueError("the filename pattern captures neither a date nor a year and month")
+        base = datetime(int(year), int(month), int(groups.get("day") or 1))
     return base.replace(hour=int(groups.get("hour") or 0), tzinfo=UTC)
 
 

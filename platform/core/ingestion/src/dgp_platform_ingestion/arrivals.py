@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from typing import LiteralString, cast
 from urllib.parse import unquote_plus
 
 import psycopg
@@ -67,10 +68,11 @@ def parse(event_data: dict, event_time: datetime | None = None) -> list[Arrival]
 
 def ensure_schema(conn: psycopg.Connection) -> bool:
     """Add the queue columns; False when MinIO has not created the table yet (no events)."""
-    if conn.execute("SELECT to_regclass(%s)", (TABLE,)).fetchone()[0] is None:
+    row = conn.execute("SELECT to_regclass(%s)", (TABLE,)).fetchone()
+    if row is None or row[0] is None:
         return False
     for stmt in MIGRATIONS:
-        conn.execute(stmt)
+        conn.execute(cast(LiteralString, stmt))  # constant DDL over constant names
     conn.commit()
     return True
 

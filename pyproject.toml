@@ -39,6 +39,7 @@ dev = [
     "dgp-platform-orchestration",
     "dgp-platform-quality",
     "dgp-ai",
+    "basedpyright>=1.40.2",
 ]
 # dbt is heavy and can clash with other tools' pins, so keep it in its own group:
 #   uv run --group dbt dbt build
@@ -56,6 +57,32 @@ dgp-platform-ingestion = { workspace = true }
 dgp-platform-orchestration = { workspace = true }
 dgp-platform-quality = { workspace = true }
 dgp-ai = { workspace = true }
+
+[tool.basedpyright]
+# The shared typed records cross package boundaries; this checks producers and consumers agree.
+# Standard, not strict: Airflow, dbt and the DataHub SDK ship weak stubs.
+typeCheckingMode = "standard"
+pythonVersion = "3.11"
+include = [
+    "ai/src",
+    "governance/src",
+    "platform/access/src",
+    "platform/context/catalog/src",
+    "platform/context/semantics/src",
+    "platform/core/contracts/src",
+    "platform/core/ingestion/src",
+    "platform/core/orchestration/src",
+    "platform/quality/src",
+]
+exclude = [
+    # Third-party code, copied unchanged.
+    "platform/context/semantics/src/dgp_platform_semantics/vendor",
+    # Airflow DAGs and triggers: Airflow, Cosmos and pendulum exist only in the Airflow image.
+    "platform/core/orchestration/src/dgp_platform_orchestration/arrival_trigger.py",
+    "platform/core/orchestration/src/dgp_platform_orchestration/assets.py",
+    "platform/core/orchestration/src/dgp_platform_orchestration/ingestion_dag.py",
+    "platform/core/orchestration/src/dgp_platform_orchestration/transform_dag.py",
+]
 
 [tool.ruff]
 line-length = 100

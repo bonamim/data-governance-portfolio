@@ -62,7 +62,7 @@ def column_tags(prop: dict) -> dict[str, str]:
             if "field" in where
             else custom.get(where.get("custom_property"))
         )
-        if value in {v["value"] for v in tag["values"]}:
+        if isinstance(value, str) and value in {v["value"] for v in tag["values"]}:
             out[name] = value
     return out
 

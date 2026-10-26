@@ -55,7 +55,7 @@ class _ColumnCheck:
         self.bad = 0
 
     def observe(self, value: str | None) -> None:
-        if not _is_null(value) and not self.accepts(value):
+        if value is not None and not _is_null(value) and not self.accepts(value):
             self.bad += 1
 
     def accepts(self, value: str) -> bool:

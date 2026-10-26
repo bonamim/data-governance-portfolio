@@ -91,9 +91,10 @@ def _inherit(item: dict, column: dict) -> None:
 def _validator() -> ModuleType:
     """Ossie's validator script, loaded once. It is a standalone script, not a package, and it is
     vendored unchanged, so it is loaded from its file rather than imported."""
-    spec = importlib.util.spec_from_file_location(
-        "ossie_validate", VENDOR / "validation" / "validate.py"
-    )
+    path = VENDOR / "validation" / "validate.py"
+    spec = importlib.util.spec_from_file_location("ossie_validate", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the Ossie validator from {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

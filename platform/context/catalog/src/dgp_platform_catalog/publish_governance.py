@@ -362,7 +362,9 @@ def publish_products(emitter: DatahubRestEmitter) -> None:
     }
     for product in products.data_products():
         owner = product.owner
-        location = products.location(owner, product.name) if owner else None
+        if not owner:
+            continue
+        location = products.location(owner, product.name)
         if location is None:
             continue
         schema, table = location

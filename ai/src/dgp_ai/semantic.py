@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, LiteralString, cast
 
 import psycopg
 import yaml
@@ -204,8 +204,8 @@ class SemanticLayer:
         come back with it for provenance.
         """
         spec, dataset = self._resolve(product)
-        known_metrics = {m.get("name") for m in ossie.metrics(spec)}
-        known_dims = {f.get("name") for f in ossie.fields(dataset)}
+        known_metrics = {m["name"] for m in ossie.metrics(spec) if m.get("name")}
+        known_dims = {f["name"] for f in ossie.fields(dataset) if f.get("name")}
         if not metrics:
             raise ValueError("ask for at least one governed metric")
         unknown_m = [m for m in metrics if m not in known_metrics]
@@ -225,8 +225,8 @@ class SemanticLayer:
             raise RuntimeError(f"{WAREHOUSE_URI_ENV} is not set (the consumer-role warehouse URI).")
         audit(self.agent, "query_metric", "allowed", **asked, sql=sql)
         with psycopg.connect(uri) as conn, conn.cursor() as cur:
-            cur.execute(sql)
-            columns = [d.name for d in cur.description]
+            cur.execute(cast(LiteralString, sql))  # built only from governed names (ADR-0010)
+            columns = [d.name for d in cur.description or []]
             rows = [
                 {c: _coerce(v) for c, v in zip(columns, row, strict=True)} for row in cur.fetchall()
             ]
