@@ -20,15 +20,29 @@ RUN pip install --no-cache-dir "acryl-datahub-airflow-plugin==1.7.0.14"
 RUN mkdir -p /opt/airflow/data && chown airflow:0 /opt/airflow/data
 
 # The platform capabilities the DAGs depend on (volatile — kept last so edits rebuild fast).
+# The ingestion DAG's publish_quality task runs the catalog publisher, and the transform DAG's grant
+# task runs the access tools; both read the definitions through the governance package.
 COPY --chown=airflow:0 platform/core/contracts     /opt/dgp/contracts
 COPY --chown=airflow:0 platform/quality            /opt/dgp/quality
 COPY --chown=airflow:0 platform/core/ingestion     /opt/dgp/ingestion
+COPY --chown=airflow:0 governance/pyproject.toml   /opt/dgp/governance/pyproject.toml
+COPY --chown=airflow:0 governance/src              /opt/dgp/governance/src
+COPY --chown=airflow:0 platform/context/semantics/pyproject.toml /opt/dgp/semantics/pyproject.toml
+COPY --chown=airflow:0 platform/context/semantics/src            /opt/dgp/semantics/src
+COPY --chown=airflow:0 platform/context/catalog/pyproject.toml   /opt/dgp/catalog/pyproject.toml
+COPY --chown=airflow:0 platform/context/catalog/src              /opt/dgp/catalog/src
+COPY --chown=airflow:0 platform/access/pyproject.toml            /opt/dgp/access/pyproject.toml
+COPY --chown=airflow:0 platform/access/src                       /opt/dgp/access/src
 COPY --chown=airflow:0 platform/core/orchestration /opt/dgp/orchestration
 
-# Install them into Airflow's Python environment. quality first (ingestion depends on
-# it); --no-deps on orchestration so it does not pull a different Airflow. ingestion
-# brings boto3/psycopg/pyyaml/kaggle.
+# Install them into Airflow's Python environment, each after what it depends on. --no-deps on
+# orchestration so it does not pull a different Airflow; the catalog's DataHub SDK comes with the
+# DataHub plugin above. ingestion brings boto3/psycopg/pyyaml/kaggle.
 RUN pip install --no-cache-dir /opt/dgp/contracts \
  && pip install --no-cache-dir /opt/dgp/quality \
  && pip install --no-cache-dir /opt/dgp/ingestion \
+ && pip install --no-cache-dir /opt/dgp/governance \
+ && pip install --no-cache-dir /opt/dgp/semantics \
+ && pip install --no-cache-dir /opt/dgp/catalog \
+ && pip install --no-cache-dir /opt/dgp/access \
  && pip install --no-cache-dir --no-deps /opt/dgp/orchestration

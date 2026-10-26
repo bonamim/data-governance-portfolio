@@ -1,22 +1,16 @@
 """Masking and grants read contracts resolved: a column inheriting a maskingPolicy is masked."""
 
-import sys
-from pathlib import Path
-
 import pytest
 import yaml
-
-ACCESS = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ACCESS))
-import apply_grants  # noqa: E402
-import apply_masking  # noqa: E402
+from dgp_governance import products
+from dgp_platform_access import apply_grants, apply_masking
 
 POLICY = {"method": "hash", "unmask_roles": ["compliance"]}
 
 
 @pytest.fixture
-def repo(tmp_path, monkeypatch):
-    concept = tmp_path / "governance" / "ontology" / "customer_email.yaml"
+def repo(tmp_repo):
+    concept = tmp_repo / "governance" / "ontology" / "customer_email.yaml"
     concept.parent.mkdir(parents=True)
     concept.write_text(
         yaml.safe_dump(
@@ -25,9 +19,10 @@ def repo(tmp_path, monkeypatch):
                 "classification": "pii",
                 "customProperties": [{"property": "maskingPolicy", "value": POLICY}],
             }
-        )
+        ),
+        encoding="utf-8",
     )
-    contracts = tmp_path / "domains" / "customer" / "contracts"
+    contracts = tmp_repo / "domains" / "customer" / "contracts"
     contracts.mkdir(parents=True)
     link = [{"type": "semantics", "url": "../../../governance/ontology/customer_email.yaml"}]
     contract = {
@@ -43,20 +38,17 @@ def repo(tmp_path, monkeypatch):
             }
         ],
     }
-    (contracts / "customers.odcs.yaml").write_text(yaml.safe_dump(contract))
-    monkeypatch.setattr(apply_grants, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(apply_masking, "REPO_ROOT", tmp_path)
-    return tmp_path
+    (contracts / "customers.odcs.yaml").write_text(yaml.safe_dump(contract), encoding="utf-8")
+    return tmp_repo
 
 
 def test_a_port_with_an_inherited_masking_policy_is_granted_through_the_masked_view(repo):
-    assert apply_grants.is_masked_port("customer", "customers") is True
+    assert apply_grants.is_masked(products.output_port("customers")) is True
 
 
 def test_masking_plan_masks_the_column_that_inherits_its_policy(repo):
-    (plan,) = apply_masking.masking_plan()
-    contract, defn, policies = plan
+    ((port, policies),) = apply_masking.masking_plan()
 
-    assert contract.name == "customers.odcs.yaml"
+    assert port.contract.name == "customers.odcs.yaml"
     assert policies == {"customer_email": POLICY}
-    assert defn["schema"][0]["properties"][1]["classification"] == "pii"
+    assert port.columns[1]["classification"] == "pii"

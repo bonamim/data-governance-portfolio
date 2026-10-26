@@ -3,26 +3,18 @@
 Runs the real ``datacontract dbt sync`` (dev group) on a throwaway dbt project.
 """
 
-import importlib.util
 import shutil
-from pathlib import Path
 
+import generate_dbt_ports
 import pytest
 import yaml
-
-# Loaded by path: the module is not importable as a package.
-_spec = importlib.util.spec_from_file_location(
-    "generate_dbt_ports", Path(__file__).resolve().parents[1] / "generate_dbt_ports.py"
-)
-generate_dbt_ports = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(generate_dbt_ports)
 
 pytestmark = pytest.mark.skipif(shutil.which("datacontract") is None, reason="datacontract CLI")
 
 
 @pytest.fixture
-def repo(tmp_path, monkeypatch):
-    concept = tmp_path / "governance" / "ontology" / "customer_email.yaml"
+def repo(tmp_repo):
+    concept = tmp_repo / "governance" / "ontology" / "customer_email.yaml"
     concept.parent.mkdir(parents=True)
     concept.write_text(
         yaml.safe_dump(
@@ -31,9 +23,10 @@ def repo(tmp_path, monkeypatch):
                 "classification": "pii",
                 "logicalType": "string",
             }
-        )
+        ),
+        encoding="utf-8",
     )
-    domain = tmp_path / "domains" / "customer"
+    domain = tmp_repo / "domains" / "customer"
     (domain / "contracts").mkdir(parents=True)
     link = [{"type": "semantics", "url": "../../../governance/ontology/customer_email.yaml"}]
     contract = {
@@ -58,14 +51,18 @@ def repo(tmp_path, monkeypatch):
             }
         ],
     }
-    (domain / "contracts" / "customers.odcs.yaml").write_text(yaml.safe_dump(contract))
+    (domain / "contracts" / "customers.odcs.yaml").write_text(
+        yaml.safe_dump(contract), encoding="utf-8"
+    )
     (domain / "dbt" / "models" / "silver").mkdir(parents=True)
     (domain / "dbt" / "dbt_project.yml").write_text(
-        yaml.safe_dump({"name": "dgp_customer", "version": "1.0.0", "profile": "dgp_customer"})
+        yaml.safe_dump({"name": "dgp_customer", "version": "1.0.0", "profile": "dgp_customer"}),
+        encoding="utf-8",
     )
-    (domain / "dbt" / "models" / "silver" / "customers.sql").write_text("select 1 as customer_id")
-    monkeypatch.setattr(generate_dbt_ports, "REPO_ROOT", tmp_path)
-    return tmp_path
+    (domain / "dbt" / "models" / "silver" / "customers.sql").write_text(
+        "select 1 as customer_id", encoding="utf-8"
+    )
+    return tmp_repo
 
 
 def test_dbt_gets_the_inherited_description(repo):

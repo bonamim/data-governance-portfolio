@@ -84,8 +84,11 @@ def _stores() -> list[dict]:
     """What to back up: name, tier, (project, service), dump command, counted tables."""
     return [
         {
-            "name": "shop_oltp", "tier": 1, "svc": (PLATFORM, "postgres-oltp"),
-            "file": "shop_oltp.base.tar.gz", "compress": True,
+            "name": "shop_oltp",
+            "tier": 1,
+            "svc": (PLATFORM, "postgres-oltp"),
+            "file": "shop_oltp.base.tar.gz",
+            "compress": True,
             # Physical base backup to stdout (tar); WAL needed for consistency fetched into it.
             "dump": 'pg_basebackup -U "$POSTGRES_USER" -D - -Ft -X fetch -c fast',
             "count_sql": "SELECT string_agg(schemaname||'.'||relname, ',') "
@@ -93,29 +96,39 @@ def _stores() -> list[dict]:
             "WHERE schemaname = 'shop'",
         },
         {
-            "name": "ingestion_ledger", "tier": 2, "svc": (PLATFORM, "postgres-analytics"),
+            "name": "ingestion_ledger",
+            "tier": 2,
+            "svc": (PLATFORM, "postgres-analytics"),
             "file": "ingestion_ledger.dump",
             "dump": 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -n platform_meta -Fc',
             "tables": ["platform_meta.ingestion_ledger"],
         },
         {
-            "name": "airflow", "tier": 2, "svc": (PLATFORM, "postgres-airflow"),
+            "name": "airflow",
+            "tier": 2,
+            "svc": (PLATFORM, "postgres-airflow"),
             "file": "airflow.dump",
             "dump": 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc',
             "tables": ["dag", "dag_run", "task_instance"],
         },
         {
-            "name": "datahub", "tier": 2, "svc": (CATALOG, "mysql"), "file": "datahub.sql.gz",
+            "name": "datahub",
+            "tier": 2,
+            "svc": (CATALOG, "mysql"),
+            "file": "datahub.sql.gz",
             "dump": 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines '
             "--triggers --no-tablespaces datahub 2>/dev/null",
             "compress": True,
         },
         {
-            "name": "superset", "tier": 3, "svc": (BI, "superset"), "file": "superset.db",
+            "name": "superset",
+            "tier": 3,
+            "svc": (BI, "superset"),
+            "file": "superset.db",
             "dump": f'python -c "{SUPERSET_BACKUP}" && cat /tmp/superset_backup.db '
             "&& rm -f /tmp/superset_backup.db",
         },
-    ]  # fmt: skip
+    ]
 
 
 def _counts(store: dict, cid: str) -> dict[str, int]:
@@ -159,9 +172,12 @@ def main() -> int:
             key = prefix + store["file"]
             client.upload_file(str(dest), BACKUP_BUCKET, key)
             manifest["artifacts"][store["name"]] = {
-                "key": key, "tier": store["tier"], "sha256": sha256(dest),
-                "bytes": dest.stat().st_size, "counts": counts,
-            }  # fmt: skip
+                "key": key,
+                "tier": store["tier"],
+                "sha256": sha256(dest),
+                "bytes": dest.stat().st_size,
+                "counts": counts,
+            }
             print(f"  ok   {store['name']:<17} {dest.stat().st_size / 1e6:7.1f} MB  {counts}")
             if store["name"] == "shop_oltp":
                 _prune_wal_archive(cid)
@@ -173,9 +189,11 @@ def main() -> int:
         print(f"  ports baseline    {manifest['ports']}")
 
     client.put_object(
-        Bucket=BACKUP_BUCKET, Key=prefix + "manifest.json",
-        Body=json.dumps(manifest, indent=2).encode(), ContentType="application/json",
-    )  # fmt: skip
+        Bucket=BACKUP_BUCKET,
+        Key=prefix + "manifest.json",
+        Body=json.dumps(manifest, indent=2).encode(),
+        ContentType="application/json",
+    )
     print(f"backup written: s3://{BACKUP_BUCKET}/{prefix}")
     if "shop_oltp" not in manifest["artifacts"]:
         print("FAILED: the tier-1 store shop_oltp was not backed up")

@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """Versioned output ports (ADR-0019 §3): a new major lives beside the old until a sunset date.
 
-When a breaking change must ship but a consumer can't cut over atomically (an external team, a BI
-dashboard, ad-hoc SQL), the port gets a new major as its own port, ``<port>_v<N>``: its own ODCS
-contract (major N), dbt model and data product definition carrying ``version_of: <port>``. The old
-version keeps its contract, model and relation untouched — nobody is broken on release — and is
+When a breaking change must ship but a consumer can't cut over at once (an external team, a BI
+dashboard, ad-hoc SQL), the port gets its new major as a port of its own, ``<port>_v<N>``: its own
+ODCS contract (major N), dbt model and data product definition with ``version_of: <port>``. The
+old version keeps its contract, model and relation untouched, so nobody breaks on release, and is
 marked ``status: deprecated`` with a ``sunsetDate`` custom property: the end of the migration
 window.
 
-This policy enforces the lifecycle:
+The lifecycle this enforces:
 
-  - ``<port>_v<N>`` declares ``version_of`` a port of the same owner, and its contract is major N
-  - a port with a successor is deprecated, with a sunset date (a release starts a window that ends)
-  - a deprecated port has a successor and a sunset date
-  - before the sunset, consumers still reading the deprecated version are listed (a notice)
-  - once the sunset has passed, CI fails: the version must be retired, after its consumers move
-    (retiring it is then a deletion the breaking-change gate checks)
+- ``<port>_v<N>`` declares ``version_of`` a port of the same owner, and its contract is major N;
+- a port with a successor is deprecated, with a sunset date (a release starts a window that ends);
+- a deprecated port has a successor and a sunset date;
+- before the sunset, the consumers still reading the old version are listed (a notice);
+- once the sunset has passed, CI fails: the version must be retired, after its consumers move
+  (and retiring it is a deletion the breaking-change gate checks).
 
 ``DGP_TODAY=YYYY-MM-DD`` overrides today (tests, proofs). Run: ``make check-port-versions``.
 """
@@ -25,137 +25,100 @@ from __future__ import annotations
 import os
 import re
 import sys
-from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 
-import yaml
-from dgp_platform_contracts import odcs
+from _checks import report
+from dgp_governance import products
+from dgp_governance.repo import relative
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 VERSIONED = re.compile(r"^(?P<base>.+)_v(?P<major>\d+)$")
 
 
-@dataclass
-class Port:
-    name: str
-    domain: str
-    contract: Path
-    major: int
-    status: str
-    sunset: date | None
-    version_of: str | None
-
-
 def _today() -> date:
-    return (
-        date.fromisoformat(os.environ["DGP_TODAY"]) if os.environ.get("DGP_TODAY") else date.today()
-    )
+    configured = os.environ.get("DGP_TODAY")
+    return date.fromisoformat(configured) if configured else date.today()
 
 
-def ports(root: Path = REPO_ROOT) -> dict[str, Port]:
-    defs = {}
-    for p in root.glob("domains/*/data_products/*.yaml"):
-        defs[p.stem] = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-    out = {}
-    for c in root.glob("domains/*/contracts/*.odcs.yaml"):
-        doc = odcs.load(c)
-        schema = (doc.get("schema") or [{}])[0]
-        if "output_port" not in (schema.get("tags") or []):
-            continue
-        name = schema.get("name", c.stem)
-        props = {p.get("property"): p.get("value") for p in doc.get("customProperties") or []}
-        sunset = props.get("sunsetDate")
-        out[name] = Port(
-            name=name,
-            domain=c.relative_to(root).parts[1],
-            contract=c,
-            major=int(str(doc.get("version", "0")).split(".")[0] or 0),
-            status=str(doc.get("status", "active")),
-            sunset=date.fromisoformat(str(sunset)) if sunset else None,
-            version_of=(defs.get(name) or {}).get("version_of"),
+def _naming_violations(
+    port: products.OutputPort, version_of: str | None, ports: dict[str, products.OutputPort]
+) -> list[str]:
+    """A version is named ``<port>_v<major>``, carries that major, and stays with its owner."""
+    m = VERSIONED.match(port.name)
+    if version_of is None:
+        if m and m["base"] in ports:
+            return [
+                f"{port.name}: looks like a version of '{m['base']}' — declare "
+                f"`version_of: {m['base']}` in its data product definition"
+            ]
+        return []
+    errs = []
+    if not m or m["base"] != version_of:
+        errs.append(f"{port.name}: a version of '{version_of}' is named '{version_of}_v<major>'")
+    elif int(m["major"]) != port.major:
+        errs.append(
+            f"{relative(port.contract)}: '{port.name}' must carry major {m['major']} "
+            f"(contract is {port.major}.x)"
         )
-    return out
+    base = ports.get(version_of)
+    if base is not None and base.domain != port.domain:
+        errs.append(f"{port.name}: a version stays with its owner '{base.domain}'")
+    return errs
 
 
-def consumers_reading(port: Port, root: Path = REPO_ROOT) -> list[str]:
-    """Data products that consume this exact port version (``inputs: [<domain>.<port>]``)."""
-    out = []
-    for p in sorted(root.glob("domains/*/data_products/*.yaml")):
-        defn = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-        if f"{port.domain}.{port.name}" in (defn.get("inputs") or []):
-            out.append(f"{p.parts[-3]}.{defn.get('name', p.stem)}")
-    return out
-
-
-def violations(root: Path = REPO_ROOT, today: date | None = None) -> tuple[list[str], list[str]]:
-    """(violations, notices)."""
+def violations(today: date | None = None) -> tuple[list[str], list[str]]:
+    """(violations, notices) for every output port's version lifecycle."""
     today = today or _today()
-    all_ports = ports(root)
+    ports = products.output_ports()
+    version_of = {p.name: p.version_of for p in products.data_products()}
+    successors = {version_of[n]: ports[n] for n in ports if version_of.get(n)}
     errs: list[str] = []
     notes: list[str] = []
-    successors = {p.version_of: p for p in all_ports.values() if p.version_of}
 
-    for p in all_ports.values():
-        where = p.contract.relative_to(root)
-        m = VERSIONED.match(p.name)
-        if p.version_of:
-            base = all_ports.get(p.version_of)
-            if not m or m["base"] != p.version_of:
-                errs.append(
-                    f"{p.name}: a version of '{p.version_of}' is named '{p.version_of}_v<major>'"
-                )
-            elif int(m["major"]) != p.major:
-                errs.append(
-                    f"{where}: '{p.name}' must carry major {m['major']} (contract is {p.major}.x)"
-                )
-            if base is not None and base.domain != p.domain:
-                errs.append(f"{p.name}: a version stays with its owner '{base.domain}'")
-        elif m and m["base"] in all_ports:
+    for port in ports.values():
+        where = relative(port.contract)
+        errs += _naming_violations(port, version_of.get(port.name), ports)
+        successor = successors.get(port.name)
+        if successor and port.status != "deprecated":
             errs.append(
-                f"{p.name}: looks like a version of '{m['base']}' — declare "
-                f"`version_of: {m['base']}` in its data product definition"
-            )
-
-        if p.name in successors and p.status != "deprecated":
-            nxt = successors[p.name].name
-            errs.append(
-                f"{where}: '{p.name}' has a successor ({nxt}) — mark it "
+                f"{where}: '{port.name}' has a successor ({successor.name}) — mark it "
                 "`status: deprecated` with a `sunsetDate` (the migration window)"
             )
-        if p.status == "deprecated":
-            if p.sunset is None:
-                errs.append(f"{where}: deprecated without a `sunsetDate` custom property")
-            if p.name not in successors:
-                errs.append(f"{where}: deprecated with no successor (`<port>_v<N>`, version_of)")
-            readers = consumers_reading(p, root)
-            if p.sunset is not None and p.sunset <= today:
-                errs.append(
-                    f"{p.name}: sunset {p.sunset} has passed — retire it"
-                    + (f" after migrating {', '.join(readers)}" if readers else "")
-                )
-            elif p.sunset is not None:
-                left = (p.sunset - today).days
-                notes.append(
-                    f"{p.name} is deprecated, sunset {p.sunset} ({left} days): "
-                    + (f"still read by {', '.join(readers)}" if readers else "no dbt consumer left")
-                    + f"; successor {successors[p.name].name}" * (p.name in successors)
-                )
+        if port.status != "deprecated":
+            continue
+        if port.sunset is None:
+            errs.append(f"{where}: deprecated without a `sunsetDate` custom property")
+        if successor is None:
+            errs.append(f"{where}: deprecated with no successor (`<port>_v<N>`, version_of)")
+        readers = products.readers_of(port.domain, port.name)
+        if port.sunset is not None and port.sunset <= today:
+            errs.append(
+                f"{port.name}: sunset {port.sunset} has passed — retire it"
+                + (f" after migrating {', '.join(readers)}" if readers else "")
+            )
+        elif port.sunset is not None:
+            left = (port.sunset - today).days
+            notes.append(
+                f"{port.name} is deprecated, sunset {port.sunset} ({left} days): "
+                + (f"still read by {', '.join(readers)}" if readers else "no dbt consumer left")
+                + (f"; successor {successor.name}" if successor else "")
+            )
     return errs, notes
 
 
 def main() -> int:
     errs, notes = violations()
-    for n in notes:
-        print(f"  notice: {n}")
-    if errs:
-        print("Port versioning violations (ADR-0019):\n")
-        for e in errs:
-            print(f"  - {e}")
-        return 1
-    versioned = sum(1 for p in ports().values() if p.version_of or p.status == "deprecated")
-    print(f"Port versions OK: {len(ports())} port(s), {versioned} in a versioned lifecycle.")
-    return 0
+    for note in notes:
+        print(f"  notice: {note}")
+    ports = products.output_ports()
+    in_lifecycle = {p.name for p in products.data_products() if p.version_of}
+    in_lifecycle |= {p.name for p in ports.values() if p.status == "deprecated"}
+    return report(
+        errs,
+        failed="Port versioning violations (ADR-0019)",
+        ok=f"Port versions OK: {len(ports)} port(s), {len(in_lifecycle & set(ports))} in a "
+        "versioned lifecycle.",
+        see="governance/standards/breaking-changes.md",
+    )
 
 
 if __name__ == "__main__":

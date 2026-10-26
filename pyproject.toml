@@ -1,5 +1,5 @@
-# Workspace root. This is NOT a package — it only ties the platform capability
-# packages together so each builds, versions and deploys independently (ADR-0008).
+# Workspace root. This is NOT a package: it ties the capability packages together so each one
+# builds, versions and deploys on its own (ADR-0008).
 [project]
 name = "data-governance-portfolio"
 version = "0.0.0"
@@ -10,25 +10,58 @@ requires-python = ">=3.11"
 package = false
 
 [tool.uv.workspace]
-# One package per platform capability (platform/README.md). The other capabilities are still
-# scripts; each becomes a member when it is packaged.
+# One package per capability (platform/README.md, "Where a file goes"). Code another folder
+# imports lives in one of these; scripts import them and nothing else.
 members = [
+    "governance",
+    "platform/access",
+    "platform/context/catalog",
+    "platform/context/semantics",
     "platform/core/contracts",
     "platform/core/ingestion",
     "platform/core/orchestration",
     "platform/quality",
+    "ai",
 ]
 
 [dependency-groups]
-dev = ["ruff>=0.6", "pytest>=8", "datacontract-cli>=1.2"]
+# Every member is in the dev group, so a plain `uv run` has them all installed.
+dev = [
+    "ruff>=0.6",
+    "pytest>=8",
+    "datacontract-cli>=1.2",
+    "dgp-governance",
+    "dgp-platform-access",
+    "dgp-platform-catalog",
+    "dgp-platform-semantics",
+    "dgp-platform-contracts",
+    "dgp-platform-ingestion",
+    "dgp-platform-orchestration",
+    "dgp-platform-quality",
+    "dgp-ai",
+]
 # dbt is heavy and can clash with other tools' pins, so keep it in its own group:
 #   uv run --group dbt dbt build
 dbt = ["dbt-core>=1.9", "dbt-postgres>=1.9", "dbt-loom>=0.7"]
+# The DataHub SDK, for the catalog publishers: uv run --group catalog …
+catalog = ["dgp-platform-catalog[publish]"]
+
+[tool.uv.sources]
+dgp-governance = { workspace = true }
+dgp-platform-access = { workspace = true }
+dgp-platform-catalog = { workspace = true }
+dgp-platform-semantics = { workspace = true }
+dgp-platform-contracts = { workspace = true }
+dgp-platform-ingestion = { workspace = true }
+dgp-platform-orchestration = { workspace = true }
+dgp-platform-quality = { workspace = true }
+dgp-ai = { workspace = true }
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["platform/context/semantics/vendor"]  # third-party code, copied unchanged
+# Third-party code, copied unchanged.
+extend-exclude = ["platform/context/semantics/src/dgp_platform_semantics/vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -36,3 +69,10 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["platform", "governance", "ai", "proofs"]
 addopts = "-q"
+# Script folders whose tests import the script they test (shared code lives in packages).
+pythonpath = [
+    "governance/policies",
+    "platform/context/semantics",
+    "platform/core/infra",
+    "platform/core/transform",
+]

@@ -1,89 +1,60 @@
 #!/usr/bin/env python3
-"""Federated governance policy: every landing dataset must have a valid ODCS contract.
+"""Every landing dataset has a valid ODCS contract, with rules the loader can execute.
 
-The landing zone is a governed boundary (docs/data-mesh.md): files are consumed by
-many data products, so each landing dataset must declare an ODCS contract, and that
-contract must be valid. This fails CI when a landing dataset has no contract, or when
-its contract does not pass `datacontract lint`.
+The landing zone is a governed boundary (docs/data-mesh.md): many data products consume its files,
+so each landing dataset declares an ODCS contract and that contract must be valid. This fails CI
+when a landing dataset has no contract, or its contract doesn't pass ``datacontract lint``.
 
-It also checks that each landing contract's operational rules are executable by the loader
-(ADR-0024): partition scheme and source, file-name pattern, retention class, completion signal.
+It also checks that the contract's operational rules are ones the loader can run (ADR-0024): the
+partition scheme and source, the file-name pattern, the retention class and the completion signal.
 
-Output-port contracts are governed by check_output_ports.py / check_data_products.py.
+Output-port contracts are covered by ``check_output_ports.py`` and ``check_data_products.py``.
 """
 
 from __future__ import annotations
 
-import shutil
-import subprocess
+import re
 import sys
-from pathlib import Path
 
-import yaml
+from _checks import lint_contract, report
+from dgp_governance.repo import relative, root
+from dgp_platform_ingestion.config import load_datasets
 from dgp_platform_ingestion.layout import LandingRules
-from dgp_platform_quality.rules import load_contract
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from dgp_platform_quality.rules import contract_path, load_contract
 
 
-def _source_files() -> list[Path]:
-    return sorted(REPO_ROOT.glob("domains/*/ingestion/sources.yml"))
+def landing_datasets() -> list[tuple[str, str]]:
+    """(domain, dataset) for every dataset delivered through the landing zone."""
+    return [(d.domain, d.name) for d in load_datasets(root()) if d.source_type == "landing"]
 
 
-def _landing_datasets() -> list[tuple[str, str]]:
-    """Return (domain, dataset) for every landing-sourced dataset in the repo."""
-    datasets: list[tuple[str, str]] = []
-    for path in _source_files():
-        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        domain = doc.get("domain")
-        for entry in doc.get("datasets", []):
-            if (entry.get("source") or {}).get("type") == "landing":
-                datasets.append((domain, entry["name"]))
-    return datasets
-
-
-def _contract_path(domain: str, dataset: str) -> Path:
-    base = REPO_ROOT / "domains" / domain
-    # Landing (ingress) contracts live under contracts/landing/; output-port
-    # contracts live directly under contracts/.
-    return base / "contracts" / "landing" / f"{dataset}.odcs.yaml"
-
-
-def _lint(path: Path) -> tuple[bool, str]:
-    datacontract = shutil.which("datacontract")
-    if datacontract is None:
-        return False, "datacontract CLI not found (add datacontract-cli to the dev group)"
-    proc = subprocess.run([datacontract, "lint", str(path)], capture_output=True, text=True)
-    return proc.returncode == 0, (proc.stdout + proc.stderr).strip()
+def violations() -> list[str]:
+    out: list[str] = []
+    for domain, dataset in landing_datasets():
+        path = contract_path(root(), domain, dataset)
+        where = relative(path)
+        if not path.exists():
+            out.append(f"{domain}.{dataset}: no ODCS contract at {where}")
+            continue
+        valid, detail = lint_contract(path)
+        if not valid:
+            out.append(f"{where}: ODCS contract is invalid\n      {detail}")
+        try:
+            problems = LandingRules.from_contract(load_contract(path)).problems()
+        except (re.error, ValueError) as exc:  # e.g. a filenamePattern that isn't a valid regex
+            problems = [str(exc)]
+        out += [f"{where}: landing rule — {p}" for p in problems]
+    return out
 
 
 def main() -> int:
-    violations: list[str] = []
-    datasets = _landing_datasets()
-    for domain, dataset in datasets:
-        path = _contract_path(domain, dataset)
-        rel = path.relative_to(REPO_ROOT)
-        if not path.exists():
-            violations.append(f"{domain}.{dataset}: no ODCS contract at {rel}")
-            continue
-        ok, output = _lint(path)
-        if not ok:
-            detail = output.splitlines()[-1] if output else ""
-            violations.append(f"{rel}: ODCS contract is invalid\n      {detail}")
-        try:
-            problems = LandingRules.from_contract(load_contract(path)).problems()
-        except Exception as exc:  # e.g. an invalid filenamePattern regex
-            problems = [str(exc)]
-        violations += [f"{rel}: landing rule — {p}" for p in problems]
-
-    if violations:
-        print("Contract governance violations:\n")
-        for v in violations:
-            print(f"  - {v}")
-        print(f"\n{len(violations)} violation(s). See docs/data-mesh.md (governed boundaries).")
-        return 1
-    print(f"Contract governance OK: {len(datasets)} landing dataset(s), all with valid ODCS.")
-    return 0
+    return report(
+        violations(),
+        failed="Contract governance violations",
+        ok=f"Contract governance OK: {len(landing_datasets())} landing dataset(s), all with valid "
+        "ODCS.",
+        see="docs/data-mesh.md (governed boundaries)",
+    )
 
 
 if __name__ == "__main__":

@@ -27,9 +27,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+from dgp_governance.repo import root
 from dgp_platform_orchestration import dbt_state, wap
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = root()
 
 
 def _dbt(root: Path, domain: str, *args: str, capture: bool = False) -> subprocess.CompletedProcess:
@@ -58,8 +59,10 @@ def _baseline(spec: str, domains: list[str], tmp: Path) -> dict[str, Path | None
     tree = tmp / "baseline"
     subprocess.run(
         ["git", "worktree", "add", "--detach", str(tree), spec[4:]],
-        cwd=REPO_ROOT, check=True, capture_output=True,
-    )  # fmt: skip
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    )
     _parse(tree, wap.DOMAINS)  # all of them: dbt-loom needs the upstream manifests
     return {d: wap.project_dir(tree, d) / "target" for d in domains}
 
@@ -84,8 +87,18 @@ def main() -> int:
                     print(f"{d}: no published baseline yet — a full `make publish` comes first")
                     continue
                 sel = ["--select", "state:modified+", "--state", str(state)]
-                ls = _dbt(REPO_ROOT, d, "ls", *sel, "--resource-type", "model",
-                          "--output", "name", "--quiet", capture=True)  # fmt: skip
+                ls = _dbt(
+                    REPO_ROOT,
+                    d,
+                    "ls",
+                    *sel,
+                    "--resource-type",
+                    "model",
+                    "--output",
+                    "name",
+                    "--quiet",
+                    capture=True,
+                )
                 if ls.returncode:
                     print(ls.stdout[-2000:])
                     return 1
@@ -100,16 +113,27 @@ def main() -> int:
                     continue
                 if _dbt(REPO_ROOT, d, "run-operation", "ci_reset", "--target", "ci").returncode:
                     return 1
-                build = _dbt(REPO_ROOT, d, "build", *sel, "--defer", "--target", "ci",
-                             "--target-path", "target/ci")  # fmt: skip
+                build = _dbt(
+                    REPO_ROOT,
+                    d,
+                    "build",
+                    *sel,
+                    "--defer",
+                    "--target",
+                    "ci",
+                    "--target-path",
+                    "target/ci",
+                )
                 if build.returncode:
                     exit_code = 1
         finally:
             if args.baseline.startswith("git:"):
                 subprocess.run(
                     ["git", "worktree", "remove", "--force", str(tmp / "baseline")],
-                    cwd=REPO_ROOT, check=False, capture_output=True,
-                )  # fmt: skip
+                    cwd=REPO_ROOT,
+                    check=False,
+                    capture_output=True,
+                )
     return exit_code
 
 

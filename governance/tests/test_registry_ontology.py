@@ -1,19 +1,14 @@
 """The registry reads the ontology: definitions where their domain keeps them, owners derived from
 that location, and which definition a column links to."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from governance import registry  # noqa: E402
+from dgp_governance import registry
+from dgp_governance.repo import relative, root
 
 
 def test_a_value_type_is_defined_in_its_owning_domains_folder():
-    path = registry.concept_file("CustomerKey")
+    (path,) = registry.definition_files()["CustomerKey"]
 
-    assert path.relative_to(registry.REPO_ROOT).as_posix() == (
-        "domains/sales/contracts/definitions/customer_key.odcs.yaml"
-    )
+    assert relative(path) == "domains/sales/contracts/definitions/customer_key.odcs.yaml"
     assert registry.concept_owners()["ZipCodePrefix"] == "reference"
 
 
@@ -31,7 +26,7 @@ def test_an_entity_type_is_owned_by_the_domain_defining_its_identifier():
 
 def test_a_column_reaches_its_value_type_through_its_data_element():
     """column --businessDefinition--> data element --ontology--> value type (no naming rule)."""
-    customers = registry.REPO_ROOT / "domains/customer/contracts/customers.odcs.yaml"
+    customers = root() / "domains/customer/contracts/customers.odcs.yaml"
 
     def link(type_: str, url: str) -> dict:
         return {"authoritativeDefinitions": [{"type": type_, "url": url}]}

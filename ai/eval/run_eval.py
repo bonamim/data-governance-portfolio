@@ -42,8 +42,9 @@ from statistics import mean
 
 import psycopg
 import yaml
+from dgp_governance.repo import root
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = root()
 EVAL = REPO / "ai" / "eval"
 CA = REPO / "platform" / "core" / "infra" / "tls" / "out" / "ca.crt"
 BASE_ENV = ("HOME", "USER", "PATH", "TERM", "LANG", "TMPDIR")
@@ -70,7 +71,7 @@ CAVEAT = (
 
 def _env_file() -> dict[str, str]:
     out = {}
-    for line in (REPO / ".env").read_text().splitlines():
+    for line in (REPO / ".env").read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
@@ -161,7 +162,7 @@ def _command(arm: str, question: str, ws: Path, reader_uri: str, model: str | No
     cmd += ["--no-session-persistence"]
     cmd += ["--model", model] if model else []
     if arm == "mcp":
-        env |= {"DGP_REPO": str(ws), "SEMANTIC_WAREHOUSE_URI": reader_uri}
+        env |= {"DGP_REPO_ROOT": str(ws), "SEMANTIC_WAREHOUSE_URI": reader_uri}
         cmd += [
             "--settings",
             str(ws / "ai/analyst.settings.json"),
@@ -368,7 +369,7 @@ def main() -> int:
         f"{env['ANALYTICS_PORT']}/{env['ANALYTICS_DB']}?sslmode=verify-full&sslrootcert={CA}"
     )
     secrets = {k: v for k, v in env.items() if "PASSWORD" in k and len(v) >= 4}
-    questions = yaml.safe_load((EVAL / "questions.yaml").read_text())["questions"]
+    questions = yaml.safe_load((EVAL / "questions.yaml").read_text(encoding="utf-8"))["questions"]
     if args.questions:
         wanted = set(args.questions.split(","))
         questions = [q for q in questions if q["id"] in wanted]
@@ -378,7 +379,10 @@ def main() -> int:
     done: list[dict] = []
     if args.resume:
         out = Path(args.resume).resolve()
-        done = [json.loads(line) for line in (out / "runs.jsonl").read_text().splitlines()]
+        done = [
+            json.loads(line)
+            for line in (out / "runs.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
         args.reps = max(args.reps, max(r["rep"] for r in done))
         arms = sorted({r["arm"] for r in done}, reverse=True)
         ids = {r["id"] for r in done}
@@ -420,12 +424,12 @@ def main() -> int:
 
     stamp = out.name
     out.mkdir(parents=True, exist_ok=True)
-    with (out / "runs.jsonl").open("w") as fh:
+    with (out / "runs.jsonl").open("w", encoding="utf-8") as fh:
         for r in results:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
     models = sorted({m for r in results for m in r["models"]})
     meta = {"when": stamp, "reps": args.reps, "models": ", ".join(models)}
-    (out / "report.md").write_text(report(results, questions, arms, meta))
+    (out / "report.md").write_text(report(results, questions, arms, meta), encoding="utf-8")
     print(f"\nReport: {out / 'report.md'}")
     return 0
 

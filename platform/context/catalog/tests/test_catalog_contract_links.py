@@ -1,19 +1,18 @@
 """The catalog generator classifies a column by its resolved contract, inherited classification too.
 
-The generator runs in its own runtime with the DataHub SDK; only its contract reading is under test
-here, so the SDK is stubbed when it is not installed.
+The DataHub SDK is an optional extra (``dgp-platform-catalog[publish]``); only the generator's
+contract reading is under test here, so the SDK is stubbed when it is not installed.
 """
 
 import importlib
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import yaml
+from dgp_governance import products
 
-CATALOG = Path(__file__).resolve().parents[1]
 SDK = [
     "datahub",
     "datahub.api",
@@ -46,29 +45,30 @@ def generator(monkeypatch):
             "PropertyValueClass",
         ):
             setattr(schema_classes, name, SimpleNamespace)
-    monkeypatch.syspath_prepend(str(CATALOG))
-    monkeypatch.delitem(sys.modules, "publish_governance", raising=False)
-    return importlib.import_module("publish_governance")
+    monkeypatch.delitem(sys.modules, "dgp_platform_catalog.publish_governance", raising=False)
+    return importlib.import_module("dgp_platform_catalog.publish_governance")
 
 
-def test_inherited_governed_tags_reach_the_catalog(generator, tmp_path):
-    (tmp_path / "ontology").mkdir()
-    (tmp_path / "ontology" / "customer_email.yaml").write_text(
+def test_inherited_governed_tags_reach_the_catalog(generator, tmp_repo):
+    contracts = tmp_repo / "domains" / "customer" / "contracts"
+    (contracts / "ontology").mkdir(parents=True)
+    (contracts / "ontology" / "customer_email.yaml").write_text(
         yaml.safe_dump(
             {
                 "classification": "restricted",
                 "customProperties": [{"property": "privacyCategory", "value": "identifier"}],
             }
-        )
+        ),
+        encoding="utf-8",
     )
     link = [{"type": "semantics", "url": "ontology/customer_email.yaml"}]
-    contract = tmp_path / "customers.odcs.yaml"
-    contract.write_text(
+    (contracts / "customers.odcs.yaml").write_text(
         yaml.safe_dump(
             {
                 "schema": [
                     {
                         "name": "customers",
+                        "tags": ["output_port"],
                         "properties": [
                             {"name": "customer_id", "classification": "internal"},
                             {"name": "customer_email", "authoritativeDefinitions": link},
@@ -76,10 +76,11 @@ def test_inherited_governed_tags_reach_the_catalog(generator, tmp_path):
                     }
                 ]
             }
-        )
+        ),
+        encoding="utf-8",
     )
 
-    assert generator._columns_with_tags(contract) == [
+    assert generator._columns_with_tags(products.output_port("customers")) == [
         ("customer_id", {"sensitivity": "internal"}),
         ("customer_email", {"privacy_category": "identifier", "sensitivity": "restricted"}),
     ]

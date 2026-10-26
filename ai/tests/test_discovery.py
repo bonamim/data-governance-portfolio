@@ -1,14 +1,10 @@
 """One discovery call is enough: owners, column classifications and governed metrics together."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import semantic  # noqa: E402
+from dgp_ai.semantic import SemanticLayer
 
 
 def _products() -> dict[str, dict]:
-    return {p["data_product"]: p for p in semantic.list_data_products()}
+    return {p["data_product"]: p for p in SemanticLayer().list_data_products()}
 
 
 def test_governed_product_lists_its_metrics_and_dimensions():

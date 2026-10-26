@@ -1,10 +1,6 @@
 """The ontology exports as one complete Ossie document: structure plus each concept's meaning."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import build_ossie  # noqa: E402
+import build_ossie
 
 
 def test_export_is_a_valid_ossie_document_with_every_value_types_description():

@@ -24,11 +24,11 @@ import logging
 import subprocess
 import sys
 from datetime import datetime
-from pathlib import Path
 
+from dgp_governance.repo import root
 from dgp_platform_orchestration import dbt_state, wap
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = root()
 
 
 def _grant() -> None:
@@ -38,9 +38,8 @@ def _grant() -> None:
     taking the role-aware masking views (ADR-0013) and grants with them. So masking is re-applied
     before grants after every domain.
     """
-    access = REPO_ROOT / "platform" / "access"
-    subprocess.run([sys.executable, str(access / "apply_masking.py")], check=False)
-    subprocess.run([sys.executable, str(access / "apply_grants.py")], check=False)
+    for tool in ("apply_masking", "apply_grants"):
+        subprocess.run([sys.executable, "-m", f"dgp_platform_access.{tool}"], check=False)
 
 
 def _date(value: str | None) -> datetime | None:

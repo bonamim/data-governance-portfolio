@@ -1,51 +1,52 @@
 #!/usr/bin/env python3
-"""Federated governance policy: enforce the module boundaries of ADR-0008.
+"""The module boundaries of ADR-0008 hold.
 
-Boundaries are encoded in import names by convention:
-  - platform capability packages import as   dgp_platform_<capability>
-  - domain packages import as                dgp_domain_<domain>[_<suffix>]
+A boundary shows in the import name, by convention:
+
+- a platform capability imports as  ``dgp_platform_<capability>``
+- a domain package imports as       ``dgp_domain_<domain>[_<suffix>]``
 
 Rules (a violation fails CI):
-  1. platform/** must not import any dgp_domain_* package
-     (the platform must never depend on a domain).
-  2. domains/<A>/** must not import dgp_domain_<B>_* for any other domain B
-     (domains integrate only through data products and contracts, never code).
 
-This is pure-stdlib and path-based, so it runs before anything is installed.
+1. Nothing under ``platform/`` imports a ``dgp_domain_*`` package: the platform never depends on a
+   domain.
+2. Nothing under ``domains/<A>/`` imports ``dgp_domain_<B>_*`` for another domain B: domains
+   integrate through data products and contracts, never through code.
+
+The check reads source files with ``ast``; it imports nothing it checks.
 """
 
 from __future__ import annotations
 
 import ast
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
-from governance.registry import domain_names  # noqa: E402
-
-DOMAINS = domain_names()  # single source of truth: governance/domains/
-# Longest first so "customer_experience" matches before "customer".
-DOMAINS_BY_LEN = sorted(DOMAINS, key=len, reverse=True)
+from _checks import report
+from dgp_governance import registry
+from dgp_governance.repo import root
 
 SCAN_DIRS = ["platform", "domains"]
 SKIP_PARTS = {".venv", "__pycache__", "build", "dist", "target", "dbt_packages", ".git"}
+DOMAIN_PREFIX = "dgp_domain_"
 
 
-def domain_of_import(name: str) -> str | None:
-    """Return the domain owning an import name, or None if not a domain package."""
-    if not name.startswith("dgp_domain_"):
+def domain_of_import(name: str, domains: list[str]) -> str | None:
+    """The domain owning an import name, or None if it is not a known domain's package."""
+    if not name.startswith(DOMAIN_PREFIX):
         return None
-    rest = name[len("dgp_domain_") :]
-    for d in DOMAINS_BY_LEN:
-        if rest == d or rest.startswith(d + "_"):
-            return d
-    return None  # dgp_domain_* with an unknown domain — reported separately
+    rest = name.removeprefix(DOMAIN_PREFIX)
+    # Longest first, so "customer_experience" matches before "customer".
+    for domain in sorted(domains, key=len, reverse=True):
+        if rest == domain or rest.startswith(domain + "_"):
+            return domain
+    return None
 
 
 def zone_of_path(path: Path) -> tuple[str, str | None]:
-    """Classify a file: ('platform'|'domain'|'other', domain_name|None)."""
-    rel = path.relative_to(REPO_ROOT).parts
+    """Classify a file: (``platform`` | ``domain`` | ``other``, its domain or None)."""
+    rel = path.relative_to(root()).parts
     if rel[0] == "platform":
         return "platform", None
     if rel[0] == "domains" and len(rel) > 1:
@@ -63,49 +64,44 @@ def imported_top_names(tree: ast.AST) -> set[str]:
     return names
 
 
-def iter_py_files():
+def iter_py_files() -> Iterator[Path]:
     for d in SCAN_DIRS:
-        base = REPO_ROOT / d
-        if not base.exists():
+        for path in (root() / d).rglob("*.py"):
+            if not SKIP_PARTS & set(path.parts):
+                yield path
+
+
+def violations() -> list[str]:
+    domains = registry.domain_names()
+    out: list[str] = []
+    for path in iter_py_files():
+        zone, owner = zone_of_path(path)
+        rel = path.relative_to(root())
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError as exc:
+            out.append(f"{rel}: cannot parse ({exc})")
             continue
-        for path in base.rglob("*.py"):
-            if SKIP_PARTS & set(path.parts):
+        for name in imported_top_names(tree):
+            if not name.startswith(DOMAIN_PREFIX):
                 continue
-            yield path
+            imported = domain_of_import(name, domains)
+            if zone == "platform":
+                out.append(f"{rel}: platform code must not import domain package '{name}' (rule 1)")
+            elif zone == "domain" and imported and imported != owner:
+                out.append(
+                    f"{rel}: domain '{owner}' must not import domain package '{name}' (rule 2)"
+                )
+    return sorted(out)
 
 
 def main() -> int:
-    violations: list[str] = []
-    for path in iter_py_files():
-        zone, owner = zone_of_path(path)
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError as exc:  # pragma: no cover - surfaced as a violation
-            violations.append(f"{path}: cannot parse ({exc})")
-            continue
-        rel = path.relative_to(REPO_ROOT)
-        for name in imported_top_names(tree):
-            imported_domain = domain_of_import(name)
-            if imported_domain is None and not name.startswith("dgp_domain_"):
-                continue
-            if zone == "platform":
-                violations.append(
-                    f"{rel}: {zone} code must not import domain package '{name}' (ADR-0008 rule 1)"
-                )
-            elif zone == "domain" and imported_domain and imported_domain != owner:
-                violations.append(
-                    f"{rel}: domain '{owner}' must not import domain package "
-                    f"'{name}' (ADR-0008 rule 2)"
-                )
-
-    if violations:
-        print("Module boundary violations (ADR-0008):\n")
-        for v in sorted(violations):
-            print(f"  - {v}")
-        print(f"\n{len(violations)} violation(s). See docs/adr/0008-monorepo-module-boundaries.md")
-        return 1
-    print("Module boundaries OK (ADR-0008): no forbidden cross-imports found.")
-    return 0
+    return report(
+        violations(),
+        failed="Module boundary violations (ADR-0008)",
+        ok="Module boundaries OK (ADR-0008): no forbidden cross-imports found.",
+        see="docs/adr/0008-monorepo-module-boundaries.md",
+    )
 
 
 if __name__ == "__main__":

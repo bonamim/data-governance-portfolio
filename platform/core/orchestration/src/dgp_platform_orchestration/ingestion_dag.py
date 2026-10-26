@@ -29,7 +29,7 @@ import subprocess
 import sys
 
 import pendulum
-from airflow.sdk import dag, get_current_context, task
+from airflow.sdk import DAG, dag, get_current_context, task
 from dgp_platform_ingestion import layout, pipeline, sla
 from dgp_platform_ingestion.config import load_datasets
 
@@ -85,7 +85,7 @@ def _source_inlets(datasets) -> list:
     return out
 
 
-def build_acquire_dag():
+def build_acquire_dag() -> DAG:
     @dag(
         dag_id="platform_acquire_olist",
         schedule="@daily",
@@ -105,7 +105,7 @@ def build_acquire_dag():
     return _dag()
 
 
-def build_simulator_dag():
+def build_simulator_dag() -> DAG:
     @dag(
         dag_id="platform_source_simulator",
         schedule=[OLIST_CACHE],
@@ -127,9 +127,11 @@ def build_simulator_dag():
             # A daily file carries the previous business day, as the contracts' deadline expects.
             yesterday = pendulum.now("UTC").subtract(days=1).to_date_string()
             pipeline.land_files(
-                runtime.repo_root(), runtime.settings(), runtime.data_dir(),
+                runtime.repo_root(),
+                runtime.settings(),
+                runtime.data_dir(),
                 partition_date=yesterday,
-            )  # fmt: skip
+            )
 
         seed()
         deliver()
@@ -137,7 +139,7 @@ def build_simulator_dag():
     return _dag()
 
 
-def build_landing_sla_dag():
+def build_landing_sla_dag() -> DAG:
     @dag(
         dag_id="platform_landing_sla",
         schedule="*/15 * * * *",
@@ -160,7 +162,7 @@ def build_landing_sla_dag():
     return _dag()
 
 
-def build_ingestion_dag(domain: str):
+def build_ingestion_dag(domain: str) -> DAG:
     # Read at parse time (repo is mounted) to decide which steps this domain needs.
     datasets = load_datasets(runtime.repo_root(), domain)
     has_oltp = any(d.source_type == "oltp" for d in datasets)
@@ -209,14 +211,8 @@ def build_ingestion_dag(domain: str):
         # quarantine.
         @task
         def publish_quality():
-            script = (
-                runtime.repo_root()
-                / "platform"
-                / "context"
-                / "catalog"
-                / "publish_landing_quality.py"
-            )
-            subprocess.run([sys.executable, str(script), "--domain", domain], check=True)
+            module = "dgp_platform_catalog.publish_landing_quality"
+            subprocess.run([sys.executable, "-m", module, "--domain", domain], check=True)
 
         load = load_raw()
         if landing:

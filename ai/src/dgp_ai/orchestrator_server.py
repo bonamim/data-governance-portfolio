@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
 """The orchestrator, exposed as one MCP server (ADR-0021).
 
 A single governed endpoint for a client that doesn't want to wire up every domain agent itself: it
 discovers products across all domains, lists the domain agents, and **routes** each metric question
 to the owning domain's agent (deterministically, via the catalog). A client may instead connect to
-the per-domain agents directly (``ai/semantic_mcp`` scoped by ``DGP_SEMANTIC_DOMAIN``) — both are
+the per-domain agents directly (``semantic_server`` scoped by ``DGP_SEMANTIC_DOMAIN``) — both are
 the same governed boundary. Transport is client-agnostic (``MCP_TRANSPORT``: stdio|streamable-http).
 
 Run: ``make ai-orchestrator``.
@@ -14,11 +13,13 @@ from __future__ import annotations
 
 import os
 
-import router
 from mcp.server.mcpserver import MCPServer
 
+from .router import ROUTER, Router
+
 TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
-mcp = MCPServer("dgp-orchestrator")
+router = Router()
+mcp = MCPServer(ROUTER)
 
 
 @mcp.tool()
@@ -44,7 +45,7 @@ def query_metric(
     refused. Routing is deterministic (by catalog), so the same question always reaches the
     same domain.
     """
-    return router.route_query(data_product, metrics, dimensions or [])
+    return router.route_query(data_product, metrics, dimensions or ())
 
 
 @mcp.tool()
@@ -53,5 +54,9 @@ def request_semantic_model(data_product: str, business_need: str, requested_by: 
     return router.route_request(data_product, business_need, requested_by)
 
 
-if __name__ == "__main__":
+def main() -> None:
     mcp.run(transport=TRANSPORT)
+
+
+if __name__ == "__main__":
+    main()

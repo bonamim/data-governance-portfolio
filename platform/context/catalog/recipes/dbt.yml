@@ -10,6 +10,9 @@ source:
     run_results_paths:
       - "${DBT_TARGET}/run_results.json"
     target_platform: postgres
+    # Keep URNs exactly as the warehouse names them, so the dbt node and the Postgres dataset
+    # ingested by postgres_analytics.yml share one URN (set explicitly: DataHub warns otherwise).
+    convert_urns_to_lowercase: false
     # Emit only this project's nodes. dbt-loom puts other domains' public models in the manifest
     # as stubs (no descriptions); emitting them would overwrite the owning domain's node.
     # They still resolve lineage, so the cross-domain edges remain.

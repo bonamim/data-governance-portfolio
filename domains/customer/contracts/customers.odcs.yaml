@@ -71,6 +71,6 @@ schema:
         mustBeGreaterThan: 1000
 customProperties:
   - property: piiEnforcement
-    value: "Role-based masking view (platform/access/apply_masking.py); md5 is the local demo mask, production uses a keyed HMAC via a secrets manager and a native masking policy (ADR-0013)."
+    value: "Role-based masking view (dgp_platform_access.apply_masking); md5 is the local demo mask, production uses a keyed HMAC via a secrets manager and a native masking policy (ADR-0013)."
 team:
   name: customer

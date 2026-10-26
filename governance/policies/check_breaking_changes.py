@@ -28,14 +28,15 @@ import tempfile
 from pathlib import Path
 
 import yaml
+from dgp_governance import approvals, products
+from dgp_governance.repo import load_yaml, root
 from dgp_platform_contracts import odcs
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 BASE_REF = os.environ.get("BASE_REF", "origin/main")
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True)
+    return subprocess.run(["git", *args], cwd=root(), capture_output=True, text=True)
 
 
 def _resolve_base() -> str | None:
@@ -46,56 +47,45 @@ def _resolve_base() -> str | None:
 
 
 def _changed_output_port_contracts(base: str) -> list[Path]:
-    """Output-port contracts changed vs base — domains/<d>/contracts/<port>.odcs.yaml (landing
-    contracts live one level deeper under contracts/landing/ and are excluded) — either the file
-    itself or a definition it links to: a changed concept changes every contract that uses it."""
+    """Output-port contracts changed vs base — the file itself, or a definition it links to (a
+    changed concept changes every contract that uses it). Landing contracts live one level deeper
+    (``contracts/landing/``) and are not output ports."""
     changed = set(_git("diff", "--name-only", base).stdout.splitlines())
-    # New files not yet committed (a local run on a working tree) — a PR has them in the diff.
+    # New files not committed yet (a local run on a working tree); a PR has them in the diff.
     changed |= set(_git("ls-files", "--others", "--exclude-standard").stdout.splitlines())
     out = []
-    for path in sorted(REPO_ROOT.glob("domains/*/contracts/*.odcs.yaml")):
+    for path in products.contract_files():
         reached = {path.resolve(), *odcs.linked_files(path)}
-        rel = {p.relative_to(REPO_ROOT).as_posix() for p in reached if p.is_relative_to(REPO_ROOT)}
+        rel = {p.relative_to(root()).as_posix() for p in reached if p.is_relative_to(root())}
         if rel & changed:
             out.append(path)
     return out
 
 
 def _retired_output_ports(base: str) -> list[tuple[str, str]]:
-    """(domain, port) of output-port contracts deleted vs base (a version being retired)."""
+    """(domain, port) of the output-port contracts deleted vs base (a version being retired)."""
     deleted = _git("diff", "--name-only", "--diff-filter=D", base, "--", "domains").stdout
     out = []
     for f in deleted.splitlines():
         parts = f.split("/")
         if len(parts) != 4 or parts[2] != "contracts" or not f.endswith(".odcs.yaml"):
             continue
-        doc = odcs.load(REPO_ROOT / f, read=_at_base(base))
-        schema = (doc.get("schema") or [{}])[0]
-        if "output_port" in (schema.get("tags") or []):
-            out.append((parts[1], schema.get("name", parts[3][: -len(".odcs.yaml")])))
-    return out
-
-
-def _readers(domain: str, port: str) -> list[str]:
-    """Data products that still consume ``<domain>.<port>`` as an input (they would break)."""
-    out = []
-    for dp in sorted(REPO_ROOT.glob("domains/*/data_products/*.yaml")):
-        defn = yaml.safe_load(dp.read_text(encoding="utf-8")) or {}
-        if f"{domain}.{port}" in (defn.get("inputs") or []):
-            out.append(f"{dp.parts[-3]}.{defn.get('name', dp.stem)}")
+        schema = odcs.output_port(odcs.load(root() / f, read=_at_base(base)))
+        if schema is not None:
+            out.append((parts[1], schema.get("name", parts[3].removesuffix(".odcs.yaml"))))
     return out
 
 
 def _declared_consumers(base: str, domain: str, port: str) -> set[str]:
-    """The consumers the retired port's definition declared (as of the base branch)."""
+    """The consumers the retired port's definition declared, as of the base branch."""
     defn = yaml.safe_load(_git("show", f"{base}:domains/{domain}/data_products/{port}.yaml").stdout)
     return {c["team"] for c in ((defn or {}).get("consumers") or []) if c.get("team")}
 
 
 def _retirement_blockers(base: str, domain: str, port: str) -> tuple[list[str], set[str]]:
     """(data products still reading it, declared consumers that have not approved)."""
-    approved = _approved_teams(port, "retire")
-    return _readers(domain, port), _declared_consumers(base, domain, port) - approved
+    approved = approvals.approved_teams(port, approvals.RETIRE)
+    return products.readers_of(domain, port), _declared_consumers(base, domain, port) - approved
 
 
 def _at_base(base: str) -> odcs.Reader:
@@ -103,7 +93,7 @@ def _at_base(base: str) -> odcs.Reader:
     the definitions as they were then too (a changed concept is a changed contract)."""
 
     def read(path: Path) -> str:
-        r = _git("show", f"{base}:{path.relative_to(REPO_ROOT).as_posix()}")
+        r = _git("show", f"{base}:{path.relative_to(root()).as_posix()}")
         if r.returncode != 0:
             raise FileNotFoundError(path)
         return r.stdout
@@ -112,7 +102,7 @@ def _at_base(base: str) -> odcs.Reader:
 
 
 def _resolved_file(doc: dict) -> str:
-    """A resolved contract in a temp file, for ``datacontract breaking``."""
+    """A resolved contract in a temporary file, for ``datacontract breaking``."""
     fd, tmp = tempfile.mkstemp(suffix=".odcs.yaml")
     os.close(fd)
     Path(tmp).write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
@@ -120,36 +110,19 @@ def _resolved_file(doc: dict) -> str:
 
 
 def _base_file(base: str, path: Path) -> str | None:
-    """The contract as it is on the base branch, resolved, in a temp file (None if new)."""
+    """The contract as it is on the base branch, resolved, in a temporary file (None if new)."""
     try:
         return _resolved_file(odcs.load(path, read=_at_base(base)))
     except FileNotFoundError:
         return None
 
 
-def _consumers_of(product: str) -> set[str]:
-    """Teams affected if this output port breaks: its declared consumers, plus any domain whose
-    data product consumes it as a cross-domain input."""
-    teams: set[str] = set()
-    for dp in REPO_ROOT.glob("domains/*/data_products/*.yaml"):
-        defn = yaml.safe_load(dp.read_text(encoding="utf-8")) or {}
-        owner = (defn.get("owner") or {}).get("team")
-        if defn.get("name") == product:
-            for c in defn.get("consumers") or []:
-                if c.get("team"):
-                    teams.add(c["team"])
-        for ref in defn.get("inputs") or []:
-            if str(ref).split(".")[-1] == product and owner:
-                teams.add(owner)
-    return teams
-
-
 def _breaking_report(old_file: str, new_file: Path) -> str | None:
-    """datacontract breaking report if there are ERROR-severity changes, else None.
-    (datacontract breaking always exits 0, so parse the '[ N Error ]' summary.)"""
+    """The ``datacontract breaking`` report if it finds ERROR-severity changes, else None. (The
+    command always exits 0, so this reads its ``[ N Error ]`` summary.)"""
     dc = shutil.which("datacontract") or "datacontract"
-    # Both sides are compared resolved, so an inherited change counts; the temp copies already
-    # carry their definitions, and their relative links would not resolve from the temp dir.
+    # Both sides are compared resolved, so an inherited change counts. The temporary copies carry
+    # their definitions already, and their relative links would not resolve from /tmp anyway.
     new = _resolved_file(odcs.load(Path(new_file)))
     r = subprocess.run(
         [dc, "breaking", "--no-inline-references", old_file, new], capture_output=True, text=True
@@ -160,8 +133,7 @@ def _breaking_report(old_file: str, new_file: Path) -> str | None:
 
 
 def _version(file: str | Path) -> str:
-    defn = yaml.safe_load(Path(file).read_text(encoding="utf-8")) or {}
-    return str(defn.get("version", "0"))
+    return str(load_yaml(Path(file)).get("version", "0"))
 
 
 def _major(version: str) -> int:
@@ -169,36 +141,91 @@ def _major(version: str) -> int:
     return int(head) if head.isdigit() else 0
 
 
-def _approved_teams(product: str, major: int | str) -> set[str]:
-    """Teams recorded as approving this port's v<major> breaking change, or its retirement
-    (``major="retire"``), in governance/approvals/. In production the approval workflow writes this
-    file when consumers approve the PR; it can also be committed by hand. The file is the
-    authority — GitHub is only the automation."""
-    suffix = "retire" if major == "retire" else f"v{major}"
-    f = REPO_ROOT / "governance" / "approvals" / f"{product}-{suffix}.yaml"
-    if not f.exists():
-        return set()
-    defn = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
-    return {a["team"] for a in (defn.get("approved_by") or []) if a.get("team")}
+def _port_name(path: Path) -> str:
+    return path.name.removesuffix(".odcs.yaml")
 
 
 def _impact(base: str) -> list[dict]:
-    """Breaking changes that still need approval: [{port, version, teams}].
-
-    Consumed by the approval workflow to know whose review to request (ADR-0019)."""
+    """Breaking changes that still need approval: [{port, version, teams}] — the approval
+    workflow reads this to know whose review to request (ADR-0019)."""
     out = []
     for path in _changed_output_port_contracts(base):
         old = _base_file(base, path)
         if old is None or _breaking_report(old, path) is None:
             continue
-        product = path.name[: -len(".odcs.yaml")]
-        new_major = _major(_version(path))
-        teams = sorted(_consumers_of(product) - _approved_teams(product, new_major))
-        out.append({"port": product, "version": new_major, "teams": teams})
+        port, new_major = _port_name(path), _major(_version(path))
+        teams = sorted(products.affected_teams(port) - approvals.approved_teams(port, new_major))
+        out.append({"port": port, "version": new_major, "teams": teams})
     for domain, port in _retired_output_ports(base):
         _, missing = _retirement_blockers(base, domain, port)
-        out.append({"port": port, "version": "retire", "teams": sorted(missing)})
+        out.append({"port": port, "version": approvals.RETIRE, "teams": sorted(missing)})
     return out
+
+
+def _check_retirement(base: str, domain: str, port: str) -> bool:
+    """Report on one retired port version; True if its retirement is blocked."""
+    readers, missing = _retirement_blockers(base, domain, port)
+    print(f"\nRETIRING output port '{domain}.{port}' (its contract is deleted vs {base}):")
+    if readers:
+        print(
+            f"  BLOCKED: still read by {', '.join(readers)} — migrate them to the successor "
+            "version first."
+        )
+        return True
+    if missing:
+        print(
+            f"  BLOCKED: retirement needs approval from: {', '.join(sorted(missing))} "
+            f"({approvals.path(port, approvals.RETIRE).relative_to(root())})."
+        )
+        return True
+    print("  APPROVED: no data product reads it and its declared consumers signed off.")
+    return False
+
+
+def _check_change(base: str, path: Path) -> bool:
+    """Report on one changed output-port contract; True if the change is blocked."""
+    product = _port_name(path)
+    old = _base_file(base, path)
+    if old is None:
+        print(f"  {product}: new output-port contract (no prior version) — OK.")
+        return False
+    breaking = _breaking_report(old, path)
+    if breaking is None:
+        print(f"  {product}: contract changed, no breaking changes — OK.")
+        return False
+
+    # A breaking change needs a MAJOR version bump, and approval from every affected consumer.
+    consumers = products.affected_teams(product)
+    old_major, new_major = _major(_version(old)), _major(_version(path))
+    print(f"\nBREAKING CHANGE in output port '{product}' (vs {base}):\n")
+    print(breaking)
+    print(f"  Affected consumers: {', '.join(sorted(consumers)) or '(none declared)'}")
+
+    if new_major <= old_major:
+        print(
+            f"  BLOCKED: a breaking change needs a MAJOR version bump (contract is "
+            f"{_version(old)} -> {_version(path)}), then consumer approval. Migrate the "
+            f"consumers with the change; if one can't cut over at once, ship the new major "
+            f"as a versioned port '{product}_v{old_major + 1}' instead "
+            f"(governance/standards/breaking-changes.md)."
+        )
+        return True
+
+    missing = consumers - approvals.approved_teams(product, new_major)
+    if missing:
+        print(
+            f"  BLOCKED: v{new_major} still needs approval from: {', '.join(sorted(missing))}. "
+            f"They approve the PR and the workflow records it in "
+            f"{approvals.path(product, new_major).relative_to(root())} (or commit it by hand)."
+        )
+        return True
+
+    print(
+        f"  APPROVED: v{new_major} breaking change signed off by all affected consumers "
+        f"({', '.join(sorted(consumers)) or 'none required'}); migrate them with the change "
+        f"(version the port only if a consumer can't cut over at once)."
+    )
+    return False
 
 
 def main() -> int:
@@ -228,65 +255,9 @@ def main() -> int:
         print(f"Breaking-change gate OK: no output-port contract changed vs {base}.")
         return 0
 
-    failed = False
-    for domain, port in retired:
-        readers, missing = _retirement_blockers(base, domain, port)
-        print(f"\nRETIRING output port '{domain}.{port}' (its contract is deleted vs {base}):")
-        if readers:
-            failed = True
-            print(f"  BLOCKED: still read by {', '.join(readers)} — migrate them to the "
-                  "successor version first.")  # fmt: skip
-        elif missing:
-            failed = True
-            print(f"  BLOCKED: retirement needs approval from: {', '.join(sorted(missing))} "
-                  f"(governance/approvals/{port}-retire.yaml).")  # fmt: skip
-        else:
-            print("  APPROVED: no data product reads it and its declared consumers signed off.")
-    for path in contracts:
-        product = path.name[: -len(".odcs.yaml")]
-        old = _base_file(base, path)
-        if old is None:
-            print(f"  {product}: new output-port contract (no prior version) — OK.")
-            continue
-        report = _breaking_report(old, path)
-        if report is None:
-            print(f"  {product}: contract changed, no breaking changes — OK.")
-            continue
-
-        # Breaking change — allowed only with a MAJOR version bump + approval from every consumer.
-        consumers = _consumers_of(product)
-        old_major, new_major = _major(_version(old)), _major(_version(path))
-        print(f"\nBREAKING CHANGE in output port '{product}' (vs {base}):\n")
-        print(report)
-        print(f"  Affected consumers: {', '.join(sorted(consumers)) or '(none declared)'}")
-
-        if new_major <= old_major:
-            failed = True
-            print(
-                f"  BLOCKED: a breaking change needs a MAJOR version bump (contract is "
-                f"{_version(old)} -> {_version(path)}), then consumer approval. Migrate the "
-                f"consumers with the change; if one can't cut over atomically, ship the new major "
-                f"as a versioned port '{product}_v{old_major + 1}' instead "
-                f"(governance/standards/breaking-changes.md)."
-            )
-            continue
-
-        missing = consumers - _approved_teams(product, new_major)
-        if missing:
-            failed = True
-            print(
-                f"  BLOCKED: v{new_major} still needs approval from: {', '.join(sorted(missing))}. "
-                f"They approve the PR and the workflow records it in "
-                f"governance/approvals/{product}-v{new_major}.yaml (or commit it by hand)."
-            )
-            continue
-
-        print(
-            f"  APPROVED: v{new_major} breaking change signed off by all affected consumers "
-            f"({', '.join(sorted(consumers)) or 'none required'}); migrate them with the change "
-            f"(version the port only if a consumer can't cut over atomically)."
-        )
-
+    blocked = [_check_retirement(base, domain, port) for domain, port in retired]
+    blocked += [_check_change(base, path) for path in contracts]
+    failed = any(blocked)
     if failed:
         print("\nBreaking-change gate FAILED (proof P5): an output-port interface would break.")
         return 1

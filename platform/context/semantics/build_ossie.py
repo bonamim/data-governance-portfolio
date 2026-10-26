@@ -10,7 +10,7 @@ it is, so the bundle compiles each source into a complete one, validates it with
 validator, and is what gets deployed:
 
   build/ossie/<ontology>.ontology.yaml       the ontology, each value type with its description
-  build/ossie/<model>.semantic_model.yaml    each semantic model compiled (ossie.compile): every
+  build/ossie/<model>.semantic_model.yaml    each semantic model, compiled (compile_model): every
                                              contract-column field with its description and
                                              synonyms from the contract
   build/ossie/<model>.mapping.yaml           the mapping between them, generated from the
@@ -27,109 +27,103 @@ from __future__ import annotations
 import argparse
 import copy
 import sys
-from pathlib import Path
 
 import yaml
-from dgp_platform_contracts import odcs
+from dgp_governance import products, registry
+from dgp_governance.repo import relative, root
+from dgp_platform_semantics import ossie
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
-from ossie import compile, load, models, validate  # noqa: E402,A004  (the shared Ossie reader)
-
-from governance.registry import (  # noqa: E402
-    concept_of,
-    concepts,
-    entity_of_table,
-    entity_types,
-    ontology,
-)
-
-OUT = REPO_ROOT / "build" / "ossie"
+MAPPING_VERSION = "0.2.0.dev0"
 
 
 def export() -> dict:
-    """The Ossie document with each value type's description taken from its definition file."""
-    doc = copy.deepcopy(ontology())
-    meaning = concepts()
+    """The ontology as an Ossie document, each value type with the description its data element
+    gives it (a business term keeps its own business definition)."""
+    doc = copy.deepcopy(registry.ontology())
+    meaning = registry.concepts()
     for concept in doc.get("ontology") or []:
-        # A business term keeps its business definition; a data element gets its definition's.
         defined = meaning.get(concept["concept"]) or {}
         if not concept.get("description") and defined.get("description"):
             concept["description"] = " ".join(str(defined["description"]).split())
-    if errors := validate(doc):
+    if errors := ossie.validate(doc):
         raise ValueError("exported ontology is not valid Ossie: " + "; ".join(errors))
     return doc
 
 
+def _concept_mapping(dataset: str, entity: dict, held: dict[str, str]) -> dict | None:
+    """How one dataset maps an entity type, given which column holds each value type — or None
+    when the entity's identifier is not all in the dataset."""
+    relationships = {r["name"]: r for r in entity.get("relationships") or []}
+    identify_by = entity.get("identify_by") or []
+
+    def expression(concept: str) -> str:
+        return f"{dataset}.{held[concept]}"
+
+    def roles(name: str) -> list[str]:
+        return [
+            r["concept"] for r in relationships[name].get("roles") or [] if r["concept"] in held
+        ]
+
+    referents = [
+        {"relationship": name, "expression": expression(role)}
+        for name in identify_by
+        for role in roles(name)
+    ]
+    if len(referents) != len(identify_by):
+        return None
+    children = [
+        {"relationship": name, "object_mapping": {"concept": role, "expression": expression(role)}}
+        for name in relationships
+        if name not in identify_by
+        for role in roles(name)
+    ]
+    mapping = {"concept": entity["concept"], "object_mappings": [{"referent_mappings": referents}]}
+    if children:
+        # The same identifier, written out again: Ossie documents use no YAML aliases.
+        identifier = {"referent_mappings": copy.deepcopy(referents)}
+        mapping["link_mappings"] = [{"object_mapping": identifier, "children": children}]
+    return mapping
+
+
+def _dataset_mappings(dataset: dict, entities: dict[str, dict]) -> list[dict]:
+    """The entity types a dataset represents, mapped through its output port's column links."""
+    port = products.output_port(ossie.source_table(dataset))
+    entity = entities.get(registry.entity_of_table(port.schema) or "") if port else None
+    if entity is None:
+        return []
+    held = {  # value type -> the column holding it
+        concept: column["name"]
+        for column in port.columns
+        if (concept := registry.concept_of(column, port.contract))
+    }
+    mapping = _concept_mapping(dataset["name"], entity, held)
+    return [mapping] if mapping else []
+
+
 def mappings() -> dict[str, dict]:
-    """Semantic model name -> its Ossie mapping onto the ontology, for the models with a dataset
+    """Semantic model name -> its Ossie mapping onto the ontology, for every model with a dataset
     whose output port represents an entity type (an aggregate, one row per state, maps none)."""
-    entities = {e["concept"]: e for e in entity_types()}
+    onto = registry.ontology()["name"]
+    entities = {e["concept"]: e for e in registry.entity_types()}
     out: dict[str, dict] = {}
-    for model in sorted(REPO_ROOT.glob("domains/*/semantics/*.semantic_model.yaml")):
-        spec = yaml.safe_load(model.read_text(encoding="utf-8")) or {}
-        concept_mappings = []
-        for ds in spec.get("datasets") or []:
-            table = str(ds.get("source", "")).split(".")[-1]
-            for contract in REPO_ROOT.glob(f"domains/*/contracts/{table}.odcs.yaml"):
-                for obj in odcs.load(contract).get("schema") or []:  # links survive resolution
-                    entity = entities.get(entity_of_table(obj) or "")
-                    if not entity:
-                        continue
-                    held = {  # value type -> the column holding it
-                        concept: p["name"]
-                        for p in obj.get("properties") or []
-                        if (concept := concept_of(p, contract))
-                    }
-                    rels = {r["name"]: r for r in entity.get("relationships") or []}
-                    referents = [
-                        {"relationship": name, "expression": f"{ds['name']}.{held[role]}"}
-                        for name in entity.get("identify_by") or []
-                        for role in [r["concept"] for r in rels[name].get("roles") or []]
-                        if role in held
-                    ]
-                    if len(referents) != len(entity.get("identify_by") or []):
-                        continue  # its identifier is not all in this dataset
-                    children = [
-                        {
-                            "relationship": name,
-                            "object_mapping": {
-                                "concept": role,
-                                "expression": f"{ds['name']}.{held[role]}",
-                            },
-                        }
-                        for name, r in rels.items()
-                        if name not in (entity.get("identify_by") or [])
-                        for role in [x["concept"] for x in r.get("roles") or []]
-                        if role in held
-                    ]
-                    mapping = {"concept": entity["concept"],
-                               "object_mappings": [{"referent_mappings": referents}]}  # fmt: skip
-                    if children:
-                        mapping["link_mappings"] = [
-                            {
-                                # the same identifier, written out again (no YAML alias)
-                                "object_mapping": {"referent_mappings": copy.deepcopy(referents)},
-                                "children": children,
-                            }
-                        ]
-                    concept_mappings.append(mapping)
+    for path in ossie.models():
+        spec = ossie.load(path)
+        concept_mappings = [
+            m for dataset in ossie.datasets(spec) for m in _dataset_mappings(dataset, entities)
+        ]
         if not concept_mappings:
             continue
         name = spec["name"]
         out[name] = {
-            "version": "0.2.0.dev0",
+            "version": MAPPING_VERSION,
             "name": f"{name}_mapping",
-            "description": f"Maps the {ontology()['name']} ontology onto the {name} semantic model "
+            "description": f"Maps the {onto} ontology onto the {name} semantic model "
             "(generated from the contracts' ontology and data-element links, ADR-0027).",
-            "ontology_ref": {
-                "name": ontology()["name"],
-                "iri": f"./{ontology()['name']}.ontology.yaml",
-            },
+            "ontology_ref": {"name": onto, "iri": f"./{onto}.ontology.yaml"},
             "semantic_model_ref": {"name": name, "iri": f"./{name}.semantic_model.yaml"},
             "concept_mappings": concept_mappings,
         }
-        if errors := validate(out[name], "ontology/mapping.json"):
+        if errors := ossie.validate(out[name], ossie.MAPPING_SCHEMA):
             raise ValueError(
                 f"generated mapping for {name} is not valid Ossie: " + "; ".join(errors)
             )
@@ -139,9 +133,9 @@ def mappings() -> dict[str, dict]:
 def semantic_models() -> dict[str, dict]:
     """Semantic model name -> the model compiled into a complete Ossie document, validated."""
     out = {}
-    for path in models():
-        compiled = compile(load(path))
-        if errors := validate(compiled, "core-spec/ossie-schema.json"):
+    for path in ossie.models():
+        compiled = ossie.load_compiled(path)
+        if errors := ossie.validate(compiled, ossie.MODEL_SCHEMA):
             raise ValueError(f"compiled {path.name} is not valid Ossie: " + "; ".join(errors))
         out[compiled["name"]] = compiled
     return out
@@ -164,13 +158,14 @@ def main() -> int:
     if args.check:
         print(f"Ossie bundle OK: {len(files)} valid Ossie documents ({', '.join(sorted(files))}).")
         return 0
-    OUT.mkdir(parents=True, exist_ok=True)
-    for stale in OUT.glob("*.yaml"):
+    out = root() / "build" / "ossie"
+    out.mkdir(parents=True, exist_ok=True)
+    for stale in out.glob("*.yaml"):
         if stale.name not in files:
             stale.unlink()
     for name, doc in files.items():
-        (OUT / name).write_text(yaml.safe_dump(doc, sort_keys=False, width=100), encoding="utf-8")
-        print(f"  wrote {(OUT / name).relative_to(REPO_ROOT)}")
+        (out / name).write_text(yaml.safe_dump(doc, sort_keys=False, width=100), encoding="utf-8")
+        print(f"  wrote {relative(out / name)}")
     return 0
 
 

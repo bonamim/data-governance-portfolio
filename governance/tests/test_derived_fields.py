@@ -1,15 +1,12 @@
 """Derived semantic fields (e.g. a purchase month) may only be built from contract columns, never
 from PII — check_semantics and check_ai_agents, on throwaway repos."""
 
-import sys
 from pathlib import Path
 
+import check_ai_agents
+import check_semantics
 import pytest
 import yaml
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "policies"))
-import check_ai_agents  # noqa: E402
-import check_semantics  # noqa: E402
 
 
 def _repo(root: Path, field_expr: str, field_name: str = "order_purchase_month") -> None:
@@ -35,9 +32,11 @@ def _repo(root: Path, field_expr: str, field_name: str = "order_purchase_month")
             }
         ]
     }
-    (sales / "contracts" / "orders.odcs.yaml").write_text(yaml.safe_dump(contract))
+    (sales / "contracts" / "orders.odcs.yaml").write_text(
+        yaml.safe_dump(contract), encoding="utf-8"
+    )
     (sales / "data_products" / "orders.yaml").write_text(
-        yaml.safe_dump({"name": "orders", "owner": {"team": "sales"}})
+        yaml.safe_dump({"name": "orders", "owner": {"team": "sales"}}), encoding="utf-8"
     )
     dialects = {"dialects": [{"dialect": "ANSI_SQL", "expression": field_expr}]}
     spec = {
@@ -63,14 +62,14 @@ def _repo(root: Path, field_expr: str, field_name: str = "order_purchase_month")
             }
         ],
     }
-    (sales / "semantics" / "orders.semantic_model.yaml").write_text(yaml.safe_dump(spec))
+    (sales / "semantics" / "orders.semantic_model.yaml").write_text(
+        yaml.safe_dump(spec), encoding="utf-8"
+    )
 
 
 @pytest.fixture
-def repo(tmp_path, monkeypatch):
-    monkeypatch.setattr(check_semantics, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(check_ai_agents, "REPO_ROOT", tmp_path)
-    return tmp_path
+def repo(tmp_repo):
+    return tmp_repo
 
 
 def test_derived_field_from_contract_columns_passes(repo):

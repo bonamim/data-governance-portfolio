@@ -1,41 +1,36 @@
 #!/usr/bin/env python3
-"""Governance check: the domain registry matches the domains on disk.
+"""The domain registry matches the domain folders.
 
-The registry (``governance/domains/``) is the single source of truth for the mesh domains.
-This fails CI if it drifts from the actual domain folders (``domains/*``),
-so the two can never disagree.
+The registry (``governance/domains/``) is the single source of truth for the mesh's domains. This
+fails CI if it drifts from the folders under ``domains/``, so the two can never disagree.
 """
 
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
-from governance.registry import domain_names  # noqa: E402
+from _checks import report
+from dgp_governance import registry
+from dgp_governance.repo import root
 
 
-def _folder_domains() -> set[str]:
-    return {
-        p.name
-        for p in (REPO_ROOT / "domains").iterdir()
-        if p.is_dir() and not p.name.startswith(".")
+def violations() -> list[str]:
+    registered = set(registry.domain_names())
+    folders = {
+        p.name for p in (root() / "domains").iterdir() if p.is_dir() and not p.name.startswith(".")
     }
+    out = [f"'{d}' is registered but has no folder under domains/" for d in registered - folders]
+    out += [f"domains/{d}/ has no registry entry" for d in folders - registered]
+    return sorted(out)
 
 
 def main() -> int:
-    registered = set(domain_names())
-    folders = _folder_domains()
-    if registered != folders:
-        print("Domain registry drift (governance/domains/ vs folders):")
-        if registered - folders:
-            print(f"  registered with no folder: {sorted(registered - folders)}")
-        if folders - registered:
-            print(f"  folder not registered:     {sorted(folders - registered)}")
-        return 1
-    print(f"Domain registry OK: {len(registered)} domain(s), registry matches folders.")
-    return 0
+    return report(
+        violations(),
+        failed="Domain registry drift (governance/domains/ vs domains/)",
+        ok=f"Domain registry OK: {len(registry.domain_names())} domain(s), registry matches "
+        "folders.",
+    )
 
 
 if __name__ == "__main__":

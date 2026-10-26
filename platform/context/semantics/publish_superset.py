@@ -14,62 +14,23 @@ import argparse
 import os
 import re
 import sys
-from pathlib import Path
 
-import ossie  # shared Ossie->SQL reader; the same one the M7 AI consumer uses (no drift)
-import requests
+from dgp_platform_semantics import ossie
+from dgp_platform_semantics.superset import Superset
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-SUPERSET = os.environ.get("SUPERSET_URL", "http://localhost:8088")
-ADMIN = os.environ.get("SUPERSET_ADMIN", "admin")
-ADMIN_PW = os.environ.get("SUPERSET_ADMIN_PASSWORD", "admin")
 DB_NAME = "analytics (warehouse)"
-# The warehouse connection (consumer role, output ports only). Engine-agnostic: point this at
-# Postgres or Snowflake etc. — the metric SQL below is ANSI, so it ports
-# (see platform/context/semantics).
+# The warehouse connection, as the consumer role (output ports only). Engine-agnostic: point it at
+# Postgres, Snowflake and so on — the metric SQL is ANSI, so it ports.
 DB_URI = os.environ.get("SUPERSET_WAREHOUSE_URI")
 
 
-def _login() -> requests.Session:
-    s = requests.Session()
-    r = s.post(
-        f"{SUPERSET}/api/v1/security/login",
-        json={"username": ADMIN, "password": ADMIN_PW, "provider": "db", "refresh": True},
-        timeout=30,
-    )
-    r.raise_for_status()
-    s.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
-    s.headers["X-CSRFToken"] = s.get(f"{SUPERSET}/api/v1/security/csrf_token/").json()["result"]
-    s.headers["Referer"] = SUPERSET
-    return s
-
-
-def _find(s: requests.Session, kind: str, key: str, value: str) -> int | None:
-    r = s.get(f"{SUPERSET}/api/v1/{kind}/", params={"page_size": 100}, timeout=30).json()
-    for item in r.get("result", []):
-        if item.get(key) == value:
-            return item["id"]
-    return None
-
-
-def _ensure_database(s: requests.Session) -> int:
-    db_id = _find(s, "database", "database_name", DB_NAME)
+def _ensure_database(superset: Superset) -> int:
+    db_id = superset.find("database", "database_name", DB_NAME)
     if db_id:
         return db_id
     if not DB_URI:
         raise SystemExit("SUPERSET_WAREHOUSE_URI is required to create the warehouse connection.")
-    r = s.post(
-        f"{SUPERSET}/api/v1/database/",
-        json={"database_name": DB_NAME, "sqlalchemy_uri": DB_URI},
-        timeout=30,
-    )
-    r.raise_for_status()
-    return r.json()["id"]
-
-
-def _dataset_metrics(s: requests.Session, ds_id: int) -> dict[str, str]:
-    r = s.get(f"{SUPERSET}/api/v1/dataset/{ds_id}", timeout=30).json()["result"]
-    return {m["metric_name"]: m.get("expression", "") for m in r.get("metrics") or []}
+    return superset.post("database/", {"database_name": DB_NAME, "sqlalchemy_uri": DB_URI})["id"]
 
 
 def _norm(expr: str) -> str:
@@ -77,8 +38,9 @@ def _norm(expr: str) -> str:
 
 
 def _metrics(spec: dict, dataset: str) -> list[dict]:
-    # Expression comes from the shared reader (SUM(sales_performance.x) -> SUM(x) for Superset's
-    # dataset-scoped column context) so BI and the AI consumer never compile the same metric twice.
+    """The model's metrics as Superset metrics. The expression comes from the shared reader
+    (``SUM(sales_performance.x)`` -> ``SUM(x)`` in Superset's dataset scope), so BI and the AI
+    consumer never compile a metric separately."""
     return [
         {
             "metric_name": m["name"],
@@ -90,73 +52,73 @@ def _metrics(spec: dict, dataset: str) -> list[dict]:
     ]
 
 
-def _ensure_dataset(s: requests.Session, db_id: int, schema: str, table: str, metrics: list[dict]):
-    ds_id = _find(s, "dataset", "table_name", table)
+def _published_datasets() -> list[tuple[dict, dict, str, str]]:
+    """(model, dataset, schema, table) of every dataset sourced from ``<db>.<schema>.<table>``."""
+    out = []
+    for path in ossie.models():
+        spec = ossie.load_compiled(path)
+        for dataset in ossie.datasets(spec):
+            parts = str(dataset.get("source", "")).split(".")
+            if len(parts) == 3:
+                out.append((spec, dataset, parts[1], parts[2]))
+    return out
+
+
+def _ensure_dataset(
+    superset: Superset, db_id: int, schema: str, table: str, metrics: list[dict]
+) -> int:
+    ds_id = superset.find("dataset", "table_name", table)
     if ds_id is None:
-        r = s.post(
-            f"{SUPERSET}/api/v1/dataset/",
-            json={"database": db_id, "schema": schema, "table_name": table},
-            timeout=60,
-        )
-        r.raise_for_status()
-        ds_id = r.json()["id"]
-    # Carry each existing metric's id so the PUT updates it in place. Superset rejects a metric that
-    # matches an existing name but carries no id ("already exist"), so re-publishing would 422.
-    existing = s.get(f"{SUPERSET}/api/v1/dataset/{ds_id}", timeout=30).json()["result"]
-    ids = {m["metric_name"]: m["id"] for m in existing.get("metrics") or []}
+        body = {"database": db_id, "schema": schema, "table_name": table}
+        ds_id = superset.post("dataset/", body, timeout=60)["id"]
+    # Carry each existing metric's id so the PUT updates it in place: Superset rejects a metric
+    # that matches an existing name without an id ("already exist"), so a re-publish would 422.
+    ids = {m["metric_name"]: m["id"] for m in superset.dataset(ds_id).get("metrics") or []}
     merged = [{**m, "id": ids[m["metric_name"]]} if m["metric_name"] in ids else m for m in metrics]
-    put = s.put(f"{SUPERSET}/api/v1/dataset/{ds_id}", json={"metrics": merged}, timeout=60)
-    put.raise_for_status()
+    superset.put(f"dataset/{ds_id}", {"metrics": merged}, timeout=60)
     return ds_id
 
 
-def _models() -> list[Path]:
-    return ossie.models()
-
-
-def _publish(s: requests.Session) -> int:
-    db_id = _ensure_database(s)
-    for m in _models():
-        spec = ossie.load_compiled(m)
-        for ds in ossie.datasets(spec):
-            parts = str(ds.get("source", "")).split(".")
-            if len(parts) != 3:
-                continue
-            _, schema, table = parts
-            mets = _metrics(spec, ds["name"])
-            _ensure_dataset(s, db_id, schema, table, mets)
-            print(f"  published dataset {schema}.{table} with {len(mets)} metric(s) from {m.name}")
+def _publish(superset: Superset) -> int:
+    db_id = _ensure_database(superset)
+    for spec, dataset, schema, table in _published_datasets():
+        metrics = _metrics(spec, dataset["name"])
+        _ensure_dataset(superset, db_id, schema, table, metrics)
+        print(
+            f"  published dataset {schema}.{table} with {len(metrics)} metric(s) from "
+            f"{spec.get('name')}"
+        )
     print("Semantic models published to Superset.")
     return 0
 
 
-def _check(s: requests.Session) -> int:
-    """Fail if Superset's metrics drifted from the Ossie models (e.g. edited in the UI)."""
+def _drift(superset: Superset) -> list[str]:
+    """Where Superset's metrics differ from the Ossie models (e.g. edited in the UI)."""
     drift: list[str] = []
-    for m in _models():
-        spec = ossie.load_compiled(m)
-        for ds in ossie.datasets(spec):
-            parts = str(ds.get("source", "")).split(".")
-            if len(parts) != 3:
-                continue
-            table = parts[2]
-            expected = {x["metric_name"]: x["expression"] for x in _metrics(spec, ds["name"])}
-            ds_id = _find(s, "dataset", "table_name", table)
-            if ds_id is None:
-                drift.append(f"{table}: not published to Superset — run `make bi-publish`")
-                continue
-            actual = _dataset_metrics(s, ds_id)
-            for name, expr in expected.items():
-                if name not in actual:
-                    drift.append(f"{table}.{name}: missing in Superset")
-                elif _norm(actual[name]) != _norm(expr):
-                    drift.append(
-                        f"{table}.{name}: expression drifted "
-                        f"(Ossie '{expr}' vs Superset '{actual[name]}')"
-                    )
-            for name in actual.keys() - expected.keys():
-                drift.append(f"{table}.{name}: extra metric in Superset, not in the Ossie model")
-    if drift:
+    for spec, dataset, _, table in _published_datasets():
+        expected = {m["metric_name"]: m["expression"] for m in _metrics(spec, dataset["name"])}
+        published = superset.dataset_by_table(table)
+        if published is None:
+            drift.append(f"{table}: not published to Superset — run `make bi-publish`")
+            continue
+        actual = {m["metric_name"]: m.get("expression", "") for m in published.get("metrics") or []}
+        for name, expr in expected.items():
+            if name not in actual:
+                drift.append(f"{table}.{name}: missing in Superset")
+            elif _norm(actual[name]) != _norm(expr):
+                drift.append(
+                    f"{table}.{name}: expression drifted (Ossie '{expr}' vs Superset "
+                    f"'{actual[name]}')"
+                )
+        drift += [
+            f"{table}.{name}: extra metric in Superset, not in the Ossie model"
+            for name in actual.keys() - expected.keys()
+        ]
+    return drift
+
+
+def _check(superset: Superset) -> int:
+    if drift := _drift(superset):
         print("Semantic drift FAILED — Superset does not match the Ossie models:")
         for d in drift:
             print(f"  - {d}")
@@ -173,11 +135,11 @@ def main() -> int:
         help="fail if Superset drifted from the Ossie models (don't publish)",
     )
     args = parser.parse_args()
-    if not _models():
+    if not ossie.models():
         print("No semantic models.")
         return 0
-    s = _login()
-    return _check(s) if args.check else _publish(s)
+    superset = Superset()
+    return _check(superset) if args.check else _publish(superset)
 
 
 if __name__ == "__main__":

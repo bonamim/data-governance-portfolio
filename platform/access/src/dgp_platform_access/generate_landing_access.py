@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate the landing zone's object-store access policies from config (ADR-0024).
 
 Reads every ``sources.yml`` and writes, into ``platform/access/landing/``:
@@ -27,7 +26,8 @@ D11/D12). The output is committed, and
 ``--check`` (``make check``) fails when it drifts from the source config, so who-can-touch-what is
 always reviewable in git.
 
-Run: ``make landing-access`` (regenerate) · ``make check`` (drift guard).
+Run: ``make landing-access`` (regenerate) · ``make check`` (drift guard). Module:
+``python -m dgp_platform_access.generate_landing_access [--check]``.
 """
 
 from __future__ import annotations
@@ -39,16 +39,12 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-OUT = REPO_ROOT / "platform" / "access" / "landing"
+from dgp_governance.repo import relative, root
+from dgp_platform_ingestion.config import load_datasets
+from dgp_platform_ingestion.layout import RETENTION_CLASSES
+
 INBOX = os.environ.get("LANDING_INBOX_BUCKET", "landing-inbox")
 ARCHIVE = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
-
-sys.path.insert(0, str(REPO_ROOT / "platform" / "core" / "ingestion" / "src"))
-sys.path.insert(0, str(REPO_ROOT / "platform" / "quality" / "src"))
-sys.path.insert(0, str(REPO_ROOT / "platform" / "core" / "contracts" / "src"))
-from dgp_platform_ingestion.config import load_datasets  # noqa: E402
-from dgp_platform_ingestion.layout import RETENTION_CLASSES  # noqa: E402
 
 KEY_ARN = "arn:aws:kms:${AWS_REGION}:${AWS_ACCOUNT_ID}:key/"
 ROLE_ARN = "arn:aws:iam::${AWS_ACCOUNT_ID}:role/"
@@ -275,9 +271,14 @@ def secrets_inventory(sources: list[str]) -> dict:
     }
 
 
+def output_dir() -> Path:
+    """Where the generated files are committed: ``platform/access/landing/``."""
+    return root() / "platform" / "access" / "landing"
+
+
 def generate() -> dict[str, str]:
     """{relative path: file content} for everything under platform/access/landing/."""
-    landing = [d for d in load_datasets(REPO_ROOT) if d.source_type == "landing"]
+    landing = [d for d in load_datasets(root()) if d.source_type == "landing"]
     sources = sorted({d.source_system for d in landing})
     owned: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for d in landing:
@@ -313,10 +314,11 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="fail if the committed files drift")
     args = parser.parse_args()
 
+    out = output_dir()
     wanted = generate()
     existing = {
-        str(p.relative_to(OUT)): p.read_text(encoding="utf-8")
-        for p in OUT.rglob("*")
+        str(p.relative_to(out)): p.read_text(encoding="utf-8")
+        for p in out.rglob("*")
         if p.is_file()
     }
     if args.check:
@@ -332,12 +334,12 @@ def main() -> int:
         return 0
 
     for stale in set(existing) - set(wanted):
-        (OUT / stale).unlink()
+        (out / stale).unlink()
     for rel, content in wanted.items():
-        path = OUT / rel
+        path = out / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    print(f"wrote {len(wanted)} files to {OUT.relative_to(REPO_ROOT)}/")
+    print(f"wrote {len(wanted)} files to {relative(out)}/")
     return 0
 
 

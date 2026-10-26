@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """The governed semantic layer, exposed as an MCP server (M7, ADR-0020).
 
 Any MCP-capable agent — Claude, ChatGPT, GitHub Copilot, Snowflake Cortex Agents — can obtain a
@@ -10,18 +9,20 @@ the server, so it holds the same for every client; only each client's wiring dif
 
 Transport is client-agnostic via ``MCP_TRANSPORT``: ``stdio`` (default — local clients like Claude
 Code and Copilot/VS Code launch the process) or ``streamable-http`` (a remote server for hosted
-clients like ChatGPT connectors and Cortex Agents; set ``MCP_HOST``/``MCP_PORT``). Run via
-``make ai-mcp`` (stdio) or ``make ai-mcp-http`` (remote).
+clients like ChatGPT connectors and Cortex Agents; set ``MCP_HOST``/``MCP_PORT``). Run with
+``make ai-mcp`` (stdio) or ``make ai-mcp-http`` (remote); ``DGP_SEMANTIC_DOMAIN`` scopes it to one
+domain, which makes it that domain's agent (``make ai-agent DOMAIN=sales``).
 """
 
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
-import semantic  # pure computation + governance checks (same directory)
+from dgp_governance.repo import root
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+
+from .semantic import SemanticLayer
 
 TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
 HOST = os.environ.get("MCP_HOST", "127.0.0.1")
@@ -32,12 +33,10 @@ ALLOWED_HOSTS = [h.strip() for h in os.environ.get("MCP_ALLOWED_HOSTS", "").spli
 
 # How to answer, sent to every client at connect time (ChatGPT, Copilot, Cortex as well as Claude):
 # numbers only from query_metric, refusals routed to the owner, never around the controls.
-INSTRUCTIONS = (Path(__file__).resolve().parents[1] / "analyst-prompt.md").read_text()
+INSTRUCTIONS = (root() / "ai" / "analyst-prompt.md").read_text(encoding="utf-8")
 
-# A domain-scoped instance (DGP_SEMANTIC_DOMAIN) is that domain's federated agent (ADR-0021); the
-# name reflects the scope so a client/registry can tell the Sales agent from the platform-wide one.
-_scope = semantic.DOMAIN
-mcp = MCPServer(f"dgp-semantic-{_scope}" if _scope else "dgp-semantic", instructions=INSTRUCTIONS)
+layer = SemanticLayer.from_env()
+mcp = MCPServer(layer.agent, instructions=INSTRUCTIONS)
 
 
 @mcp.tool()
@@ -51,7 +50,7 @@ def list_data_products() -> list[dict]:
     product also lists its metrics and dimensions, so call ``query_metric`` next — no need for
     ``list_metrics``. Discovery is open: ungoverned products are visible so a user can ask the
     owner (``request_semantic_model``) to define metrics. Only governed ones are queryable."""
-    return semantic.list_data_products()
+    return layer.list_data_products()
 
 
 @mcp.tool()
@@ -59,7 +58,7 @@ def list_metrics(data_product: str) -> dict:
     """List one data product's governed metrics and dimensions (Ossie spec) with the metric
     expressions. ``list_data_products`` already includes names and descriptions; use this only when
     you need the expressions. For an ungoverned product it names the owner and the next step."""
-    return semantic.list_metrics(data_product)
+    return layer.list_metrics(data_product)
 
 
 @mcp.tool()
@@ -73,7 +72,7 @@ def query_metric(
     Ossie definitions used, the owner, and the classification of every column the number came from
     (so sensitivity needs no extra lookup).
     """
-    return semantic.query_metric(data_product, metrics, dimensions or [])
+    return layer.query_metric(data_product, metrics, dimensions or [])
 
 
 @mcp.tool()
@@ -84,21 +83,25 @@ def request_semantic_model(data_product: str, business_need: str, requested_by: 
     metrics on it. It records an auditable request routed to the owner (not a fabricated number) —
     the self-serve path from discovery to a governed metric. Returns where it was filed and to whom.
     """
-    return semantic.request_semantic_model(data_product, business_need, requested_by)
+    return layer.request_semantic_model(data_product, business_need, requested_by)
+
+
+def main() -> None:
+    if TRANSPORT == "stdio":
+        mcp.run(transport=TRANSPORT)
+        return
+    security = None
+    if ALLOWED_HOSTS:
+        security = TransportSecuritySettings(
+            allowed_hosts=["127.0.0.1:*", "localhost:*", *ALLOWED_HOSTS],
+            allowed_origins=[
+                "http://127.0.0.1:*",
+                "http://localhost:*",
+                *(f"https://{h}" for h in ALLOWED_HOSTS),
+            ],
+        )
+    mcp.run(transport=TRANSPORT, host=HOST, port=PORT, transport_security=security)
 
 
 if __name__ == "__main__":
-    if TRANSPORT == "stdio":
-        mcp.run(transport=TRANSPORT)
-    else:
-        security = None
-        if ALLOWED_HOSTS:
-            security = TransportSecuritySettings(
-                allowed_hosts=["127.0.0.1:*", "localhost:*", *ALLOWED_HOSTS],
-                allowed_origins=[
-                    "http://127.0.0.1:*",
-                    "http://localhost:*",
-                    *(f"https://{h}" for h in ALLOWED_HOSTS),
-                ],
-            )
-        mcp.run(transport=TRANSPORT, host=HOST, port=PORT, transport_security=security)
+    main()

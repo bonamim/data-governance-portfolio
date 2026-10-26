@@ -13,13 +13,11 @@
     "semantic": {
       "command": "uv",
       "args": [
-        "run", "--no-project",
-        "--with", "mcp",
-        "--with", "psycopg[binary]",
-        "--with", "pyyaml",
-        "python", "/ABSOLUTE/PATH/TO/REPO/ai/semantic_mcp/server.py"
+        "run", "--quiet", "--directory", "/ABSOLUTE/PATH/TO/REPO", "--package", "dgp-ai", "--no-dev",
+        "python", "-m", "dgp_ai.semantic_server"
       ],
       "env": {
+        "DGP_REPO_ROOT": "/ABSOLUTE/PATH/TO/REPO",
         "SEMANTIC_WAREHOUSE_URI": "postgresql://analytics_reader:REPLACE_WITH_PASSWORD@localhost:5433/analytics?sslmode=require"
       }
     }

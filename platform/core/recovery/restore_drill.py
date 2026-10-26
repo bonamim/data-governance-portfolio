@@ -43,10 +43,10 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from botocore.client import BaseClient
 from common import (
     BACKUP_BUCKET,
     DRILL_PREFIX,
-    REPO_ROOT,
     RPO_SECONDS,
     RTO_SECONDS,
     container,
@@ -54,13 +54,21 @@ from common import (
     s3,
     sha256,
 )
+from dgp_governance.repo import root
 
+REPO_ROOT = root()
 DRILL_OLTP_PORT = os.environ.get("DRILL_OLTP_PORT", "55432")
 DRILL_ANALYTICS_PORT = os.environ.get("DRILL_ANALYTICS_PORT", "55433")
 COMPOSE = [
-    "docker", "compose", "--env-file", str(REPO_ROOT / ".env"), "-p", "dgp-drill",
-    "-f", str(REPO_ROOT / "platform" / "core" / "recovery" / "docker-compose.drill.yml"),
-]  # fmt: skip
+    "docker",
+    "compose",
+    "--env-file",
+    str(REPO_ROOT / ".env"),
+    "-p",
+    "dgp-drill",
+    "-f",
+    str(REPO_ROOT / "platform" / "core" / "recovery" / "docker-compose.drill.yml"),
+]
 PITR_CONF = "restore_command = 'cp /wal-archive/%f %p'\nrecovery_target_timeline = 'latest'"
 # Seed the empty data volume with the base backup and arm recovery from the WAL archive.
 PITR_SEED = (
@@ -145,9 +153,11 @@ def _drill_env() -> dict[str, str]:
     for k in ("OLTP_INTERNAL_PORT", "ANALYTICS_INTERNAL_PORT"):
         env.pop(k, None)
     env.update(
-        OLTP_HOST="localhost", OLTP_PORT=DRILL_OLTP_PORT,
-        ANALYTICS_HOST="localhost", ANALYTICS_PORT=DRILL_ANALYTICS_PORT,
-    )  # fmt: skip
+        OLTP_HOST="localhost",
+        OLTP_PORT=DRILL_OLTP_PORT,
+        ANALYTICS_HOST="localhost",
+        ANALYTICS_PORT=DRILL_ANALYTICS_PORT,
+    )
     return env
 
 
@@ -160,10 +170,22 @@ def _heartbeat() -> tuple[int, float]:
     def psql(*sql: str) -> list[str]:
         args = [a for q in sql for a in ("-c", q)]
         out = subprocess.run(
-            ["docker", "exec", cid, "psql", "-U", os.environ.get("OLTP_SUPERUSER", "postgres"),
-             "-d", os.environ.get("OLTP_DB", "shop_oltp"), "-tAq", *args],
-            capture_output=True, text=True, check=True,
-        ).stdout  # fmt: skip
+            [
+                "docker",
+                "exec",
+                cid,
+                "psql",
+                "-U",
+                os.environ.get("OLTP_SUPERUSER", "postgres"),
+                "-d",
+                os.environ.get("OLTP_DB", "shop_oltp"),
+                "-tAq",
+                *args,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
         return [line for line in out.splitlines() if line.strip()]
 
     hb_id, segment = psql(
@@ -179,7 +201,7 @@ def _heartbeat() -> tuple[int, float]:
     return int(hb_id), float("inf")
 
 
-def _latest_partition(client) -> str:
+def _latest_partition(client: BaseClient) -> str:
     """Newest ``dt=YYYY-MM-DD`` partition of accepted landing files — the date the rebuild replays
     as of (each dataset then loads its newest accepted file on or before it).
 
@@ -201,6 +223,146 @@ def _latest_partition(client) -> str:
     return max(dates)
 
 
+def _fetch(d: Drill, client: BaseClient, arts: dict, tmp: Path) -> dict[str, Path]:
+    """Step 1: download every backed-up file and check it against the manifest's sha256."""
+    files: dict[str, Path] = {}
+    for name, a in arts.items():
+        dest = tmp / Path(a["key"]).name
+        client.download_file(BACKUP_BUCKET, a["key"], str(dest))
+        d.check(f"{name}: sha256 matches manifest", sha256(dest) == a["sha256"])
+        files[name] = dest
+    archive = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
+    lock = client.get_object_lock_configuration(Bucket=archive)["ObjectLockConfiguration"]
+    d.check(
+        "landing archive: object lock enabled (tier-1 protection, ADR-0024)",
+        lock.get("ObjectLockEnabled") == "Enabled",
+        str(lock.get("ObjectLockEnabled")),
+    )
+    return files
+
+
+def _restore_oltp(d: Drill, dump: Path, counts_at_backup: dict, hb_id: int) -> None:
+    """Point-in-time recovery of shop_oltp: the base backup into the empty data directory, then
+    Postgres replays the WAL archive to its end and promotes (the whole cluster: data, roles,
+    grants). The heartbeat written after the backup proves the replay went past it."""
+    db = os.environ.get("OLTP_DB", "shop_oltp")
+    d.oneoff("drill-oltp", PITR_SEED, PITR_CONF, stdin=dump)
+    subprocess.run([*COMPOSE, "up", "-d", "--wait", "drill-oltp"], check=True, capture_output=True)
+    counts = {t: d.pg_count("drill-oltp", db, t) for t in counts_at_backup}
+    heartbeat = d.exec(
+        "drill-oltp",
+        f'psql -U "$POSTGRES_USER" -d "$0" -tAc '
+        f'"SELECT count(*) FROM platform_dr.heartbeat WHERE id = {int(hb_id)}"',
+        db,
+    )
+    rolled = d.check(
+        "shop_oltp: PITR replayed WAL past the base backup (post-backup row back)",
+        heartbeat == "1",
+        f"heartbeat #{hb_id}",
+    )
+    if d.at_least("shop_oltp", counts, counts_at_backup) and rolled:
+        d.recovered("shop_oltp")
+
+
+def _restore_metadata(d: Drill, files: dict[str, Path], arts: dict) -> None:
+    """Restore the stores that can't be regenerated from git: Airflow, the ingestion ledger,
+    DataHub and Superset, each checked against its backup-time row counts."""
+    for name in ("airflow", "ingestion_ledger"):
+        if name in files:
+            d.exec("drill-meta", 'createdb -U "$POSTGRES_USER" "$0"', name)
+            d.exec("drill-meta", PG_RESTORE, name, stdin=files[name])
+            counts = {t: d.pg_count("drill-meta", name, t) for t in arts[name]["counts"]}
+            if d.at_least(name, counts, arts[name]["counts"]):
+                d.recovered(name)
+
+    if "datahub" in files:
+        mysql = 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'
+        d.exec("drill-datahub-db", f"{mysql} datahub", stdin=files["datahub"])
+        n = int(
+            d.exec(
+                "drill-datahub-db",
+                f'{mysql} -N -e "SELECT count(*) FROM metadata_aspect_v2" datahub 2>/dev/null',
+            )
+        )
+        if d.at_least("datahub", {"metadata_aspect_v2": n}, arts["datahub"]["counts"]):
+            d.recovered("datahub")
+
+    if "superset" in files:
+        con = sqlite3.connect(files["superset"])
+        ok = con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        d.check("superset: SQLite integrity_check", ok)
+        counts = {
+            t: con.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+            for t in arts["superset"]["counts"]
+        }
+        con.close()
+        if ok and d.at_least("superset", counts, arts["superset"]["counts"]):
+            d.recovered("superset")
+
+
+def _run(cmd: list[str], env: dict[str, str]) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True)
+
+
+def _rebuild_analytics(d: Drill, client: BaseClient, ports: dict[str, int]) -> None:
+    """Rebuild the warehouse from git, the gated landing files and the restored shop_oltp — it is
+    regenerated, never restored — then check its ports and its access controls."""
+    env = _drill_env()
+    partition = _latest_partition(client)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    print(
+        f"  rebuilding analytics: replay (archive accepted/ dt={partition} + restored shop_oltp) "
+        "→ publish"
+    )
+    replay = ["dgp-ingest", "replay", "--partition-date", partition, "--run-id", f"drill-{stamp}"]
+    load = _run(["uv", "run", *replay], env)
+    d.check(
+        "analytics: raw replayed from accepted (gated) landing files",
+        load.returncode == 0,
+        load.stderr[-400:] if load.returncode else "",
+    )
+    # --no-state: the drill's rebuild must not replace the live dbt state baseline.
+    publish = ["python", "platform/core/transform/publish.py", "--no-state"]
+    pub = _run(["uv", "run", "--group", "dbt", *publish], env)
+    passed = re.findall(r"Done\. PASS=(\d+) WARN=(\d+) ERROR=(\d+)", pub.stdout)
+    summary = ", ".join(f"PASS={p} WARN={w} ERROR={e}" for p, w, e in passed)
+    d.check(
+        "analytics: every domain published — all contract + engineering DQ passed",
+        pub.returncode == 0,
+        summary,
+    )
+
+    db = os.environ.get("ANALYTICS_DB", "analytics")
+    got = {p: d.pg_count("drill-analytics", db, p) for p in ports}
+    if d.check(
+        "analytics: rebuilt output ports == pre-disaster row counts", got == ports, str(got)
+    ):
+        d.recovered("analytics")
+
+    p8 = _run(["uv", "run", "python", "proofs/p8_access_control.py"], env)
+    d.check(
+        "access control survived the rebuild (P8 against the sandbox)",
+        p8.returncode == 0,
+        p8.stdout.strip().splitlines()[0] if p8.stdout else p8.stderr[-300:],
+    )
+
+
+def _rto_report(d: Drill, stores: set[str]) -> list[dict]:
+    """Step 5: how long each store took to recover, against its RTO."""
+    rto = []
+    print("\n  store              recovered in     RTO      met")
+    for store in sorted(stores, key=lambda s: RTO_SECONDS[s]):
+        took = d.recovered_at.get(store)
+        met = took is not None and took <= RTO_SECONDS[store]
+        rto.append({"store": store, "seconds": took, "rto_seconds": RTO_SECONDS[store], "met": met})
+        shown = f"{took:8.0f}s" if took is not None else "   failed"
+        print(
+            f"  {store:<18} {shown}     {RTO_SECONDS[store] / 3600:4.0f} h    "
+            f"{'yes' if met else 'NO'}"
+        )
+    return rto
+
+
 def run(keep: bool) -> int:
     d = Drill()
     client = s3()
@@ -218,139 +380,21 @@ def run(keep: bool) -> int:
         print(f"  note {name} was not in this backup ({why})")
 
     with tempfile.TemporaryDirectory() as tmp:
-        # 1. fetch + integrity -------------------------------------------------------------
-        files: dict[str, Path] = {}
-        for name, a in arts.items():
-            dest = Path(tmp) / Path(a["key"]).name
-            client.download_file(BACKUP_BUCKET, a["key"], str(dest))
-            d.check(f"{name}: sha256 matches manifest", sha256(dest) == a["sha256"])
-            files[name] = dest
-        archive = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
-        lock = client.get_object_lock_configuration(Bucket=archive)["ObjectLockConfiguration"]
-        d.check(
-            "landing archive: object lock enabled (tier-1 protection, ADR-0024)",
-            lock.get("ObjectLockEnabled") == "Enabled",
-            str(lock.get("ObjectLockEnabled")),
-        )
+        files = _fetch(d, client, arts, Path(tmp))
 
-        # 2. fresh isolated sandbox ---------------------------------------------------------
+        # 2. A fresh, isolated sandbox. drill-oltp starts only once its data volume is seeded with
+        # the base backup (step 3).
         subprocess.run([*COMPOSE, "down", "-v", "--remove-orphans"], capture_output=True)
-        # drill-oltp starts only after its data volume is seeded with the base backup (below).
         others = ["drill-analytics", "drill-meta", "drill-datahub-db"]
         subprocess.run([*COMPOSE, "up", "-d", "--wait", *others], check=True, capture_output=True)
         print(f"  sandbox up ({time.monotonic() - d.t0:.0f}s)")
 
         try:
-            # 3. restore what can't be regenerated -----------------------------------------
+            # 3. Restore what can't be regenerated, 4. rebuild what can.
             if "shop_oltp" in files:
-                db = os.environ.get("OLTP_DB", "shop_oltp")
-                # Point-in-time recovery: base backup into the empty data dir, then Postgres replays
-                # the WAL archive to its end and promotes (whole cluster: data, roles, grants).
-                d.oneoff("drill-oltp", PITR_SEED, PITR_CONF, stdin=files["shop_oltp"])
-                subprocess.run(
-                    [*COMPOSE, "up", "-d", "--wait", "drill-oltp"], check=True, capture_output=True
-                )
-                counts = {t: d.pg_count("drill-oltp", db, t) for t in arts["shop_oltp"]["counts"]}
-                rolled = d.exec(
-                    "drill-oltp",
-                    f'psql -U "$POSTGRES_USER" -d "$0" -tAc '
-                    f'"SELECT count(*) FROM platform_dr.heartbeat WHERE id = {hb_id}"',
-                    db,
-                ) == "1"  # fmt: skip
-                d.check(
-                    "shop_oltp: PITR replayed WAL past the base backup (post-backup row back)",
-                    rolled,
-                    f"heartbeat #{hb_id}",
-                )
-                if d.at_least("shop_oltp", counts, arts["shop_oltp"]["counts"]) and rolled:
-                    d.recovered("shop_oltp")
-
-            for name in ("airflow", "ingestion_ledger"):
-                if name in files:
-                    d.exec("drill-meta", 'createdb -U "$POSTGRES_USER" "$0"', name)
-                    d.exec("drill-meta", PG_RESTORE, name, stdin=files[name])
-                    counts = {t: d.pg_count("drill-meta", name, t) for t in arts[name]["counts"]}
-                    if d.at_least(name, counts, arts[name]["counts"]):
-                        d.recovered(name)
-
-            if "datahub" in files:
-                d.exec(
-                    "drill-datahub-db",
-                    'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" datahub',
-                    stdin=files["datahub"],
-                )
-                n = int(d.exec(
-                    "drill-datahub-db",
-                    'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e '
-                    '"SELECT count(*) FROM metadata_aspect_v2" datahub 2>/dev/null',
-                ))  # fmt: skip
-                if d.at_least("datahub", {"metadata_aspect_v2": n}, arts["datahub"]["counts"]):
-                    d.recovered("datahub")
-
-            if "superset" in files:
-                con = sqlite3.connect(files["superset"])
-                ok = con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-                d.check("superset: SQLite integrity_check", ok)
-                counts = {
-                    t: con.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
-                    for t in arts["superset"]["counts"]
-                }  # noqa: S608
-                con.close()
-                if ok and d.at_least("superset", counts, arts["superset"]["counts"]):
-                    d.recovered("superset")
-
-            # 4. rebuild analytics from git + landing + restored OLTP -------------------------
-            env = _drill_env()
-            partition = _latest_partition(client)
-            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-            print(
-                f"  rebuilding analytics: replay (archive accepted/ dt={partition} + restored "
-                "shop_oltp) → publish"
-            )
-            load = subprocess.run(
-                ["uv", "run", "dgp-ingest", "replay",
-                 "--partition-date", partition, "--run-id", f"drill-{stamp}"],
-                cwd=REPO_ROOT, env=env, capture_output=True, text=True,
-            )  # fmt: skip
-            d.check(
-                "analytics: raw replayed from accepted (gated) landing files",
-                load.returncode == 0,
-                load.stderr[-400:] if load.returncode else "",
-            )
-            pub = subprocess.run(
-                # --no-state: the drill's rebuild must not replace the live dbt state baseline.
-                ["uv", "run", "--group", "dbt", "python", "platform/core/transform/publish.py",
-                 "--no-state"],
-                cwd=REPO_ROOT, env=env, capture_output=True, text=True,
-            )  # fmt: skip
-            passed = re.findall(r"Done\. PASS=(\d+) WARN=(\d+) ERROR=(\d+)", pub.stdout)
-            summary = ", ".join(f"PASS={p} WARN={w} ERROR={e}" for p, w, e in passed)
-            d.check(
-                "analytics: every domain published — all contract + engineering DQ passed",
-                pub.returncode == 0,
-                summary,
-            )
-
-            ports = manifest.get("ports", {})
-            got = {
-                p: d.pg_count("drill-analytics", os.environ.get("ANALYTICS_DB", "analytics"), p)
-                for p in ports
-            }
-            if d.check(
-                "analytics: rebuilt output ports == pre-disaster row counts", got == ports, str(got)
-            ):
-                d.recovered("analytics")
-
-            p8 = subprocess.run(
-                ["uv", "run", "--no-project", "--with", "psycopg[binary]",
-                 "python", "proofs/p8_access_control.py"],
-                cwd=REPO_ROOT, env=env, capture_output=True, text=True,
-            )  # fmt: skip
-            d.check(
-                "access control survived the rebuild (P8 against the sandbox)",
-                p8.returncode == 0,
-                p8.stdout.strip().splitlines()[0] if p8.stdout else p8.stderr[-300:],
-            )
+                _restore_oltp(d, files["shop_oltp"], arts["shop_oltp"]["counts"], hb_id)
+            _restore_metadata(d, files, arts)
+            _rebuild_analytics(d, client, manifest.get("ports", {}))
         finally:
             if keep:
                 print(
@@ -360,28 +404,18 @@ def run(keep: bool) -> int:
             else:
                 subprocess.run([*COMPOSE, "down", "-v", "--remove-orphans"], capture_output=True)
 
-    # 5. RTO report ---------------------------------------------------------------------------
     total = time.monotonic() - d.t0
-    expected = set(arts) | {"analytics"}
-    rto = []
-    print("\n  store              recovered in     RTO      met")
-    for store in sorted(expected, key=lambda s: RTO_SECONDS[s]):
-        took = d.recovered_at.get(store)
-        met = took is not None and took <= RTO_SECONDS[store]
-        rto.append({"store": store, "seconds": took, "rto_seconds": RTO_SECONDS[store], "met": met})
-        shown = f"{took:8.0f}s" if took is not None else "   failed"
-        print(
-            f"  {store:<18} {shown}     {RTO_SECONDS[store] / 3600:4.0f} h    "
-            f"{'yes' if met else 'NO'}"
-        )
-
+    rto = _rto_report(d, set(arts) | {"analytics"})
     passed = all(ok for _, ok, _ in d.checks) and all(r["met"] for r in rto)
     report = {
         "drill_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "backup": prefix, "passed": passed, "total_seconds": round(total, 1),
+        "backup": prefix,
+        "passed": passed,
+        "total_seconds": round(total, 1),
         "checks": [{"check": c, "ok": ok, "detail": det} for c, ok, det in d.checks],
-        "rto": rto, "skipped_in_backup": manifest.get("skipped", {}),
-    }  # fmt: skip
+        "rto": rto,
+        "skipped_in_backup": manifest.get("skipped", {}),
+    }
     key = f"{DRILL_PREFIX}{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
     client.put_object(
         Bucket=BACKUP_BUCKET,
@@ -390,7 +424,8 @@ def run(keep: bool) -> int:
         ContentType="application/json",
     )
     print(
-        f"\nP9 {'OK' if passed else 'FAILED'} — drill took {total:.0f}s; report s3://{BACKUP_BUCKET}/{key}"
+        f"\nP9 {'OK' if passed else 'FAILED'} — drill took {total:.0f}s; report "
+        f"s3://{BACKUP_BUCKET}/{key}"
     )
     return 0 if passed else 1
 

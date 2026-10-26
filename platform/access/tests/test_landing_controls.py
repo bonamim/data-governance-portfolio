@@ -1,18 +1,14 @@
 """Production landing-bucket controls generated from sources.yml (ADR-0016 §5, D11/D12)."""
 
-import sys
-from pathlib import Path
+import json
 
-ACCESS = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ACCESS))
-import generate_landing_access as la  # noqa: E402
+from dgp_governance.repo import root
+from dgp_platform_access import generate_landing_access as la
 
 FILES = la.generate()
 
 
 def _load(name: str) -> dict:
-    import json
-
     return json.loads(FILES[f"production/{name}"])
 
 
@@ -33,8 +29,8 @@ def test_both_buckets_refuse_plain_http_and_unencrypted_uploads():
 
 def test_each_partner_prefix_requires_its_own_key():
     doc = _load("inbox-bucket-policy.json")
-    sources = sorted({d.source_system for d in la.load_datasets(la.REPO_ROOT)
-                      if d.source_type == "landing"})  # fmt: skip
+    landing = [d for d in la.load_datasets(root()) if d.source_type == "landing"]
+    sources = sorted({d.source_system for d in landing})
     keys = {k["alias"]: k for k in _load("kms-keys.json")["keys"]}
     for s in sources:
         (rule,) = _statements(doc, f"Deny{s.title()}OtherKey")
@@ -67,5 +63,5 @@ def test_every_principal_has_a_rotated_secret_and_none_is_in_a_file():
     secrets = _load("secrets.json")["secrets"]
     assert {s["principal"] for s in secrets} >= {"landing-loader"}
     assert all(s["secret"].startswith("dgp/landing/") and s["rotation_days"] <= 90 for s in secrets)
-    assert not any("SECRET" in content and "=" in content for content in FILES.values()
-                   if content.lstrip().startswith("{"))  # fmt: skip
+    policies = [content for content in FILES.values() if content.lstrip().startswith("{")]
+    assert not any("SECRET" in content and "=" in content for content in policies)

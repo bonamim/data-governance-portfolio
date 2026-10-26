@@ -5,14 +5,13 @@ import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SCAN = ["platform", "governance/policies", "ai", "proofs"]
+SCAN = ["platform", "governance/policies", "governance/src", "ai", "proofs"]
 SKIP = {".venv", "__pycache__", "tests", "target", "dbt_packages"}
 USES_LOADER = re.compile(
     r"from dgp_platform_(?:contracts import .*\bodcs|quality\.rules import .*\bload_contract)\b"
 )
 # Files that name contracts without reading their meaning — each with the reason.
 NOT_READERS = {
-    "governance/policies/check_contracts.py": "lints the file with datacontract-cli (it resolves)",
     "proofs/p18_completion_and_sla.py": "edits the contract text to provoke a failure",
     "proofs/p19_versioned_port.py": "copies a contract to a new version (links must stay links)",
 }

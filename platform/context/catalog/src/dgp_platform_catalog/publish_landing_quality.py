@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Publish the landing zone and its contract-gate results into DataHub (ADR-0024).
 
 For every landing dataset in ``sources.yml`` (contract = source of truth, ledger = system of
@@ -19,22 +18,18 @@ S3 datasets that are no longer landing datasets (e.g. names from an older layout
 soft-deleted, so the catalog matches the repo. Idempotent: re-running upserts.
 
 Runs automatically as the ``publish_quality`` task after ``contract_gate`` in each domain's
-ingestion DAG (``--domain``), so results reach DataHub right after every gate run. By hand / full
-reconcile: ``make catalog-quality`` (isolated DataHub SDK env).
+ingestion DAG (``--domain``), so results reach DataHub right after every gate run. By hand, or for
+a full reconcile: ``make catalog-quality``.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
-import urllib.request
 from datetime import UTC
-from pathlib import Path
 
 import psycopg
-import yaml
 from datahub.emitter.mce_builder import (
     datahub_guid,
     make_assertion_urn,
@@ -84,44 +79,23 @@ from datahub.metadata.schema_classes import (
     UpstreamClass,
     UpstreamLineageClass,
 )
+from dgp_governance.repo import relative, root
+from dgp_platform_ingestion import layout
+from dgp_platform_ingestion.config import Dataset, load_datasets
+from dgp_platform_ingestion.layout import LandingRules
+from dgp_platform_ingestion.settings import PostgresSettings
+from dgp_platform_quality.rules import contract_path, load_contract
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-GMS = os.environ.get("DATAHUB_GMS", "http://localhost:8080")
+from .gms import Gms, default_url
+
 DB = os.environ.get("ANALYTICS_DB", "analytics")
 WAREHOUSE_PLATFORM = os.environ.get("WAREHOUSE_PLATFORM", "postgres")
 INBOX = os.environ.get("LANDING_INBOX_BUCKET", "landing-inbox")
 ARCHIVE = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
 S3_BROWSER = f"http://localhost:{os.environ.get('MINIO_CONSOLE_PORT', '9001')}"
 
-# The landing layout + contract parsing are the platform's own code (stdlib + pyyaml only), so
-# the catalog cannot drift from what the loader does.
-sys.path.insert(0, str(REPO_ROOT / "platform" / "core" / "ingestion" / "src"))
-sys.path.insert(0, str(REPO_ROOT / "platform" / "quality" / "src"))
-sys.path.insert(0, str(REPO_ROOT / "platform" / "core" / "contracts" / "src"))
-from dgp_platform_ingestion import layout  # noqa: E402
-from dgp_platform_ingestion.layout import LandingRules  # noqa: E402
-from dgp_platform_quality.rules import contract_path, load_contract  # noqa: E402
-
 _TYPES = {"integer": NumberTypeClass, "number": NumberTypeClass, "date": DateTypeClass}
 P = AssertionStdParameterTypeClass
-
-
-def _landing_datasets() -> list[dict]:
-    paths = sorted(REPO_ROOT.glob("domains/*/ingestion/sources.yml"))
-    out = []
-    for path in paths:
-        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        for e in doc.get("datasets", []):
-            if (e.get("source") or {}).get("type") == "landing":
-                out.append(
-                    {
-                        "domain": doc["domain"],
-                        "source": doc.get("source_system", "olist"),
-                        "name": e["name"],
-                        "raw_table": (e.get("target") or {}).get("raw_table", e["name"]),
-                    }
-                )
-    return out
 
 
 def _param(value, kind=P.NUMBER) -> AssertionStdParameterClass:
@@ -131,71 +105,111 @@ def _param(value, kind=P.NUMBER) -> AssertionStdParameterClass:
 def _rules(contract, rules: LandingRules) -> list[dict]:
     """The checks the gate runs for this contract — mirrors dgp_platform_quality.engine."""
     out = [
-        {"check": "schema.columns_present", "column": None, "scope": "schema",
-         "op": AssertionStdOperatorClass._NATIVE_, "agg": AssertionStdAggregationClass.COLUMNS,
-         "desc": f"File carries every contract column: {', '.join(contract.column_names)}"},
-    ]  # fmt: skip
+        {
+            "check": "schema.columns_present",
+            "column": None,
+            "scope": "schema",
+            "op": AssertionStdOperatorClass._NATIVE_,
+            "agg": AssertionStdAggregationClass.COLUMNS,
+            "desc": f"File carries every contract column: {', '.join(contract.column_names)}",
+        },
+    ]
     if rules.filename_pattern is not None:
         out.append(
-            {"check": "naming.filename_pattern", "column": None, "scope": "unknown",
-             "op": AssertionStdOperatorClass.REGEX_MATCH,
-             "agg": AssertionStdAggregationClass._NATIVE_,
-             "params": AssertionStdParametersClass(
-                 value=_param(rules.filename_pattern.pattern, P.STRING)),
-             "desc": f"File name follows the partner convention {rules.filename_pattern.pattern}"}
-        )  # fmt: skip
+            {
+                "check": "naming.filename_pattern",
+                "column": None,
+                "scope": "unknown",
+                "op": AssertionStdOperatorClass.REGEX_MATCH,
+                "agg": AssertionStdAggregationClass._NATIVE_,
+                "params": AssertionStdParametersClass(
+                    value=_param(rules.filename_pattern.pattern, P.STRING)
+                ),
+                "desc": "File name follows the partner convention "
+                f"{rules.filename_pattern.pattern}",
+            }
+        )
         out.append(
-            {"check": "naming.business_date", "column": None, "scope": "unknown",
-             "op": AssertionStdOperatorClass._NATIVE_,
-             "agg": AssertionStdAggregationClass._NATIVE_,
-             "desc": "The business date in the file name is not in the future"}
-        )  # fmt: skip
+            {
+                "check": "naming.business_date",
+                "column": None,
+                "scope": "unknown",
+                "op": AssertionStdOperatorClass._NATIVE_,
+                "agg": AssertionStdAggregationClass._NATIVE_,
+                "desc": "The business date in the file name is not in the future",
+            }
+        )
     out.append(
-        {"check": "integrity.checksum_sha256", "column": None, "scope": "unknown",
-         "op": AssertionStdOperatorClass._NATIVE_,
-         "agg": AssertionStdAggregationClass._NATIVE_,
-         "desc": "When the partner sends x-amz-checksum-sha256, the content matches it"}
-    )  # fmt: skip
+        {
+            "check": "integrity.checksum_sha256",
+            "column": None,
+            "scope": "unknown",
+            "op": AssertionStdOperatorClass._NATIVE_,
+            "agg": AssertionStdAggregationClass._NATIVE_,
+            "desc": "When the partner sends x-amz-checksum-sha256, the content matches it",
+        }
+    )
     if contract.min_rows is not None:
         out.append(
-            {"check": "completeness.row_count", "column": None, "scope": "rows",
-             "op": AssertionStdOperatorClass.GREATER_THAN,
-             "agg": AssertionStdAggregationClass.ROW_COUNT,
-             "params": AssertionStdParametersClass(value=_param(contract.min_rows)),
-             "desc": f"File completeness: more than {contract.min_rows} rows"}
-        )  # fmt: skip
+            {
+                "check": "completeness.row_count",
+                "column": None,
+                "scope": "rows",
+                "op": AssertionStdOperatorClass.GREATER_THAN,
+                "agg": AssertionStdAggregationClass.ROW_COUNT,
+                "params": AssertionStdParametersClass(value=_param(contract.min_rows)),
+                "desc": f"File completeness: more than {contract.min_rows} rows",
+            }
+        )
     for c in contract.columns:
         if c.required:
             out.append(
-                {"check": "not_null", "column": c.name, "scope": "column",
-                 "op": AssertionStdOperatorClass.NOT_NULL,
-                 "agg": AssertionStdAggregationClass.IDENTITY,
-                 "desc": f"{c.name} is required (no empty values)"}
-            )  # fmt: skip
+                {
+                    "check": "not_null",
+                    "column": c.name,
+                    "scope": "column",
+                    "op": AssertionStdOperatorClass.NOT_NULL,
+                    "agg": AssertionStdAggregationClass.IDENTITY,
+                    "desc": f"{c.name} is required (no empty values)",
+                }
+            )
         if c.unique:
             out.append(
-                {"check": "unique", "column": c.name, "scope": "column",
-                 "op": AssertionStdOperatorClass.EQUAL_TO,
-                 "agg": AssertionStdAggregationClass.UNIQUE_PROPOTION,
-                 "params": AssertionStdParametersClass(value=_param(1)),
-                 "desc": f"{c.name} is unique"}
-            )  # fmt: skip
+                {
+                    "check": "unique",
+                    "column": c.name,
+                    "scope": "column",
+                    "op": AssertionStdOperatorClass.EQUAL_TO,
+                    "agg": AssertionStdAggregationClass.UNIQUE_PROPOTION,
+                    "params": AssertionStdParametersClass(value=_param(1)),
+                    "desc": f"{c.name} is unique",
+                }
+            )
         if c.logical_type == "integer":
             out.append(
-                {"check": "type_integer", "column": c.name, "scope": "column",
-                 "op": AssertionStdOperatorClass._NATIVE_,
-                 "agg": AssertionStdAggregationClass.IDENTITY,
-                 "desc": f"{c.name} values are integers"}
-            )  # fmt: skip
+                {
+                    "check": "type_integer",
+                    "column": c.name,
+                    "scope": "column",
+                    "op": AssertionStdOperatorClass._NATIVE_,
+                    "agg": AssertionStdAggregationClass.IDENTITY,
+                    "desc": f"{c.name} values are integers",
+                }
+            )
         if c.minimum is not None or c.maximum is not None:
             out.append(
-                {"check": "range", "column": c.name, "scope": "column",
-                 "op": AssertionStdOperatorClass.BETWEEN,
-                 "agg": AssertionStdAggregationClass.IDENTITY,
-                 "params": AssertionStdParametersClass(
-                     minValue=_param(c.minimum), maxValue=_param(c.maximum)),
-                 "desc": f"{c.name} between {c.minimum} and {c.maximum}"}
-            )  # fmt: skip
+                {
+                    "check": "range",
+                    "column": c.name,
+                    "scope": "column",
+                    "op": AssertionStdOperatorClass.BETWEEN,
+                    "agg": AssertionStdAggregationClass.IDENTITY,
+                    "params": AssertionStdParametersClass(
+                        minValue=_param(c.minimum), maxValue=_param(c.maximum)
+                    ),
+                    "desc": f"{c.name} between {c.minimum} and {c.maximum}",
+                }
+            )
     return out
 
 
@@ -209,16 +223,22 @@ _SCOPES = {
 
 def _assertion_urn(ds_urn: str, check: str, column: str | None) -> str:
     return make_assertion_urn(
-        datahub_guid({"platform": "dgp-landing-gate", "dataset": ds_urn, "check": check,
-                      "column": column or ""})
-    )  # fmt: skip
+        datahub_guid(
+            {
+                "platform": "dgp-landing-gate",
+                "dataset": ds_urn,
+                "check": check,
+                "column": column or "",
+            }
+        )
+    )
 
 
-def _dataset_mcps(d: dict, contract, rules: LandingRules, ds_urn: str) -> list:
-    src, name = d["source"], d["name"]
+def _dataset_mcps(d: Dataset, contract, rules: LandingRules, ds_urn: str) -> list:
+    src, name = d.source_system, d.name
     props = {
         "contract": f"{contract.id} v{contract.version}",
-        "contract_path": str(contract.path.relative_to(REPO_ROOT)),
+        "contract_path": relative(contract.path),
         "partitionScheme": rules.partition_scheme,
         "partitionSource": rules.partition_source,
         "filenamePattern": rules.filename_pattern.pattern if rules.filename_pattern else "",
@@ -237,7 +257,7 @@ def _dataset_mcps(d: dict, contract, rules: LandingRules, ds_urn: str) -> list:
         )
         for c in contract.columns
     ]
-    raw_urn = make_dataset_urn(WAREHOUSE_PLATFORM, f"{DB}.{d['domain']}_raw.{d['raw_table']}")
+    raw_urn = make_dataset_urn(WAREHOUSE_PLATFORM, f"{DB}.{d.raw_schema}.{d.raw_table}")
     aspects = [
         StatusClass(removed=False),
         SubTypesClass(typeNames=["Landing Dataset"]),
@@ -247,7 +267,7 @@ def _dataset_mcps(d: dict, contract, rules: LandingRules, ds_urn: str) -> list:
                 f"{contract.purpose or ''}\n\nPartner-delivered files for **{src}/{name}**, "
                 f"gated against the ODCS landing contract `{contract.id}` before load. "
                 f"Accepted files are immutable evidence ({rules.retention_days}d); rejected files "
-                f"go to quarantine with a `_reason.json` (90d). Owner: **{d['domain']}**."
+                f"go to quarantine with a `_reason.json` (90d). Owner: **{d.domain}**."
             ).strip(),
             customProperties=props,
             externalUrl=f"{S3_BROWSER}/buckets/{ARCHIVE}",
@@ -260,15 +280,15 @@ def _dataset_mcps(d: dict, contract, rules: LandingRules, ds_urn: str) -> list:
             platformSchema=OtherSchemaClass(rawSchema=""),
             fields=fields,
         ),
-        DomainsClass(domains=[make_domain_urn(d["domain"])]),
+        DomainsClass(domains=[make_domain_urn(d.domain)]),
         OwnershipClass(
             owners=[
                 OwnerClass(
-                    owner=make_group_urn(contract.team or d["domain"]),
+                    owner=make_group_urn(contract.team or d.domain),
                     type=OwnershipTypeClass.BUSINESS_OWNER,
                 )
             ]
-        ),  # fmt: skip
+        ),
     ]
     mcps = [MetadataChangeProposalWrapper(entityUrn=ds_urn, aspect=a) for a in aspects]
     mcps.append(
@@ -298,9 +318,11 @@ def _assertion_mcps(contract, rules: LandingRules, ds_urn: str) -> list:
                 nativeType=r["check"],
             ),
             source=AssertionSourceClass(type=AssertionSourceTypeClass.EXTERNAL),
-            customProperties={"engine": "dgp-platform-quality (landing gate)",
-                              "contract": f"{contract.id} v{contract.version}"},
-        )  # fmt: skip
+            customProperties={
+                "engine": "dgp-platform-quality (landing gate)",
+                "contract": f"{contract.id} v{contract.version}",
+            },
+        )
         mcps.append(
             MetadataChangeProposalWrapper(
                 entityUrn=_assertion_urn(ds_urn, r["check"], r["column"]), aspect=info
@@ -310,13 +332,10 @@ def _assertion_mcps(contract, rules: LandingRules, ds_urn: str) -> list:
 
 
 def _ledger_rows(dataset_id: str) -> list[tuple]:
-    # Inside Airflow the warehouse is on its compose-internal port; on a laptop, the mapped one.
-    port = os.environ.get("ANALYTICS_INTERNAL_PORT", os.environ.get("ANALYTICS_PORT", "5433"))
-    conninfo = (
-        f"host={os.environ.get('ANALYTICS_HOST', 'localhost')} port={port} dbname={DB} "
-        f"user=platform_loader password={os.environ['PLATFORM_LOADER_PASSWORD']}"
-    )
-    with psycopg.connect(conninfo) as conn:
+    password = os.environ["PLATFORM_LOADER_PASSWORD"]
+    with psycopg.connect(
+        PostgresSettings.analytics("platform_loader", password).conninfo()
+    ) as conn:
         return conn.execute(
             "SELECT id, run_id, status, source_identifier, object_version, partition, archive_key,"
             " row_count, contract_version, checks, coalesce(arrived_at, loaded_at), loaded_at"
@@ -358,19 +377,35 @@ def _arrival_mcps(dataset_id: str, ds_urn: str) -> list:
                     customOperationType="ARRIVAL",
                     numAffectedRows=rows,
                     actor=None,
-                    customProperties={"file": f"s3://{INBOX}/{key}", "outcome": status,
-                                      "partition": partition or "", "ledger_id": str(lid),
-                                      "run_id": run_id or ""},
+                    customProperties={
+                        "file": f"s3://{INBOX}/{key}",
+                        "outcome": status,
+                        "partition": partition or "",
+                        "ledger_id": str(lid),
+                        "run_id": run_id or "",
+                    },
                 ),
             )
-        )  # fmt: skip
+        )
     return mcps
 
 
 def _run_event_mcps(dataset_id: str, ds_urn: str) -> tuple[list, int]:
     mcps, files = [], 0
-    for (lid, run_id, status, key, version, partition, archive_key, rows, cver, checks,
-         _arrived, loaded_at) in _ledger_rows(dataset_id):  # fmt: skip
+    for (
+        lid,
+        run_id,
+        status,
+        key,
+        version,
+        partition,
+        archive_key,
+        rows,
+        cver,
+        checks,
+        _arrived,
+        loaded_at,
+    ) in _ledger_rows(dataset_id):
         files += 1
         filed_to = f"s3://{ARCHIVE}/{archive_key}" if archive_key else ""
         reason = (
@@ -378,11 +413,14 @@ def _run_event_mcps(dataset_id: str, ds_urn: str) -> tuple[list, int]:
         )
         for c in checks:
             native = {
-                "detail": c["detail"], "file": f"s3://{INBOX}/{key}",
-                "object_version": version or "", "outcome": status, "filed_to": filed_to,
+                "detail": c["detail"],
+                "file": f"s3://{INBOX}/{key}",
+                "object_version": version or "",
+                "outcome": status,
+                "filed_to": filed_to,
                 "contract_version": cver or "",
                 "ledger_id": str(lid),
-            }  # fmt: skip
+            }
             if reason:
                 native["reason"] = reason
             mcps.append(
@@ -410,41 +448,29 @@ def _run_event_mcps(dataset_id: str, ds_urn: str) -> tuple[list, int]:
     return mcps, files
 
 
-def _stale_s3_datasets(current: set[str]) -> list[str]:
-    """S3 datasets in the catalog that are not current landing datasets.
-
-    The platform filter is a hint only: GMS search may ignore it, so the result is re-checked
-    by URN before anything is soft-deleted (the landing zone owns the s3 platform, nothing else).
-    """
+def _stale_s3_datasets(gms: Gms, current: set[str]) -> list[str]:
+    """S3 datasets in the catalog that are no longer landing datasets. The landing zone owns the
+    s3 platform and nothing else, so every URN is checked to be an s3 dataset before anything is
+    soft-deleted: GMS may not apply the platform filter."""
     s3 = "urn:li:dataset:(urn:li:dataPlatform:s3,"
-    body = json.dumps(
-        {"input": "*", "entity": "dataset", "start": 0, "count": 1000,
-         "filter": {"or": [{"and": [{"field": "platform",
-                                     "value": "urn:li:dataPlatform:s3"}]}]}}
-    ).encode()  # fmt: skip
-    req = urllib.request.Request(
-        f"{GMS}/entities?action=search", data=body, headers={"Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(req) as resp:  # noqa: S310 (local GMS)
-        found = [e["entity"] for e in json.load(resp)["value"]["entities"]]
+    found = gms.search("dataset", platform="s3", count=1000)
     return [u for u in found if u.startswith(s3) and u not in current]
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Publish landing datasets + gate results")
     parser.add_argument("--domain", help="only this domain's landing datasets (Airflow task)")
-    args = parser.parse_args()
-    emitter = DatahubRestEmitter(GMS)
+    args = parser.parse_args(argv)
+    emitter = DatahubRestEmitter(default_url())
     current: set[str] = set()
     total_events = 0
-    for d in _landing_datasets():
-        if args.domain and d["domain"] != args.domain:
-            continue
-        contract = load_contract(contract_path(REPO_ROOT, d["domain"], d["name"]))
+    landing = [d for d in load_datasets(root(), args.domain) if d.source_type == "landing"]
+    for d in landing:
+        contract = load_contract(contract_path(root(), d.domain, d.name))
         rules = LandingRules.from_contract(contract)
-        ds_urn = make_dataset_urn("s3", layout.catalog_name(ARCHIVE, d["source"], d["name"]))
+        ds_urn = make_dataset_urn("s3", layout.catalog_name(ARCHIVE, d.source_system, d.name))
         current.add(ds_urn)
-        dataset_id = f"{d['source']}/{d['name']}"
+        dataset_id = f"{d.source_system}/{d.name}"
         events, files = _run_event_mcps(dataset_id, ds_urn)
         events += _arrival_mcps(dataset_id, ds_urn)
         assertions = _assertion_mcps(contract, rules, ds_urn)
@@ -456,7 +482,7 @@ def main() -> int:
             f"({files} deliveries) -> {ds_urn}"
         )
     # Reconcile only on a full run: a domain-scoped run does not know the other domains' datasets.
-    for urn in [] if args.domain else _stale_s3_datasets(current):
+    for urn in [] if args.domain else _stale_s3_datasets(Gms(), current):
         emitter.emit_mcp(MetadataChangeProposalWrapper(entityUrn=urn, aspect=StatusClass(True)))
         print(f"  soft-deleted stale landing entity {urn}")
     print(f"Landing quality published: {len(current)} datasets, {total_events} run events.")

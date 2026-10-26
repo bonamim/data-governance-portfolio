@@ -29,7 +29,7 @@ jobs:
       - name: Contract governance (every landing dataset has a valid ODCS contract)
         run: uv run python governance/policies/check_contracts.py
       - name: Landing access is generated from config (ADR-0024, no hand-edited policies)
-        run: uv run python platform/access/generate_landing_access.py --check
+        run: uv run python -m dgp_platform_access.generate_landing_access --check
       - name: Data product governance (definitions meet the standard)
         run: uv run python governance/policies/check_data_products.py
       - name: Publishing guardrail (output-port contract <-> model <-> definition)

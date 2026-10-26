@@ -83,7 +83,7 @@ db-roles: ## Ensure least-privilege roles + the DR heartbeat on a RUNNING platfo
 
 .PHONY: encrypt-at-rest
 encrypt-at-rest: ## One-time: rewrite objects stored before bucket encryption with SSE (X7; idempotent)
-	uv run --no-project --with boto3 python platform/core/infra/encrypt_existing.py
+	uv run python platform/core/infra/encrypt_existing.py
 
 .PHONY: verify-infra
 verify-infra: ## Check buckets, schemas, roles and the ingestion ledger exist
@@ -105,11 +105,11 @@ transform: ## Build all data products (dbt) in dependency order, applying consum
 
 .PHONY: mask
 mask: ## Apply role-based PII masking views from the ODCS masking policies (ADR-0013, run before grants)
-	uv run python platform/access/apply_masking.py
+	uv run python -m dgp_platform_access.apply_masking
 
 .PHONY: grants
 grants: ## Apply consumer grants from data product definitions (output ports only; masked views for PII)
-	uv run python platform/access/apply_grants.py
+	uv run python -m dgp_platform_access.apply_grants
 
 .PHONY: publish
 publish: ## Write-audit-publish per model: build to a candidate, audit (contract DQ), promote on pass
@@ -190,11 +190,11 @@ check-boundaries: ## Enforce ADR-0008 module boundaries (governance policy)
 
 .PHONY: landing-access
 landing-access: ## Regenerate landing-zone access policies from sources.yml (ADR-0024; applied by `make up`)
-	uv run python platform/access/generate_landing_access.py
+	uv run python -m dgp_platform_access.generate_landing_access
 
 .PHONY: check-landing-access
 check-landing-access: ## Fail if the committed landing access policies drift from sources.yml
-	uv run python platform/access/generate_landing_access.py --check
+	uv run python -m dgp_platform_access.generate_landing_access --check
 
 .PHONY: check-contracts
 check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
@@ -228,18 +228,18 @@ bi-publish: $(ENV_FILE) ## Publish the Ossie semantic models to Superset (datase
 	set -a; . ./$(ENV_FILE); set +a; \
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
 	export SUPERSET_WAREHOUSE_URI="postgresql+psycopg2://marketplace_role:$${MARKETPLACE_ROLE_PASSWORD}@host.docker.internal:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
-	uv run --no-project --with requests --with pyyaml python platform/context/semantics/publish_superset.py
+	uv run python platform/context/semantics/publish_superset.py
 
 .PHONY: bi-check-drift
 bi-check-drift: $(ENV_FILE) ## Fail if Superset's metrics drifted from the Ossie models (one definition)
 	set -a; . ./$(ENV_FILE); set +a; \
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
-	uv run --no-project --with requests --with pyyaml python platform/context/semantics/publish_superset.py --check
+	uv run python platform/context/semantics/publish_superset.py --check
 
 # ---------------------------------------------------------- disaster recovery (M8) ---
 # Backups of every store that can't be regenerated go to s3://$(BACKUP_BUCKET); the restore drill
 # proves them in an isolated dgp-drill sandbox (docs/disaster-recovery.md, proof P9).
-RECOVERY := uv run --no-project --with boto3 --with 'psycopg[binary]' --with pyyaml python
+RECOVERY := uv run python
 
 .PHONY: backup
 backup: $(ENV_FILE) ## Back up shop_oltp, the ingestion ledger, Airflow, DataHub and Superset metadata
@@ -256,7 +256,7 @@ restore-drill: $(ENV_FILE) certs ## Restore the latest backup into a sandbox, re
 # -------------------------------------------------------------- governed AI (M7) ---
 # The governed semantic MCP server. Any MCP client (Claude, ChatGPT, Copilot, Cortex) connects to
 # it; only each client's wiring differs (ai/README.md). stdio = local clients; http = remote clients.
-AI_MCP := uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/semantic_mcp/server.py
+AI_MCP := uv run python -m dgp_ai.semantic_server
 # The platform-wide view uses analytics_reader; each domain agent its own agent_<domain> role (M8).
 AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
 	for d in SALES CUSTOMER MARKETPLACE CUSTOMER_EXPERIENCE REFERENCE; do \
@@ -287,7 +287,7 @@ ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no
 	@env -i HOME="$$HOME" USER="$$USER" PATH="$$PATH" TERM="$$TERM" LANG="$${LANG:-en_US.UTF-8}" TMPDIR="$$TMPDIR" \
 		$${ANTHROPIC_API_KEY:+ANTHROPIC_API_KEY="$$ANTHROPIC_API_KEY"} \
 		$${CLAUDE_CONFIG_DIR:+CLAUDE_CONFIG_DIR="$$CLAUDE_CONFIG_DIR"} \
-		DGP_REPO="$(CURDIR)" \
+		DGP_REPO_ROOT="$(CURDIR)" \
 		ALERT_WEBHOOK_SALES="$${ALERT_WEBHOOK_SALES}" \
 		ALERT_WEBHOOK_CUSTOMER="$${ALERT_WEBHOOK_CUSTOMER}" \
 		ALERT_WEBHOOK_MARKETPLACE="$${ALERT_WEBHOOK_MARKETPLACE}" \
@@ -299,7 +299,7 @@ ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no
 
 .PHONY: ai-eval
 ai-eval: $(ENV_FILE) ## Same questions with and without the governed MCP, graded, fresh sessions (REPS=, QUESTIONS=, RESUME=)
-	uv run --no-project --with 'psycopg[binary]' --with pyyaml python ai/eval/run_eval.py \
+	uv run python ai/eval/run_eval.py \
 		--reps $(or $(REPS),1) $(if $(QUESTIONS),--questions $(QUESTIONS)) \
 		$(if $(RESUME),--resume $(RESUME)) $(EVAL_ARGS)
 
@@ -312,12 +312,12 @@ ai-agent: $(ENV_FILE) ## Run ONE domain's federated agent: make ai-agent DOMAIN=
 
 .PHONY: ai-agents
 ai-agents: ## List the federated domain agents (the mesh agent registry, derived from definitions)
-	uv run --no-project --with pyyaml python ai/orchestrator/registry.py
+	uv run python -m dgp_ai.agents
 
 .PHONY: ai-orchestrator
 ai-orchestrator: $(ENV_FILE) ## Run the orchestrator MCP gateway (routes each question to the owning domain)
 	set -a; . ./$(ENV_FILE); set +a; $(AI_MCP_ENV); \
-	uv run --no-project --with mcp --with 'psycopg[binary]' --with pyyaml python ai/orchestrator/server.py
+	uv run python -m dgp_ai.orchestrator_server
 
 # ---------------------------------------------------------------- catalog (M4) ---
 # DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
@@ -354,19 +354,21 @@ catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lin
 			datahub ingest -c platform/context/catalog/recipes/dbt.yml; \
 	done
 
+.PHONY: catalog-ingest-bi
+catalog-ingest-bi: $(ENV_FILE) ## Ingest Superset (datasets, charts) into DataHub, so lineage reaches the chart (P7)
+	set -a; . ./$(ENV_FILE); set +a; \
+	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
+	datahub ingest -c platform/context/catalog/recipes/superset.yml
+
 .PHONY: catalog-govern
 catalog-govern: $(ENV_FILE) ## Push mesh governance (domains, data products, ownership) into DataHub from definitions
 	set -a; . ./$(ENV_FILE); set +a; \
-	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
-	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml \
-		python platform/context/catalog/publish_governance.py
+	uv run --group catalog python -m dgp_platform_catalog.publish_governance
 
 .PHONY: catalog-quality
 catalog-quality: $(ENV_FILE) ## Publish landing datasets + contract-gate results (assertions) into DataHub
 	set -a; . ./$(ENV_FILE); set +a; \
-	export DATAHUB_GMS=http://localhost:$${DATAHUB_MAPPED_GMS_PORT:-8081}; \
-	uv run --no-project --python 3.11 --with 'acryl-datahub' --with pyyaml --with 'psycopg[binary]' \
-		python platform/context/catalog/publish_landing_quality.py
+	uv run --group catalog python -m dgp_platform_catalog.publish_landing_quality
 
 .PHONY: check-domains
 check-domains: ## Domain registry (governance/domains) matches the domain folders
@@ -426,7 +428,7 @@ prove-p12: ## Proof P12 — an output port can't be published undocumented (tabl
 
 .PHONY: prove-p8
 prove-p8: $(ENV_FILE) ## Proof P8 — consumers see PII masked and are denied raw/staging; compliance sees raw (M8)
-	uv run --no-project --with 'psycopg[binary]' python proofs/p8_access_control.py
+	uv run python proofs/p8_access_control.py
 
 .PHONY: prove-p9
 prove-p9: $(ENV_FILE) certs ## Proof P9 — back up, restore into a sandbox, rebuild, re-check, measure RTO (M8)
@@ -441,17 +443,17 @@ prove-p10: $(ENV_FILE) ## Proof P10 — BI and AI compute the same number from t
 	set -a; . ./$(ENV_FILE); set +a; \
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
 	export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
-	uv run --no-project --with requests --with 'psycopg[binary]' --with pyyaml python proofs/p10_ai_bi_agreement.py
+	uv run python proofs/p10_ai_bi_agreement.py
 
 .PHONY: prove-p11
 prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, deterministic routing, same number (M7)
 	set -a; . ./$(ENV_FILE); set +a; \
 	$(AI_MCP_ENV); \
-	uv run --no-project --with 'psycopg[binary]' --with pyyaml python proofs/p11_federated_routing.py
+	uv run python proofs/p11_federated_routing.py
 
 .PHONY: prove-p21
 prove-p21: $(ENV_FILE) ## Proof P21 — the analyst Claude session reaches data only via the governed MCP tools (P21_LIVE=1 adds a real session)
-	uv run --no-project --with pyyaml python proofs/p21_analyst_session.py
+	uv run python proofs/p21_analyst_session.py
 
 .PHONY: prove-all
 prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proofs (P2, P5, P12, P21); P3/P6/P7/P10/P11 need the live platform

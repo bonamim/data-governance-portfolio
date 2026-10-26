@@ -96,7 +96,7 @@ services:
       DBT_STATE_USER: ${DBT_STATE_USER:-dbt-state}
       DBT_STATE_SECRET_KEY: ${DBT_STATE_SECRET_KEY:-}
     volumes:
-      # Generated from sources.yml by platform/access/generate_landing_access.py (committed, CI drift guard).
+      # Generated from sources.yml by platform/access/src/dgp_platform_access/generate_landing_access.py (committed, CI drift guard).
       - ../../access/landing:/landing-access:ro
       - ../../access/state:/state-access:ro
     entrypoint:

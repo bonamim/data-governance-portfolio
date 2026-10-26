@@ -27,44 +27,24 @@ import tempfile
 from pathlib import Path
 
 import yaml
-from dgp_platform_contracts import odcs
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
-from governance.registry import column_tags, domain_names, tags  # noqa: E402
+from dgp_governance import products, registry
+from dgp_governance.repo import load_yaml, root
 
 
 def _dbt_domains() -> list[str]:
     """The registered domains (governance/domains/) that have a dbt project."""
     return [
         d
-        for d in domain_names()
-        if (REPO_ROOT / "domains" / d / "dbt" / "dbt_project.yml").exists()
+        for d in registry.domain_names()
+        if (root() / "domains" / d / "dbt" / "dbt_project.yml").exists()
     ]
 
 
-def _output_port_contracts(domain: str) -> list[tuple[str, Path]]:
-    """(product, contract_path) for each output-port contract in a domain."""
-    out: list[tuple[str, Path]] = []
-    for c in sorted((REPO_ROOT / "domains" / domain / "contracts").glob("*.odcs.yaml")):
-        doc = odcs.load(c)
-        schema = (doc.get("schema") or [{}])[0]
-        if "output_port" in (schema.get("tags") or []):
-            out.append((schema.get("name", c.stem), c))
-    return out
-
-
-def _resolved_copy(contract: Path, tmp: Path) -> str:
-    """The contract with its linked definitions inlined, written under ``tmp`` (same file name)."""
-    out = tmp / contract.name
-    out.write_text(yaml.safe_dump(odcs.load(contract), sort_keys=False), encoding="utf-8")
+def _resolved_copy(port: products.OutputPort, tmp: Path) -> str:
+    """The port's contract, linked definitions inlined, written under ``tmp`` (same file name)."""
+    out = tmp / port.contract.name
+    out.write_text(yaml.safe_dump(port.document, sort_keys=False), encoding="utf-8")
     return str(out)
-
-
-def _layer_dir(domain: str, product: str) -> Path | None:
-    for p in (REPO_ROOT / "domains" / domain / "dbt" / "models").rglob(f"{product}.sql"):
-        return p.parent
-    return None
 
 
 def _seed_ports_yml(layer_dir: Path, product: str) -> None:
@@ -80,6 +60,26 @@ def _seed_ports_yml(layer_dir: Path, product: str) -> None:
     )
 
 
+def _sync(datacontract: str, domain: str, ports: list[products.OutputPort]) -> int:
+    """``datacontract dbt sync`` for one domain's ports, given resolved copies; its exit code."""
+    with tempfile.TemporaryDirectory() as tmp:
+        proc = subprocess.run(
+            [
+                datacontract,
+                "dbt",
+                "sync",
+                *[_resolved_copy(p, Path(tmp)) for p in ports],
+                "--project-dir",
+                str(root() / "domains" / domain / "dbt"),
+            ],
+            capture_output=True,
+            text=True,
+        )
+    if proc.returncode != 0:
+        print(proc.stdout + proc.stderr, file=sys.stderr)
+    return proc.returncode
+
+
 def main() -> int:
     datacontract = shutil.which("datacontract")
     if datacontract is None:
@@ -87,47 +87,32 @@ def main() -> int:
         return 1
 
     for domain in _dbt_domains():
-        contracts = _output_port_contracts(domain)
-        if not contracts:
+        ports = sorted(products.output_ports(domain).values(), key=lambda p: p.contract)
+        if not ports:
             continue
-        for product, _ in contracts:
-            layer = _layer_dir(domain, product)
-            if layer is None:
-                print(f"  warning: no dbt model for port {domain}.{product}", file=sys.stderr)
+        for port in ports:
+            if port.model_file is None:
+                print(f"  warning: no dbt model for port {domain}.{port.name}", file=sys.stderr)
                 continue
-            _seed_ports_yml(layer, product)
-        with tempfile.TemporaryDirectory() as tmp:
-            proc = subprocess.run(
-                [
-                    datacontract,
-                    "dbt",
-                    "sync",
-                    *[_resolved_copy(c, Path(tmp)) for _, c in contracts],
-                    "--project-dir",
-                    str(REPO_ROOT / "domains" / domain / "dbt"),
-                ],
-                capture_output=True,
-                text=True,
-            )
-        if proc.returncode != 0:
-            print(proc.stdout + proc.stderr, file=sys.stderr)
-            return proc.returncode
-        for product, contract in contracts:
-            if (layer := _layer_dir(domain, product)) is not None:
-                _sync_deprecation(layer, product, contract)
-                _sync_governance_tags(layer, product, contract)
-            _prune_stale_tests(domain, contract)
-        print(f"  {domain}: synced {len(contracts)} output port(s) into _ports.yml")
+            _seed_ports_yml(port.model_file.parent, port.name)
+        if code := _sync(datacontract, domain, ports):
+            return code
+        for port in ports:
+            if port.model_file is not None:
+                _sync_deprecation(port.model_file.parent, port)
+                _sync_governance_tags(port.model_file.parent, port)
+            _prune_stale_tests(domain, port)
+        print(f"  {domain}: synced {len(ports)} output port(s) into _ports.yml")
     return 0
 
 
-def _prune_stale_tests(domain: str, contract: Path) -> None:
+def _prune_stale_tests(domain: str, port: products.OutputPort) -> None:
     """Drop generated contract tests of a superseded version. ``datacontract dbt sync`` names each
     file ``<id>__<version>__...`` and never removes the old version's, so a bump would run the
     same check twice (once per version)."""
-    doc = odcs.load(contract)
+    doc = port.document
     slug, version = str(doc.get("id", "")).replace(".", "_"), str(doc.get("version", ""))
-    tests = REPO_ROOT / "domains" / domain / "dbt" / "tests" / "datacontract_cli" / slug
+    tests = root() / "domains" / domain / "dbt" / "tests" / "datacontract_cli" / slug
     current = f"{slug}__{version.replace('.', '_')}__"
     for f in tests.glob(f"{slug}__*__*.sql") if slug and version else []:
         generated = '"generated": true' in f.read_text(encoding="utf-8")
@@ -136,21 +121,16 @@ def _prune_stale_tests(domain: str, contract: Path) -> None:
             print(f"  {domain}: removed stale generated test {f.name}")
 
 
-def _sync_governance_tags(layer_dir: Path, product: str, contract: Path) -> None:
+def _sync_governance_tags(layer_dir: Path, port: products.OutputPort) -> None:
     """The port's governed tags (governance/tags/) as {warehouse tag: value} in dbt meta — on each
     column from its resolved contract, and on the model the most sensitive column's sensitivity —
     for the post-hook dgp_dbt.apply_governance_tags to set as part of the build (ADR-0027)."""
-    governed = tags()
+    governed = registry.tags()
     warehouse = {
         name: {v["value"]: v["warehouse_value"] for v in tag["values"]}
         for name, tag in governed.items()
     }
-    doc = odcs.load(contract)
-    columns: dict[str, dict[str, str]] = {}
-    for obj in doc.get("schema") or []:
-        for prop in obj.get("properties") or []:
-            if prop.get("name"):
-                columns[prop["name"]] = column_tags(prop)
+    columns = {c["name"]: registry.column_tags(c) for c in port.columns}
     table: dict[str, str] = {}
     for name, tag in governed.items():
         if (tag.get("odcs") or {}).get("field") != "classification":
@@ -160,9 +140,9 @@ def _sync_governance_tags(layer_dir: Path, product: str, contract: Path) -> None
         if present:
             table[tag["warehouse_tag"]] = warehouse[name][min(present, key=ranked.index)]
     f = layer_dir / "_ports.yml"
-    ports = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+    ports = load_yaml(f)
     for model in ports.get("models") or []:
-        if model.get("name") != product:
+        if model.get("name") != port.name:
             continue
         model.setdefault("config", {}).setdefault("meta", {})["governance_tags"] = table
         for col in model.get("columns") or []:
@@ -174,17 +154,15 @@ def _sync_governance_tags(layer_dir: Path, product: str, contract: Path) -> None
     f.write_text(yaml.safe_dump(ports, sort_keys=False), encoding="utf-8")
 
 
-def _sync_deprecation(layer_dir: Path, product: str, contract: Path) -> None:
+def _sync_deprecation(layer_dir: Path, port: products.OutputPort) -> None:
     """A deprecated port version's sunset becomes dbt's ``deprecation_date`` (ADR-0019 §3), so dbt
     warns every model that still refs it; an active port carries none."""
-    doc = odcs.load(contract)
-    props = {p.get("property"): p.get("value") for p in doc.get("customProperties") or []}
-    sunset = props.get("sunsetDate") if doc.get("status") == "deprecated" else None
+    sunset = port.sunset if port.status == "deprecated" else None
     f = layer_dir / "_ports.yml"
-    ports = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+    ports = load_yaml(f)
     changed = False
     for m in ports.get("models") or []:
-        if m.get("name") != product:
+        if m.get("name") != port.name:
             continue
         want = f"{sunset} 00:00:00+00:00" if sunset else None
         if m.get("deprecation_date") != want:

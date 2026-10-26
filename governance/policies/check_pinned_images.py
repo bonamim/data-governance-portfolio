@@ -9,7 +9,7 @@ A tag (even ``3.3.2``) is mutable; a digest is not. Rules (a violation fails CI)
   4. every GitHub Action (``uses:``) is pinned to a full 40-character commit SHA — a tag can be
      moved to malicious code; a SHA cannot (local ``./`` actions excepted).
 
-Stdlib only, line-based (compose ``image:`` keys and Dockerfile ``FROM`` lines are flat).
+It reads the files line by line: compose ``image:`` keys and Dockerfile ``FROM`` lines are flat.
 """
 
 from __future__ import annotations
@@ -18,7 +18,9 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _checks import report
+from dgp_governance.repo import relative, root
+
 SKIP_PARTS = {".venv", "node_modules", ".git", "target", "dbt_packages"}
 IMAGE = re.compile(r"^(\s*)image:\s*['\"]?([^'\"\s#]+)")
 FROM = re.compile(r"^\s*FROM\s+(?:--platform=\S+\s+)?(\S+)", re.IGNORECASE)
@@ -27,7 +29,7 @@ SHA = re.compile(r"@[0-9a-f]{40}$")
 
 
 def _files(pattern: str) -> list[Path]:
-    return [p for p in REPO_ROOT.rglob(pattern) if not SKIP_PARTS & set(p.parts)]
+    return sorted(p for p in root().rglob(pattern) if not SKIP_PARTS & set(p.parts))
 
 
 def compose_violations(path: Path) -> list[str]:
@@ -40,7 +42,7 @@ def compose_violations(path: Path) -> list[str]:
         indent, image = len(m.group(1)), m.group(2)
         # A sibling `build:` key at the same indent within this service block = locally built.
         block = []
-        for other in lines[n + 1 :] + []:
+        for other in lines[n + 1 :]:
             if other.strip() and len(other) - len(other.lstrip()) < indent:
                 break
             block.append(other)
@@ -50,9 +52,7 @@ def compose_violations(path: Path) -> list[str]:
             block.append(other)
         built = any(re.match(rf"^\s{{{indent}}}build:", b) for b in block)
         if image.endswith(":latest") or (not built and "@sha256:" not in image):
-            out.append(
-                f"{path.relative_to(REPO_ROOT)}:{n + 1}: image not pinned by digest: {image}"
-            )
+            out.append(f"{relative(path)}:{n + 1}: image not pinned by digest: {image}")
     return out
 
 
@@ -61,9 +61,7 @@ def dockerfile_violations(path: Path) -> list[str]:
     for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         m = FROM.match(line)
         if m and "@sha256:" not in m.group(1):
-            out.append(
-                f"{path.relative_to(REPO_ROOT)}:{n}: base image not pinned by digest: {m.group(1)}"
-            )
+            out.append(f"{relative(path)}:{n}: base image not pinned by digest: {m.group(1)}")
     return out
 
 
@@ -72,30 +70,23 @@ def workflow_violations(path: Path) -> list[str]:
     for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         m = USES.match(line)
         if m and not m.group(1).startswith("./") and not SHA.search(m.group(1)):
-            out.append(
-                f"{path.relative_to(REPO_ROOT)}:{n}: action not pinned to a commit SHA: "
-                f"{m.group(1)}"
-            )
+            out.append(f"{relative(path)}:{n}: action not pinned to a commit SHA: {m.group(1)}")
     return out
 
 
 def main() -> int:
     composes = _files("docker-compose*.yml")
     dockerfiles = _files("Dockerfile*")
+    workflows = sorted((root() / ".github" / "workflows").glob("*.yml"))
     violations = [v for p in composes for v in compose_violations(p)]
     violations += [v for p in dockerfiles for v in dockerfile_violations(p)]
-    workflows = sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml"))
     violations += [v for p in workflows for v in workflow_violations(p)]
-    if violations:
-        print("Unpinned images (X8):")
-        for v in violations:
-            print(f"  - {v}")
-        return 1
-    print(
-        f"All images pinned by digest ({len(composes)} compose files, "
-        f"{len(dockerfiles)} Dockerfiles); all actions pinned by SHA ({len(workflows)} workflows)."
+    return report(
+        violations,
+        failed="Unpinned images (X8)",
+        ok=f"All images pinned by digest ({len(composes)} compose files, {len(dockerfiles)} "
+        f"Dockerfiles); all actions pinned by SHA ({len(workflows)} workflows).",
     )
-    return 0
 
 
 if __name__ == "__main__":

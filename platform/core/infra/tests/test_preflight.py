@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import preflight  # noqa: E402
+import preflight
 
 EXAMPLE = {"DB_PASSWORD": "local_db", "API_SECRET_KEY": "", "KAGGLE_KEY": "", "DB_PORT": "5432"}
 STRONG = "q7Vb2xK9pLm4Zt8RwY3n"
@@ -40,7 +36,8 @@ def test_compose_literals_are_flagged(tmp_path):
     f = tmp_path / preflight.COMPOSE_FILES[0]
     f.parent.mkdir(parents=True)
     f.write_text(
-        "    environment:\n      MYSQL_PASSWORD: datahub\n      POSTGRES_PASSWORD: ${PW}\n"
+        "    environment:\n      MYSQL_PASSWORD: datahub\n      POSTGRES_PASSWORD: ${PW}\n",
+        encoding="utf-8",
     )
     found = preflight.compose_findings(tmp_path)
     assert len(found) == 1 and "MYSQL_PASSWORD is a literal" in found[0]

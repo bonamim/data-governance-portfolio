@@ -2,14 +2,11 @@
 folder holds them, and one definition per column across every contract."""
 
 import copy
-import sys
 from pathlib import Path
 
+import check_ontology
 import pytest
 import yaml
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "policies"))
-import check_ontology  # noqa: E402
 
 DOMAINS = {"customer", "sales"}
 CLASSES = {"restricted", "confidential", "internal", "public"}
@@ -54,7 +51,7 @@ def _define(root: Path, domain: str, term: str, meaning: dict) -> Path:
     }
     f = root / "domains" / domain / "contracts" / "definitions" / f"{term}.odcs.yaml"
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(yaml.safe_dump({**meaning, "authoritativeDefinitions": [link]}))
+    f.write_text(yaml.safe_dump({**meaning, "authoritativeDefinitions": [link]}), encoding="utf-8")
     return f
 
 
@@ -62,7 +59,7 @@ def _violations(root: Path, onto=None, definitions=None) -> list[str]:
     if definitions is None:
         definitions = {"OrderId": [_define(root, "sales", "order_id", ORDER_ID)]}
     return check_ontology.ontology_violations(
-        onto or ONTOLOGY, definitions, DOMAINS, CLASSES, root=root
+        onto or ONTOLOGY, definitions, DOMAINS, CLASSES, base=root
     )
 
 
@@ -171,7 +168,10 @@ def _link(term: str = "order_id") -> list[dict]:
 def _contract(root: Path, i: int, *columns: dict) -> None:
     f = root / "domains" / "sales" / "contracts" / f"port{i}.odcs.yaml"
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(yaml.safe_dump({"schema": [{"name": f"port{i}", "properties": list(columns)}]}))
+    f.write_text(
+        yaml.safe_dump({"schema": [{"name": f"port{i}", "properties": list(columns)}]}),
+        encoding="utf-8",
+    )
 
 
 def _repo(root: Path, *columns_by_contract: list[dict]) -> dict[str, list[Path]]:
@@ -212,7 +212,7 @@ def test_one_place_per_fact(tmp_path, local, message):
 
 @pytest.mark.parametrize("type_", ["businessDefinition", "semantics", "definition"])
 def test_a_column_takes_its_meaning_only_from_a_definition(tmp_path, type_):
-    (tmp_path / "elsewhere.yaml").write_text(yaml.safe_dump({"description": "x"}))
+    (tmp_path / "elsewhere.yaml").write_text(yaml.safe_dump({"description": "x"}), encoding="utf-8")
     link = [{"type": type_, "url": "../../../elsewhere.yaml"}]
     definitions = _repo(tmp_path, [{"name": "order_id", "authoritativeDefinitions": link}])
 
@@ -274,11 +274,11 @@ def test_an_unused_definition_is_reported(tmp_path):
 def test_a_table_names_the_entity_type_it_represents(tmp_path, url, message):
     onto = tmp_path / "governance" / "ontology" / "commerce.ontology.yaml"
     onto.parent.mkdir(parents=True, exist_ok=True)
-    onto.write_text("name: shop\n")
+    onto.write_text("name: shop\n", encoding="utf-8")
     definitions = _repo(tmp_path, [{"name": "order_id", "authoritativeDefinitions": _link()}])
     f = tmp_path / "domains" / "sales" / "contracts" / "port0.odcs.yaml"
-    doc = yaml.safe_load(f.read_text())
+    doc = yaml.safe_load(f.read_text(encoding="utf-8"))
     doc["schema"][0]["authoritativeDefinitions"] = [{"type": "ontology", "url": url}]
-    f.write_text(yaml.safe_dump(doc))
+    f.write_text(yaml.safe_dump(doc), encoding="utf-8")
 
     assert any(message in v for v in _contract_violations(tmp_path, definitions))
