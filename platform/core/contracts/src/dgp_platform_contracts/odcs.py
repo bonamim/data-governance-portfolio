@@ -42,6 +42,7 @@ import yaml
 RESOLVABLE_TYPES = ("semantics", "semantic", "definition", "businessDefinition")
 NOT_INHERITED = frozenset({"id", "name", "authoritativeDefinitions", "properties", "items"})
 DEFINITION_SUFFIXES = frozenset({".yaml", ".yml", ".json"})
+OUTPUT_PORT_TAG = "output_port"
 
 Reader = Callable[[Path], str]
 
@@ -59,6 +60,20 @@ def load(path: Path, *, read: Reader | None = None) -> dict:
     read = read or _read_file
     path = Path(path).resolve()
     return resolve(yaml.safe_load(read(path)) or {}, path, read=read)
+
+
+def output_port(doc: dict) -> dict | None:
+    """The schema object a contract publishes as an output port (tagged ``output_port``,
+    ADR-0012), or None for a landing or internal contract."""
+    return next(
+        (obj for obj in doc.get("schema") or [] if OUTPUT_PORT_TAG in (obj.get("tags") or [])),
+        None,
+    )
+
+
+def custom_properties(element: dict) -> dict:
+    """An element's ``customProperties`` as a plain mapping: property -> value."""
+    return {c.get("property"): c.get("value") for c in element.get("customProperties") or []}
 
 
 def linked_files(path: Path, *, read: Reader | None = None) -> set[Path]:
