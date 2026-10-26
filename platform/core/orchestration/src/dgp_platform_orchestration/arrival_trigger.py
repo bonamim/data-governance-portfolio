@@ -23,18 +23,16 @@ from typing import Any
 
 from airflow.triggers.base import BaseEventTrigger, TriggerEvent
 from dgp_platform_ingestion import arrivals
+from dgp_platform_ingestion.settings import PostgresSettings
 
 log = logging.getLogger(__name__)
 
 
 def _conninfo() -> str:
     """The queue role's connection, from the triggerer's environment (never serialized)."""
-    port = os.environ.get("ANALYTICS_INTERNAL_PORT", os.environ.get("ANALYTICS_PORT", "5433"))
-    return (
-        f"host={os.environ.get('ANALYTICS_HOST', 'localhost')} port={port} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} user=landing_events "
-        f"password={os.environ['LANDING_EVENTS_PASSWORD']}"
-    )
+    return PostgresSettings.analytics(
+        "landing_events", os.environ["LANDING_EVENTS_PASSWORD"]
+    ).conninfo()
 
 
 class LandingArrivalTrigger(BaseEventTrigger):

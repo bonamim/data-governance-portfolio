@@ -68,7 +68,7 @@ def send(
             "channel": r.get("channel"),
             "detail": detail or {},
         }
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310 — the domain's configured alert route
             url,
             data=json.dumps(body, default=str).encode(),
             headers={"Content-Type": "application/json"},

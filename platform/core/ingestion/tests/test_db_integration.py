@@ -23,7 +23,7 @@ def analytics():
         settings = Settings.from_env()
         with db.connect(settings.analytics_loader) as conn:
             yield conn
-    except Exception as exc:  # pragma: no cover - environment dependent
+    except (RuntimeError, psycopg.Error) as exc:  # pragma: no cover - needs a running warehouse
         pytest.skip(f"analytics warehouse not reachable: {exc}")
 
 

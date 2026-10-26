@@ -32,6 +32,31 @@ class PostgresSettings:
             f"user={self.user} password={self.password}"
         )
 
+    @classmethod
+    def analytics(cls, user: str, password: str) -> PostgresSettings:
+        """The analytics warehouse, as ``user``. Inside the compose network the internal port
+        applies (``ANALYTICS_INTERNAL_PORT``); from a laptop, the published one."""
+        port = os.environ.get("ANALYTICS_INTERNAL_PORT") or os.environ.get("ANALYTICS_PORT", "5433")
+        return cls(
+            os.environ.get("ANALYTICS_HOST", "localhost"),
+            int(port),
+            os.environ.get("ANALYTICS_DB", "analytics"),
+            user,
+            password,
+        )
+
+    @classmethod
+    def oltp(cls, user: str, password: str) -> PostgresSettings:
+        """The operational source database, as ``user`` (ports as for ``analytics``)."""
+        port = os.environ.get("OLTP_INTERNAL_PORT") or os.environ.get("OLTP_PORT", "5432")
+        return cls(
+            os.environ.get("OLTP_HOST", "localhost"),
+            int(port),
+            os.environ.get("OLTP_DB", "shop_oltp"),
+            user,
+            password,
+        )
+
 
 @dataclass(frozen=True)
 class ObjectStoreSettings:
@@ -68,26 +93,11 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> Settings:
-        oltp_host = os.environ.get("OLTP_HOST", "localhost")
-        oltp_port = int(os.environ.get("OLTP_INTERNAL_PORT", os.environ.get("OLTP_PORT", "5432")))
-        oltp_db = _env("OLTP_DB", "shop_oltp")
-
-        ana_host = os.environ.get("ANALYTICS_HOST", "localhost")
-        ana_port = int(
-            os.environ.get("ANALYTICS_INTERNAL_PORT", os.environ.get("ANALYTICS_PORT", "5433"))
-        )
-        ana_db = _env("ANALYTICS_DB", "analytics")
-
+        analytics, oltp = PostgresSettings.analytics, PostgresSettings.oltp
         return cls(
-            oltp_loader=PostgresSettings(
-                oltp_host, oltp_port, oltp_db, "oltp_loader", _env("OLTP_LOADER_PASSWORD")
-            ),
-            oltp_reader=PostgresSettings(
-                oltp_host, oltp_port, oltp_db, "oltp_reader", _env("OLTP_READER_PASSWORD")
-            ),
-            analytics_loader=PostgresSettings(
-                ana_host, ana_port, ana_db, "platform_loader", _env("PLATFORM_LOADER_PASSWORD")
-            ),
+            oltp_loader=oltp("oltp_loader", _env("OLTP_LOADER_PASSWORD")),
+            oltp_reader=oltp("oltp_reader", _env("OLTP_READER_PASSWORD")),
+            analytics_loader=analytics("platform_loader", _env("PLATFORM_LOADER_PASSWORD")),
             objectstore=ObjectStoreSettings(
                 # Empty MINIO_ENDPOINT selects real AWS S3; empty keys fall back to
                 # boto3's default credential chain (ADR-0009, cloud portability).
@@ -102,9 +112,7 @@ class Settings:
                 lock_mode=os.environ.get("LANDING_LOCK_MODE", "GOVERNANCE"),
             ),
             kaggle_dataset=os.environ.get("OLIST_DATASET", "olistbr/brazilian-ecommerce"),
-            landing_events=PostgresSettings(
-                ana_host, ana_port, ana_db, "landing_events", os.environ["LANDING_EVENTS_PASSWORD"]
-            )
+            landing_events=analytics("landing_events", os.environ["LANDING_EVENTS_PASSWORD"])
             if os.environ.get("LANDING_EVENTS_PASSWORD")
             else None,
         )

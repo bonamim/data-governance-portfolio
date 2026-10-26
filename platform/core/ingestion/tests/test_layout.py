@@ -120,10 +120,17 @@ def _names(batches) -> list[tuple]:
 
 
 def test_expected_files_waits_for_the_whole_partition():
-    rules = _rules(completionSignal="expected_files", expectedFiles=2,
-                   filenamePattern=r"^part(?P<n>\d)_(?P<date>\d{8})\.csv$")  # fmt: skip
-    objs = [_Obj("part1_20261014.csv"), _Obj("part2_20261014.csv"), _Obj("part1_20261015.csv"),
-            _Obj("garbage.csv")]  # fmt: skip
+    rules = _rules(
+        completionSignal="expected_files",
+        expectedFiles=2,
+        filenamePattern=r"^part(?P<n>\d)_(?P<date>\d{8})\.csv$",
+    )
+    objs = [
+        _Obj("part1_20261014.csv"),
+        _Obj("part2_20261014.csv"),
+        _Obj("part1_20261015.csv"),
+        _Obj("garbage.csv"),
+    ]
     ready, waiting = layout.plan_batches(rules, objs, ARRIVED)
     assert _names(ready) == [
         (None, ["garbage.csv"], False),  # unparseable: its own batch, quarantined by naming
@@ -133,15 +140,25 @@ def test_expected_files_waits_for_the_whole_partition():
 
 
 def test_marker_closes_its_partition_only():
-    rules = _rules(completionSignal="marker", completionMarker=r"^_DONE_(?P<date>\d{8})$",
-                   filenamePattern=r"^tx_(?P<date>\d{8})_\d+\.csv$")  # fmt: skip
-    objs = [_Obj("tx_20261014_1.csv"), _Obj("tx_20261014_2.csv"), _Obj("_DONE_20261014"),
-            _Obj("tx_20261015_1.csv"), _Obj("_DONE_20261016")]  # fmt: skip
+    rules = _rules(
+        completionSignal="marker",
+        completionMarker=r"^_DONE_(?P<date>\d{8})$",
+        filenamePattern=r"^tx_(?P<date>\d{8})_\d+\.csv$",
+    )
+    objs = [
+        _Obj("tx_20261014_1.csv"),
+        _Obj("tx_20261014_2.csv"),
+        _Obj("_DONE_20261014"),
+        _Obj("tx_20261015_1.csv"),
+        _Obj("_DONE_20261016"),
+    ]
     ready, waiting = layout.plan_batches(rules, objs, ARRIVED)
     assert _names(ready) == [("dt=2026-10-14", ["tx_20261014_1.csv", "tx_20261014_2.csv"], True)]
     # a marker with no data yet is still waiting (incomplete), as is data with no marker
-    assert _names(waiting) == [("dt=2026-10-15", ["tx_20261015_1.csv"], False),
-                               ("dt=2026-10-16", [], True)]  # fmt: skip
+    assert _names(waiting) == [
+        ("dt=2026-10-15", ["tx_20261015_1.csv"], False),
+        ("dt=2026-10-16", [], True),
+    ]
 
 
 def test_per_file_and_settle_batches_are_single_files():
@@ -154,8 +171,11 @@ def test_per_file_and_settle_batches_are_single_files():
 def test_batch_signal_rules_are_validated():
     assert "needs expectedFiles" in " ".join(_rules(completionSignal="expected_files").problems())
     assert "needs a completionMarker" in " ".join(_rules(completionSignal="marker").problems())
-    bad = _rules(completionSignal="marker", completionMarker=r"^_SUCCESS$",
-                 filenamePattern=r"^x_(?P<date>\d{8})\.csv$")  # fmt: skip
+    bad = _rules(
+        completionSignal="marker",
+        completionMarker=r"^_SUCCESS$",
+        filenamePattern=r"^x_(?P<date>\d{8})\.csv$",
+    )
     assert "completionMarker needs the partition's" in " ".join(bad.problems())
 
 

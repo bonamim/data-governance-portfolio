@@ -12,7 +12,8 @@ def test_landing_rules_include_what_a_column_inherits(tmp_path):
                 "required": True,
                 "logicalTypeOptions": {"minimum": 1, "maximum": 5},
             }
-        )
+        ),
+        encoding="utf-8",
     )
     path = tmp_path / "reviews.odcs.yaml"
     path.write_text(
@@ -34,7 +35,8 @@ def test_landing_rules_include_what_a_column_inherits(tmp_path):
                     }
                 ],
             }
-        )
+        ),
+        encoding="utf-8",
     )
 
     (rule,) = load_contract(path).columns

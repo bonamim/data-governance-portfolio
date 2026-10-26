@@ -78,8 +78,9 @@ def check(
                 ).fetchall()
             }
             inbox = store.list(store.inbox, layout.inbox_prefix(d.source_system, d.name))
-            _, waiting = layout.plan_batches(rules, [o for o in inbox if not o.key.endswith("/")],
-                                             now)  # fmt: skip
+            _, waiting = layout.plan_batches(
+                rules, [o for o in inbox if not o.key.endswith("/")], now
+            )
             waiting_files = sum(len(b.files) for b in waiting if b.partition == partition)
             state = classify(statuses, waiting_files)
             detail = {
@@ -92,13 +93,19 @@ def check(
             findings.append(f)
             if state != "delivered":
                 alerts.send(
-                    conn, repo_root, domain=d.domain, kind=f"landing.sla.{state}",
+                    conn,
+                    repo_root,
+                    domain=d.domain,
+                    kind=f"landing.sla.{state}",
                     subject=f"{dataset_id} {partition} {state} at its {deadline:%H:%M} UTC "
                     f"deadline — {detail}",
                     dedup_key=f"landing.sla:{dataset_id}:{partition}",
-                    detail={"partition": partition, "deadline": deadline.isoformat(),
-                            "state": state},
-                )  # fmt: skip
+                    detail={
+                        "partition": partition,
+                        "deadline": deadline.isoformat(),
+                        "state": state,
+                    },
+                )
             log.info("%s %s: %s (deadline %s)", dataset_id, partition, state, deadline)
     if settings.landing_events is not None:
         with db.connect(settings.landing_events) as q:

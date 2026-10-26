@@ -45,6 +45,12 @@ class FilenameMismatch(ValueError):
     """The delivered file name does not follow the contract's ``filenamePattern``."""
 
 
+def _has_date_group(pattern: re.Pattern) -> bool:
+    """True if the pattern names a business date: ``(?P<date>)``, or ``(?P<year>)(?P<month>)``."""
+    groups = set(pattern.groupindex)
+    return "date" in groups or {"year", "month"} <= groups
+
+
 @dataclass(frozen=True)
 class LandingRules:
     """A landing dataset's operational rules, read from its ODCS contract."""
@@ -89,35 +95,40 @@ class LandingRules:
 
     def problems(self) -> list[str]:
         """Why these rules cannot be executed (empty when valid). Used by CI and the loader."""
+        out = self._partition_problems()
+        if self.retention_days not in RETENTION_CLASSES:
+            out.append(f"retentionDays {self.retention_days} not in {RETENTION_CLASSES}")
+        return out + self._completion_problems()
+
+    def _partition_problems(self) -> list[str]:
         out = []
         if self.partition_scheme not in PARTITION_SCHEMES:
             out.append(f"partitionScheme '{self.partition_scheme}' not in {[*PARTITION_SCHEMES]}")
         if self.partition_source not in PARTITION_SOURCES:
             out.append(f"partitionSource '{self.partition_source}' not in {PARTITION_SOURCES}")
-        if self.partition_source == "filename":
-            if self.filename_pattern is None:
-                out.append("partitionSource 'filename' needs a filenamePattern")
-            else:
-                groups = set(self.filename_pattern.groupindex)
-                if "date" not in groups and not {"year", "month"} <= groups:
-                    out.append("filenamePattern needs a (?P<date>) or (?P<year>)(?P<month>) group")
-                hourly = "hr=" in self.partition_scheme
-                if hourly and "hour" not in groups:
-                    out.append("an hourly partitionScheme needs a (?P<hour>) group")
-        if self.retention_days not in RETENTION_CLASSES:
-            out.append(f"retentionDays {self.retention_days} not in {RETENTION_CLASSES}")
-        if self.completion_signal not in COMPLETION_SIGNALS:
-            out.append(f"completionSignal '{self.completion_signal}' not in {COMPLETION_SIGNALS}")
-        if self.completion_signal == "expected_files" and not (self.expected_files or 0) >= 1:
-            out.append("completionSignal 'expected_files' needs expectedFiles >= 1")
-        if self.completion_signal == "marker":
-            if self.marker_pattern is None:
-                out.append("completionSignal 'marker' needs a completionMarker pattern")
-            elif self.partition_source == "filename":
-                groups = set(self.marker_pattern.groupindex)
-                if "date" not in groups and not {"year", "month"} <= groups:
-                    out.append("completionMarker needs the partition's (?P<date>) group")
+        if self.partition_source != "filename":
+            return out
+        if self.filename_pattern is None:
+            return [*out, "partitionSource 'filename' needs a filenamePattern"]
+        if not _has_date_group(self.filename_pattern):
+            out.append("filenamePattern needs a (?P<date>) or (?P<year>)(?P<month>) group")
+        hourly = "hr=" in self.partition_scheme
+        if hourly and "hour" not in self.filename_pattern.groupindex:
+            out.append("an hourly partitionScheme needs a (?P<hour>) group")
         return out
+
+    def _completion_problems(self) -> list[str]:
+        if self.completion_signal not in COMPLETION_SIGNALS:
+            return [f"completionSignal '{self.completion_signal}' not in {COMPLETION_SIGNALS}"]
+        if self.completion_signal == "expected_files" and not (self.expected_files or 0) >= 1:
+            return ["completionSignal 'expected_files' needs expectedFiles >= 1"]
+        if self.completion_signal != "marker":
+            return []
+        if self.marker_pattern is None:
+            return ["completionSignal 'marker' needs a completionMarker pattern"]
+        if self.partition_source == "filename" and not _has_date_group(self.marker_pattern):
+            return ["completionMarker needs the partition's (?P<date>) group"]
+        return []
 
     @property
     def batched(self) -> bool:
@@ -131,9 +142,9 @@ class LandingRules:
         fmt = PARTITION_SCHEMES[self.partition_scheme]
         if self.partition_source == "arrival":
             return arrived.astimezone(UTC).strftime(fmt)
-        assert self.marker_pattern is not None
-        m = self.marker_pattern.match(filename)
-        assert m is not None
+        m = self.marker_pattern.match(filename) if self.marker_pattern else None
+        if m is None:
+            raise FilenameMismatch(f"'{filename}' is not a completion marker of this dataset")
         return _business_time(m.groupdict()).strftime(fmt)
 
     def due_partition(self, now: datetime) -> tuple[str, datetime] | None:
@@ -162,12 +173,10 @@ class LandingRules:
         fmt = PARTITION_SCHEMES[self.partition_scheme]
         if self.partition_source == "arrival":
             return arrived.astimezone(UTC).strftime(fmt)
-        assert self.filename_pattern is not None
-        m = self.filename_pattern.match(filename)
+        m = self.filename_pattern.match(filename) if self.filename_pattern else None
         if not m:
-            raise FilenameMismatch(
-                f"'{filename}' does not match filenamePattern {self.filename_pattern.pattern!r}"
-            )
+            pattern = self.filename_pattern.pattern if self.filename_pattern else None
+            raise FilenameMismatch(f"'{filename}' does not match filenamePattern {pattern!r}")
         return _business_time(m.groupdict()).strftime(fmt)
 
     def partition_from_arrival(self, arrived: datetime) -> str:

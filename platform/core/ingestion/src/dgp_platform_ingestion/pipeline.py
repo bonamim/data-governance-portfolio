@@ -265,9 +265,16 @@ class _Gate:
         if rules.filename_pattern is not None:
             extra.append(Assertion("naming.filename_pattern", None, True, "file name matches"))
             future = rules.in_future(partition, datetime.now(UTC))
-            extra.append(Assertion("naming.business_date", None, not future,
-                                   f"business date {partition} is in the future" if future
-                                   else "business date not in the future"))  # fmt: skip
+            extra.append(
+                Assertion(
+                    "naming.business_date",
+                    None,
+                    not future,
+                    f"business date {partition} is in the future"
+                    if future
+                    else "business date not in the future",
+                )
+            )
         # Integrity: a partner that sends x-amz-checksum-sha256 gets it verified (ADR-0016).
         if (sent := self.store.partner_checksum(obj)) is not None:
             ok = sent == sha
@@ -505,14 +512,22 @@ def load_raw(
                 total += rows
             for a in (a for b in older for a in b):
                 ledger.record(
-                    analytics, **common, **_from_gate(a), status="superseded",
+                    analytics,
+                    **common,
+                    **_from_gate(a),
+                    status="superseded",
                     message=f"a newer accepted batch was loaded instead ({newest[0].batch_id})",
-                )  # fmt: skip
+                )
             analytics.commit()
             outcomes["loaded"] += len(newest)
             outcomes["superseded"] += sum(len(b) for b in older)
-            log.info("loaded %s.%s (%d rows) from %d file(s)", d.raw_schema, d.raw_table, total,
-                     len(newest))  # fmt: skip
+            log.info(
+                "loaded %s.%s (%d rows) from %d file(s)",
+                d.raw_schema,
+                d.raw_table,
+                total,
+                len(newest),
+            )
     log.info("load outcomes: %s", outcomes)
     return outcomes
 

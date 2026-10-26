@@ -9,6 +9,7 @@ quoted so a hostile header cannot inject SQL.
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import IO
@@ -20,7 +21,7 @@ from .settings import PostgresSettings
 
 
 @contextmanager
-def connect(settings: PostgresSettings):
+def connect(settings: PostgresSettings) -> Iterator[psycopg.Connection]:
     with psycopg.connect(settings.conninfo(), autocommit=False) as conn:
         yield conn
 

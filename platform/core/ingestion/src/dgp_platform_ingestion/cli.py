@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
                 + (f" — {f.detail}" if f.detail else "")
             )
             for f in sla.check(repo_root, settings, args.domain)
-        ],  # fmt: skip
+        ],
         "replay": lambda: pipeline.replay(
             repo_root, settings, run_id, args.partition_date or pipeline._today_utc(), args.domain
         ),

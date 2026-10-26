@@ -10,18 +10,32 @@ REPO = Path(__file__).resolve().parents[4]
 
 
 def _mb(batch_size="month", lookback=1) -> wap.WapModel:
-    return wap.WapModel("orders", "sales_silver", "orders", "incremental", "microbatch",
-                        "order_purchase_timestamp", batch_size, lookback)  # fmt: skip
+    return wap.WapModel(
+        "orders",
+        "sales_silver",
+        "orders",
+        "incremental",
+        "microbatch",
+        "order_purchase_timestamp",
+        batch_size,
+        lookback,
+    )
 
 
 def _manifest(edges: dict[str, list[str]], project="dgp_sales") -> dict:
     """A tiny manifest: model name -> its children."""
     names = set(edges) | {c for cs in edges.values() for c in cs}
     nodes = {
-        f"model.{project}.{n}": {"resource_type": "model", "package_name": project, "name": n,
-                                 "schema": "s", "alias": n, "config": {"materialized": "table"}}
+        f"model.{project}.{n}": {
+            "resource_type": "model",
+            "package_name": project,
+            "name": n,
+            "schema": "s",
+            "alias": n,
+            "config": {"materialized": "table"},
+        }
         for n in names
-    }  # fmt: skip
+    }
     child = {
         f"model.{project}.{n}": [f"model.{project}.{c}" for c in edges.get(n, [])] for n in names
     }
@@ -39,8 +53,12 @@ def test_backfill_window_is_aligned_to_whole_batches():
     assert (w.start, w.end) == (datetime(2017, 1, 1), datetime(2017, 3, 1))  # end on a boundary
     w = wap.batch_window(_mb(), datetime(2026, 10, 16), datetime(2017, 1, 1), datetime(2017, 2, 10))
     assert w.end == datetime(2017, 3, 1)  # a partial batch is included whole
-    assert w.flags() == ["--event-time-start", "2017-01-01T00:00:00",
-                         "--event-time-end", "2017-03-01T00:00:00"]  # fmt: skip
+    assert w.flags() == [
+        "--event-time-start",
+        "2017-01-01T00:00:00",
+        "--event-time-end",
+        "2017-03-01T00:00:00",
+    ]
 
 
 def test_daily_and_yearly_batches_and_empty_window():

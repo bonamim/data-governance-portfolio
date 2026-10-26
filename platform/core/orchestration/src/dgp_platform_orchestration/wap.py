@@ -27,6 +27,7 @@ from pathlib import Path
 
 import psycopg
 import yaml
+from dgp_platform_ingestion.settings import PostgresSettings
 
 log = logging.getLogger("dgp.wap")
 
@@ -210,12 +211,9 @@ def batch_window(
 
 # ------------------------------------------------------------------------- warehouse I/O
 def _conninfo(domain: str) -> str:
-    port = os.environ.get("ANALYTICS_INTERNAL_PORT", os.environ.get("ANALYTICS_PORT", "5433"))
-    return (
-        f"host={os.environ.get('ANALYTICS_HOST', 'localhost')} port={port} "
-        f"dbname={os.environ.get('ANALYTICS_DB', 'analytics')} user={domain}_role "
-        f"password={os.environ[f'{domain.upper()}_ROLE_PASSWORD']}"
-    )
+    """The domain role's connection: a domain's batches are written as the domain itself."""
+    password = os.environ[f"{domain.upper()}_ROLE_PASSWORD"]
+    return PostgresSettings.analytics(f"{domain}_role", password).conninfo()
 
 
 def port_is_table(domain: str, model: WapModel) -> bool:
@@ -304,8 +302,9 @@ def audit_and_promote(
             raise RuntimeError(f"{domain}.{model.name}: promote failed (candidate kept)")
         return True
     _op(repo_root, domain, "wap_drop_candidate", {"model": model.name})
-    log.warning("QUARANTINED %s.%s: audit failed — consumers keep the last good version",
-                domain, model.name)  # fmt: skip
+    log.warning(
+        "QUARANTINED %s.%s: audit failed — consumers keep the last good version", domain, model.name
+    )
     return False
 
 
@@ -343,7 +342,7 @@ def publish_domain(
         else:
             quarantined.append(m.name)
     ok = ok and not quarantined
-    if downstream := plain_descendants(manifest, domain, names, quarantined):
-        if dbt(repo_root, domain, "build", *refresh, "--select", *downstream):
-            ok = False
+    downstream = plain_descendants(manifest, domain, names, quarantined)
+    if downstream and dbt(repo_root, domain, "build", *refresh, "--select", *downstream):
+        ok = False
     return ok
