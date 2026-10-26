@@ -1,7 +1,7 @@
 # The business ontology (ADR-0027): what the business is made of and how it relates — customers,
 # orders, reviews, sellers, places — independent of any source system, table or analytics model.
 # An Apache Ossie ontology document, validated with Ossie's own validator
-# (platform/context/semantics/vendor/ossie/). Ossie requires one self-contained document, so the whole
+# (platform/context/semantics/src/dgp_platform_semantics/vendor/ossie/). Ossie requires one self-contained document, so the whole
 # business is modelled here, owned by the governance guild (one representative per domain).
 #
 # This is the business glossary in a structured form. A concept with a `description` here is a

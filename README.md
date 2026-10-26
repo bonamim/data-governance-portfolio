@@ -1,46 +1,45 @@
-# Data Governance Portfolio — Data Mesh on Open Source
+# Data Governance Portfolio: a data mesh on open source
 
-A data platform built on **data mesh** principles where **governance is built in, not bolted on**.
-Every dataset — from a raw file in the landing zone to a dashboard chart — is owned by a domain,
-described by a contract, checked for quality, and traceable through lineage in the catalog.
-AI sits on top and answers questions only from governed, certified data products.
+This is a working data platform where governance is part of how things are built, not a review
+that happens afterwards. Every dataset, from a file a partner drops in the landing zone to a chart
+in a dashboard, has an owning domain, a contract that describes it, quality checks, and lineage you
+can follow in the catalog. AI assistants sit on top and can only answer from governed data.
 
-Built entirely with open-source tools on the public
+It runs entirely on open-source tools, on the public
 [Olist Brazilian E-Commerce dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce).
 
-> **Built to be promoted, not just demoed.** The local setup runs in Docker, and every
-> component has a documented production configuration and disaster-recovery plan —
-> see [Production readiness](docs/production-readiness.md) and
-> [Disaster recovery](docs/disaster-recovery.md).
+> **Built to be promoted, not just demoed.** Locally it runs in Docker. Every component also has a
+> documented production configuration and a disaster-recovery plan: see
+> [Production readiness](docs/production-readiness.md) and [Disaster recovery](docs/disaster-recovery.md).
 
 ---
 
-## Data mesh in this project
+## How the four data mesh principles show up here
 
-| Principle | Implementation |
+| Principle | What it looks like in this repository |
 |---|---|
-| **Domain ownership** | Four domains — Sales, Customer, Marketplace, Customer Experience — each owning its sources, contracts, dbt project and data products |
-| **Data as a product** | Each domain publishes data products with an ODCS contract, an owner, an SLA and a certification status in DataHub |
-| **Self-serve platform** | `platform/` provides shared storage, orchestration, ingestion, quality and cataloging — domains plug in without touching infrastructure |
-| **Federated computational governance** | `governance/` defines global standards and policies as code, enforced automatically in CI on every domain |
+| **Domain ownership** | Five domains (Sales, Customer, Marketplace, Customer Experience, Reference). Each owns its sources, contracts, dbt project and data products. |
+| **Data as a product** | A domain publishes data products. Each has an ODCS contract, an owner, an SLA and named consumers, and appears in DataHub. |
+| **Self-serve platform** | `platform/` provides storage, orchestration, ingestion, quality, access control and the catalog. A domain plugs in with configuration; it never writes platform code. |
+| **Federated computational governance** | `governance/` holds the shared rules as code. CI enforces them on every domain, on every pull request. |
 
-Details: [docs/data-mesh.md](docs/data-mesh.md)
+More detail: [docs/data-mesh.md](docs/data-mesh.md).
 
 ---
 
-## What this project demonstrates
+## What it demonstrates
 
-| Governance capability | How it is shown |
+| Capability | How you can see it |
 |---|---|
-| **Data contracts** | Every dataset — landing files, source tables, warehouse models — has an [ODCS](https://bitol-io.github.io/open-data-contract-standard/) contract |
-| **Quality at every layer** | Landing-zone files are tested *before* they are loaded; source tables and dbt models are tested against their contracts |
-| **Breaking-change protection** | A pull request that breaks a contract is blocked, and the consuming domains are alerted |
-| **Cross-platform lineage** | Navigate in DataHub from a raw file in object storage → source DB → warehouse → dashboard |
-| **Ownership & semantics** | Domains, data products, owners and glossary terms published to the catalog |
-| **Governed AI** | An AI agent answers questions through the catalog (MCP), using certified data products only |
-| **Production readiness** | Hardened configuration, secrets management, least-privilege access, backups and tested restores |
+| **Data contracts** | Every governed boundary (landing files, output ports) has an [ODCS](https://bitol-io.github.io/open-data-contract-standard/) contract. |
+| **Quality at every layer** | Landing files are checked *before* anything loads; dbt models are tested against their contracts. |
+| **Breaking-change protection** | A pull request that breaks a contract is blocked, and it names the consuming teams. |
+| **Lineage across platforms** | In DataHub you can follow a raw file in object storage to the source database, the warehouse and the dashboard. |
+| **Shared meaning** | Domains, data products, owners and a business glossary are published to the catalog from the definitions in git. |
+| **Governed AI** | An AI assistant gets numbers only from the governed semantic layer, as a least-privilege role. |
+| **Production readiness** | Hardened configuration, least-privilege access, backups and a restore drill that is actually run. |
 
-Every claim above is backed by a reproducible scenario — see [Proofs](docs/proofs.md).
+Every row is backed by a scenario you can run: see [Proofs](docs/proofs.md).
 
 ---
 
@@ -53,39 +52,42 @@ graph LR
         S3["MinIO landing zone<br/>reviews · geolocation · sellers files"]
     end
 
-    subgraph wh["Postgres analytics — one schema set per domain"]
+    subgraph wh["Postgres analytics: one set of schemas per domain"]
         RAW["raw"]
-        STG["staging (dbt)"]
-        DP["data products (dbt)<br/>contract-enforced"]
+        MED["bronze · silver · gold (dbt)"]
+        DP["output ports<br/>contract-enforced"]
     end
 
     ORCH["Airflow 3<br/>orchestration"]
+    SEM["Apache Ossie<br/>semantic layer"]
     BI["Apache Superset"]
     DH["DataHub<br/>catalog · lineage · contracts · quality"]
-    AI["AI agent<br/>via DataHub MCP"]
-    CI["GitHub Actions<br/>contract gate"]
+    AI["AI assistants<br/>via MCP"]
+    CI["GitHub Actions<br/>governance checks"]
 
-    S3 -->|"quality gate → load"| RAW
+    S3 -->|"contract gate, then load"| RAW
     OLTP -->|load| RAW
-    RAW --> STG --> DP --> BI
+    RAW --> MED --> DP
+    DP --> SEM
+    SEM --> BI
+    SEM --> AI
 
     ORCH -. runs .-> RAW
-    ORCH -. runs .-> STG
-    ORCH -. runs .-> DP
+    ORCH -. runs .-> MED
 
     sources -.metadata + quality.-> DH
     wh -.metadata + tests.-> DH
     ORCH -.run lineage.-> DH
     BI -.chart lineage.-> DH
-    DH --> AI
+    DH -.discovery.-> AI
     CI -.blocks breaking PRs.-> DP
 ```
 
-Every governed fact is written once and the rest is generated — source → compile → validate → deploy:
-see [docs/source-compile-deploy.md](docs/source-compile-deploy.md).
+Each governed fact is written once, and everything else is generated from it (source, compile,
+validate, deploy): see [docs/source-compile-deploy.md](docs/source-compile-deploy.md).
 
-Three storage platforms are used on purpose — **MinIO (S3)**, **Postgres `shop_oltp`** and
-**Postgres `analytics`** — so lineage crosses real platform boundaries, as it does in a company.
+Three storage platforms are used on purpose (MinIO for S3, Postgres `shop_oltp`, Postgres
+`analytics`), so lineage crosses real platform boundaries, as it does in a company.
 
 ---
 
@@ -93,37 +95,37 @@ Three storage platforms are used on purpose — **MinIO (S3)**, **Postgres `shop
 
 | Layer | Tool | Decision |
 |---|---|---|
-| Landing zone | [MinIO](https://github.com/minio/minio) (S3-compatible) | — |
+| Landing zone | [MinIO](https://github.com/minio/minio) (S3-compatible) | [ADR-0024](docs/adr/0024-landing-zone-layout-access-and-lifecycle.md) |
 | Operational source | PostgreSQL `shop_oltp` | — |
-| Warehouse | PostgreSQL `analytics` | — |
+| Warehouse | PostgreSQL `analytics` | [ADR-0012](docs/adr/0012-medallion-and-output-ports.md) |
 | Orchestration | [Apache Airflow 3](https://github.com/apache/airflow) | [ADR-0005](docs/adr/0005-airflow-orchestration.md) |
-| State management | Airflow data intervals + ingestion ledger + write-audit-publish | [ADR-0006](docs/adr/0006-pipeline-state.md) |
-| Transformation | [dbt Core](https://github.com/dbt-labs/dbt-core) + [dbt-loom](https://github.com/nicholasyager/dbt-loom) for cross-domain refs | [ADR-0001](docs/adr/0001-dbt-transformation.md) |
-| Data contracts | [ODCS](https://github.com/bitol-io/open-data-contract-standard) + [datacontract-cli](https://github.com/datacontract/datacontract-cli) | — |
-| Catalog | [DataHub](https://github.com/datahub-project/datahub) | — |
-| Semantic layer | [Apache Ossie](https://github.com/apache/ossie) (incubating) | [ADR-0010](docs/adr/0010-semantic-layer-ossie.md) |
+| Pipeline state | Airflow data intervals, an ingestion ledger, write-audit-publish | [ADR-0006](docs/adr/0006-pipeline-state.md) |
+| Transformation | [dbt Core](https://github.com/dbt-labs/dbt-core), with [dbt-loom](https://github.com/nicholasyager/dbt-loom) for cross-domain refs | [ADR-0001](docs/adr/0001-dbt-transformation.md) |
+| Data contracts | [ODCS](https://github.com/bitol-io/open-data-contract-standard) and [datacontract-cli](https://github.com/datacontract/datacontract-cli) | — |
+| Catalog | [DataHub](https://github.com/datahub-project/datahub) | [ADR-0018](docs/adr/0018-catalog-deployment-and-catalog-as-code.md) |
+| Semantic layer and ontology | [Apache Ossie](https://github.com/apache/ossie) (incubating) | [ADR-0010](docs/adr/0010-semantic-layer-ossie.md), [ADR-0027](docs/adr/0027-business-ontology.md) |
 | Reporting | [Apache Superset](https://github.com/apache/superset) | — |
-| Module boundaries | uv workspace + CODEOWNERS + CI boundary check | [ADR-0008](docs/adr/0008-monorepo-module-boundaries.md) |
-| Cloud portability | S3 / SQL / OIDC behind configurable endpoints | [ADR-0009](docs/adr/0009-cloud-portability.md) |
+| Governed AI | MCP servers: DataHub's, and our own semantic server | [ADR-0020](docs/adr/0020-governed-ai-mcp.md), [ADR-0021](docs/adr/0021-federated-domain-agents.md) |
+| Module boundaries | A uv workspace (one package per capability), CODEOWNERS and a CI boundary check | [ADR-0008](docs/adr/0008-monorepo-module-boundaries.md) |
+| Cloud portability | S3, SQL and OIDC behind configurable endpoints | [ADR-0009](docs/adr/0009-cloud-portability.md) |
 | CI/CD | GitHub Actions | — |
-| AI | DataHub MCP + Apache Ossie semantics + LLM agent | — |
 
-Architecture decisions are recorded in [docs/adr/](docs/adr/).
+All architecture decisions are in [docs/adr/](docs/adr/).
 
 ---
 
-## Running locally
+## Running it locally
 
 ### Prerequisites
 
 | Tool | Notes |
 |---|---|
-| [Colima](https://github.com/abiosoft/colima) + Docker CLI + Docker Compose plugin | Fully open-source container runtime ([ADR-0004](docs/adr/0004-colima-local-runtime.md)). Any Docker-compatible engine works. |
+| [Colima](https://github.com/abiosoft/colima), the Docker CLI and the Docker Compose plugin | An open-source container runtime ([ADR-0004](docs/adr/0004-colima-local-runtime.md)). Any Docker-compatible engine works. |
 | [uv](https://github.com/astral-sh/uv) | Python environments and dependencies |
-| Kaggle account + API token | To download the Olist dataset |
+| A Kaggle account and API token | To download the Olist dataset |
 
-The full stack (DataHub, Superset, Airflow, MinIO, 2× Postgres) needs a larger VM than
-Colima's default. Use a dedicated profile:
+The full stack (DataHub, Superset, Airflow, MinIO and two Postgres instances) needs a bigger VM
+than Colima's default, so use a dedicated profile:
 
 ```bash
 brew install colima docker docker-compose
@@ -131,104 +133,104 @@ colima start governance --cpu 6 --memory 20 --disk 120 --vm-type vz --mount-type
 docker context use colima-governance
 ```
 
-### M1 — platform and ingestion
+### The platform and ingestion
 
 ```bash
-# 1. Configuration (local defaults; never commit .env)
+# 1. Configuration: local defaults. Never commit .env.
 cp .env.example .env
 
-# 2. Start the platform: MinIO (landing inbox + archive, state) and two Postgres instances.
-#    Creates the buckets and landing access principals, per-domain schemas/roles and the ledger.
+# 2. Start the platform: MinIO (landing inbox, archive, state) and two Postgres instances.
+#    This creates the buckets, the landing-zone principals, each domain's schemas and roles,
+#    and the ingestion ledger.
 make up
 make verify-infra
 
-# 3. Install the Python workspace (one package per platform capability).
+# 3. Install the Python workspace (one package per capability).
 make install
 
-# 4. Add your Kaggle token so the Olist dataset can be downloaded, either:
-#      - set KAGGLE_USERNAME / KAGGLE_KEY in .env, or
-#      - place kaggle.json at ~/.kaggle/kaggle.json
+# 4. Add your Kaggle token so the Olist dataset can be downloaded. Either set
+#    KAGGLE_USERNAME / KAGGLE_KEY in .env, or put kaggle.json in ~/.kaggle/.
 #    Create one at https://www.kaggle.com/settings -> API -> Create New Token.
 
-# 5. Run ingestion: download -> seed shop_oltp -> land files -> contract gate -> load raw (+ ledger).
+# 5. Ingest: download -> seed shop_oltp -> land files -> contract gate -> load raw.
 set -a && source .env && set +a
 uv run dgp-ingest all
 ```
 
-After step 5, every dataset is in `<domain>_raw` in the `analytics` warehouse and every
-load is recorded in `platform_meta.ingestion_ledger`. Landing files are drained from
-`landing-inbox` into `landing-archive/accepted/` (or `quarantine/`, ADR-0024) by the contract gate
-before anything is loaded; the load reads only accepted files (ADR-0025). Re-running is safe:
-a re-delivered unchanged file is skipped by checksum (the idempotency behind proof P6).
+After step 5, every dataset is in its domain's `<domain>_raw` schema in the `analytics`
+warehouse, and every load is recorded in `platform_meta.ingestion_ledger`. The contract gate drains
+landing files from `landing-inbox` into `landing-archive/accepted/` (or `quarantine/`, ADR-0024)
+before anything loads, and the load reads accepted files only (ADR-0025). Running it again is
+safe: a file whose content was already loaded is skipped, by its SHA-256 (proof P6).
 
-**Governance and quality gates** (run before every commit):
-
-```bash
-make check          # module boundaries (ADR-0008) + lint + tests
-```
-
-### M1 — orchestration with Airflow 3
-
-The same ingestion capability runs under Airflow as **one DAG bundle per domain** (ADR-0005):
-a platform `acquire` DAG publishes the Olist dataset as an asset, and each domain's DAG is
-triggered by that asset to seed / land / load only its own datasets.
+Before every commit, run all the governance and quality checks:
 
 ```bash
-make airflow-up          # build the image + start Airflow (needs `make up` first)
-make airflow-dags        # list the parsed DAGs (one bundle per domain)
-# Airflow UI: http://localhost:8080  (local dev: no login)
+make check    # every governance policy, then lint and the test suite
 ```
 
-Generate the local Airflow secrets once and put them in `.env`
-(`AIRFLOW_FERNET_KEY`, `AIRFLOW_API_SECRET_KEY`, `AIRFLOW_JWT_SECRET`):
+### Orchestration with Airflow 3
+
+The same ingestion runs under Airflow as **one DAG bundle per domain** (ADR-0005). A platform
+`acquire` DAG publishes the Olist dataset as an asset; each domain's DAG is triggered by that asset
+and seeds, lands and loads only its own datasets.
+
+```bash
+make airflow-up       # build the image and start Airflow (run `make up` first)
+make airflow-dags     # list the parsed DAGs, one bundle per domain
+```
+
+Generate the local Airflow secrets once and put them in `.env` (`AIRFLOW_FERNET_KEY`,
+`AIRFLOW_API_SECRET_KEY`, `AIRFLOW_JWT_SECRET`):
 
 ```bash
 uv run python -c "from cryptography.fernet import Fernet; print('FERNET', Fernet.generate_key().decode())"
 python3 -c "import secrets; print('API', secrets.token_hex(32)); print('JWT', secrets.token_hex(32))"
 ```
 
-The URLs: Airflow at `http://localhost:8080`, MinIO console at `http://localhost:9001`,
-`shop_oltp` at `localhost:5432`, `analytics` at `localhost:5433` (credentials in `.env`).
+Where things are: Airflow at `http://localhost:8080` (no login locally), the MinIO console at
+`http://localhost:9001`, `shop_oltp` at `localhost:5432` and `analytics` at `localhost:5433`
+(credentials in `.env`).
 
 ---
 
 ## Repository layout
 
 ```
-platform/                 Self-serve platform (owned by the platform team; map: platform/README.md)
-  access/                 Pillar — who may read what: masking, consumer grants, landing policies
-  quality/                Pillar — is the data right: the contract gate's quality engine
-  context/                Pillar — what the data means and where it comes from
-    catalog/              DataHub: deployment, recipes, governance + quality publishing
-    semantics/            Apache Ossie: reader, bundle build, Superset publisher, Visualizer
-  core/                   The foundation the pillars govern
-    contracts/            The one ODCS contract reader (every pillar uses it)
+platform/                 The self-serve platform, owned by the platform team (map: platform/README.md)
+  access/                 Who may read what: masking, consumer grants, landing-zone policies
+  quality/                Is the data right: the quality engine behind the contract gate
+  context/                What the data means and where it comes from
+    catalog/              DataHub: deployment, ingestion recipes, governance and quality publishing
+    semantics/            Apache Ossie: the reader, the bundle build, the Superset publisher, the Visualizer
+  core/                   The platform the three pillars govern
+    contracts/            The one ODCS contract reader, used everywhere
     ingestion/            Landing zone, contract gate, raw load, ingestion ledger
-    transform/            dbt: shared macros, write-audit-publish, dbt ports, Slim CI
-    orchestration/        Airflow image, DAG factories, platform DAGs
-    infra/                Docker Compose (local) + production configuration
+    transform/            dbt: shared macros, write-audit-publish, generated port metadata, Slim CI
+    orchestration/        The Airflow image, DAG factories and platform DAGs
+    infra/                Docker Compose (local) and the production configuration
     recovery/             Backups and the restore drill
 
-governance/               Federated governance (owned by the governance guild)
-  standards/              Contract template, naming conventions, required fields
-  policies/               Policies as code: PII, certification, breaking changes
-  ontology/               Business ontology (ADR-0027): one Apache Ossie document
-  tags/                   Governed tags (classification): warehouse + catalog tags
-  domains/                Domain registry: owners, teams, descriptions
+governance/               Federated governance, owned by the governance guild
+  domains/                The domain registry: owners, contacts, alert routes
+  tags/                   Governed tags (sensitivity, privacy category), mirrored to warehouse and catalog
+  ontology/               The business ontology (ADR-0027): one Apache Ossie document
+  standards/              The standards: data products, breaking changes, the ontology, AI agents
+  policies/               The checks that enforce them, run in CI
+  approvals/              Consumers' sign-off on breaking changes
+  src/dgp_governance/     The library every tool reads these definitions through
 
 domains/<domain>/         Owned by each domain team
-  contracts/              ODCS contracts for the domain's datasets; definitions/ = the meaning of
-                          the ontology value types this domain owns (columns link and inherit)
-  ingestion/              Source configuration for the domain's sources
+  contracts/              ODCS contracts; definitions/ holds the meaning of the value types it owns
+  ingestion/              Configuration of the domain's sources
   dbt/                    The domain's dbt project
-  data_products/          Data product definitions (output ports, SLA, consumers)
-  semantics/              Apache Ossie semantic specs: metrics and dimensions (M6)
+  data_products/          Data product definitions: output ports, SLA, consumers
+  semantics/              Apache Ossie semantic models: metrics and dimensions
   pipelines/              The domain's Airflow DAG bundle
 
-reporting/                Superset dashboards as code (BI consumer)
-ai/                       Governed AI (M7)
-  semantic_mcp/           Governed semantic MCP agent (domain-scopable: one per domain)
-  orchestrator/           Agent registry + catalog-routed orchestrator (agentic mesh)
+reporting/                Superset, the BI consumer
+ai/                       Governed AI: the semantic MCP server, domain agents, the router, the eval
+proofs/                   One runnable scenario per claim (docs/proofs.md)
 docs/                     Architecture, ADRs, production readiness, disaster recovery
 ```
 
@@ -236,149 +238,92 @@ docs/                     Architecture, ADRs, production readiness, disaster rec
 
 ## Roadmap
 
-Each milestone is done only when its production-readiness and disaster-recovery items are met.
+A milestone is done only when its production-readiness and disaster-recovery items are met too.
 
-- [x] **M1 — Platform:** Docker Compose with MinIO, 2× Postgres and Airflow 3 (per-domain DAG
-  bundles). The config-driven ingestion downloads the real Olist dataset from Kaggle and loads
-  every dataset to `<domain>_raw` with an ingestion ledger (idempotent landing loads by ETag).
-- [x] **M2 — Contracts & quality:** ODCS contracts at the governed boundaries (not internal
-  layers). Landing-zone gate — every landing file is validated against its ODCS contract and
-  quarantined on failure (proof P2), enforced in CI that each landing dataset has a valid
-  contract; output-port (table/view) contracts authored with the data products in M3.
-- [x] **M3 — Domains:** per-domain dbt projects on a medallion (raw→bronze→silver→gold);
-  output ports are models tagged `output_port` in their ODCS contract (published in place,
-  any layer); cross-domain refs via dbt-loom (public ports only); contractual DQ generated
-  from the contracts; write-audit-publish protects materialized ports (proof P3); consumer
-  grants generated from the definitions (the catalog/marketplace is DataHub at M4); per-domain
-  transform DAGs in Airflow (acquire → ingest → transform via assets)
-- [x] **M4 — Catalog:** DataHub (pinned `dgp-catalog` compose, ADR-0018) with end-to-end + cross-domain
-  lineage (proof P7), Airflow orchestration lineage at the load boundary, the mesh domains, data
-  products, ownership and a PII/Internal/Public classification glossary — all generated from
-  `governance/` definitions (`make catalog-ingest` / `catalog-govern`) — plus dbt tests as assertions.
-  Each dataset links to the Airflow DAG that builds it. Lineage reads source → load → raw → dbt → port.
-- [x] **M5 — Contract gate (proof P5, ADR-0019):** CI blocks a breaking change to an output-port
-  contract (`datacontract breaking`) and names the affected consumers; it passes only with a major
-  version bump **and** approval from every consumer, recorded in `governance/approvals/`. A GitHub
-  workflow requests the impacted teams' review and auto-commits the approval that unblocks the PR.
-  Internal consumers migrate atomically alongside the approved change; a **versioned port**
-  (`<port>_v<N>` beside the deprecated old one until a sunset date) is the option for consumers
-  that can't cut over atomically (external / BI / ad-hoc) — see
+- [x] **M1 — Platform.** Docker Compose with MinIO, two Postgres instances and Airflow 3, with one
+  DAG bundle per domain. Config-driven ingestion downloads the real Olist dataset from Kaggle and
+  loads every dataset into `<domain>_raw`, recording each load in an ingestion ledger.
+- [x] **M2 — Contracts and quality.** ODCS contracts sit at the governed boundaries, not on
+  internal layers. Every landing file is validated against its contract and quarantined if it
+  fails (proof P2), and CI checks that every landing dataset has a valid contract.
+- [x] **M3 — Domains.** One dbt project per domain on a medallion (raw → bronze → silver → gold).
+  An output port is a model whose ODCS contract carries the `output_port` tag, published in place
+  in any layer. Cross-domain refs go through dbt-loom and reach public ports only. Contract quality
+  rules are generated into dbt tests, write-audit-publish protects materialized ports (proof P3),
+  and consumer grants are generated from the definitions.
+- [x] **M4 — Catalog.** DataHub (pinned, ADR-0018) with end-to-end and cross-domain lineage
+  (proof P7), Airflow lineage at the load boundary, and the domains, data products, owners and
+  glossary generated from `governance/` (`make catalog-ingest`, `make catalog-govern`). dbt tests
+  appear as assertions, and each dataset links to the Airflow DAG that builds it.
+- [x] **M5 — Breaking-change gate (proof P5, ADR-0019).** CI blocks a breaking change to an
+  output-port contract and names the affected consumers. It passes only with a major version bump
+  *and* approval from every consumer, recorded in `governance/approvals/`; a GitHub workflow asks
+  the right teams for review and commits their approval. Consumers that can't cut over at once
+  get a versioned port instead — see
   [governance/standards/breaking-changes.md](governance/standards/breaking-changes.md).
-- [x] **M6 — Reporting & semantics (ADR-0010):** domains author **Apache Ossie** semantic models
-  (`domains/<d>/semantics/`) over their output ports — dimensions + metrics with one governed
-  definition; CI (`check-semantics`) keeps them on contract columns. `platform/context/semantics` publishes
-  them to **Superset** (pinned `dgp-bi` compose in `reporting/`) as datasets + metrics, and the
-  Superset charts ingest into DataHub — so lineage reaches the chart (source → port → BI → chart,
-  proof P7). The same Ossie definitions feed the M7 AI agent.
-- [x] **M7 — Governed AI** — delivered in two parts:
-  - [x] **M7a — Governed AI boundary (ADR-0020, proof P10):** any MCP client (Claude, ChatGPT,
-    Copilot, Cortex) reaches the mesh through **DataHub MCP** (discovery: port, owner, PII class,
-    lineage) and a **governed semantic MCP** (`ai/semantic_mcp`) whose only metric tool compiles the
-    domain's **Apache Ossie** definition into SQL (shared `platform/context/semantics/ossie.py` — the same
-    translation Superset uses) as the consumer role. No free-form SQL: ungoverned/PII columns are
-    refused; discovery stays open and `request_semantic_model` routes a "please govern this" request
-    to the owner. Transport is client-agnostic (stdio / streamable-HTTP). Proof **P10**: the AI number
-    equals Superset's and a direct-Ossie control — one definition, BI and AI agree.
-  - [x] **M7b — Agentic mesh / federated domain agents (ADR-0021, proof P11):** the AI layer is itself
-    a mesh — one governed agent **per domain** (same code scoped by `DGP_SEMANTIC_DOMAIN` → domain
-    isolation), a derived **agent registry** (system-of-record), a **catalog-driven orchestrator** that
-    routes each question to the owning domain (a deterministic *router*, not an LLM *supervisor* —
-    LangGraph is kept to an optional NL layer above the governed tools), and an **audit log** of every
-    call. Agents are governed like any mesh concern — a standard (`governance/standards/ai-agent.md`)
-    + a CI check (`check-ai-agents`: domain-scoped, isolated, owned, no raw PII). Proof **P11**:
-    isolation holds, routing is deterministic, federation preserves the number.
-- [x] **M8 — Security & production hardening:**
-  - [x] **Role-based dynamic PII masking + least-privilege consumer roles (ADR-0013, proof P8):**
-    the masking policy is declared on the column in ODCS and enforced as a role-aware view
-    (`platform/access/apply_masking.py`); end consumers connect as a least-privilege `analytics_reader`
-    (output ports only — raw/staging denied) and see PII masked, while an unmask role (`compliance`)
-    sees the raw value. The AI agents now use this reader instead of a domain role. `make prove-p8`.
-  - [x] **Backups + automated restore drill with point-in-time recovery (ADR-0022, proof P9):**
-    shop_oltp archives WAL continuously and takes physical base backups; the metadata stores are
-    dumped, with a checksummed manifest. The drill measures the RPO on a live write. It then
-    point-in-time recovers shop_oltp and restores the rest into an isolated sandbox, **rebuilds** the
-    warehouse, runs every contract check and P8, and measures each RTO. `make prove-p9`,
-    `make dr-status`.
-  - [x] **Hardening proven on the running stack (ADR-0023, proof P13):** TLS-only Postgres
-    (`hostssl`, plain TCP rejected, clients `verify-full`); no automation uses the superuser
-    (`access_admin`, `catalog_reader`, one `agent_<domain>` role per AI agent, isolation also asserted
-    in P11); Postgres connection + DDL audit logging; MinIO SSE on every bucket; no default credential
-    (X2, `DGP_ENV=prod` refuses to start); images by digest and Actions by commit SHA (X8).
-    `make prove-p13`.
-  - [x] **Landing-zone lifecycle (ADR-0024, proof P14):** two buckets keyed by lifecycle stage —
-    a partner-facing `landing-inbox` (write-only per source) and an object-locked `landing-archive`
-    (`accepted/` locked + retention-tagged, `quarantine/` with `_reason.json`, 90d); partitions
-    derived from the contract (filename or arrival; daily/hourly/monthly), never imposed on the
-    partner; access policies generated from `sources.yml`; gate results published to DataHub as
-    assertions per partition (`make catalog-quality`). `make prove-p14`.
-  - [x] **Contract gate as its own task (ADR-0025, follow-up to the lifecycle):**
-    `land → contract_gate → load_raw` — the check files every inbox file to `accepted/` or `quarantine/` and loads nothing; `load_raw` loads only
-    accepted files not yet loaded (ledger hand-off via `gate_id`), so a load retries without
-    re-checking; `publish_quality` hangs off the gate. Dedup is on a SHA-256 of the content (the
-    ETag differs between single-part and multipart uploads), and `replay` loads each dataset's
-    newest accepted file on or before the date (P9 no longer needs every dataset on one day).
-    P14 proves it.
-  - [x] **Desired production controls specified** with acceptance tests (production-readiness §5,
-    D1–D10): TLS reverse proxy, OIDC SSO, secrets manager, network isolation, external KMS, HA,
-    central logging, alert routing. They need infrastructure a laptop can't host and are go-live gates.
-- [x] **M9 — Transform-layer scale (ADR-0015):**
-  - [x] **Cosmos, manifest mode:** each transform DAG renders one run + test task group per
-    model from `make dbt-manifests` (no `dbt ls` at parse), with per-model edges, retries and
-    parallelism.
-  - [x] **Per-model write-audit-publish:** opted-in models go `plan → stage → write → audit_view →
-    audit → publish` (or `quarantine`) one at a time; the audit runs the contract DQ on the table
-    as consumers would get it; same-shape tables are replaced in place, so dependent views,
-    grants and masking survive (never `CASCADE`). One bad model doesn't block the others; nothing
-    is built from it and no `published/<domain>` event is emitted. `make prove-p15`.
-  - [x] **dbt state + Slim CI:** every publish saves its manifest to `platform-state` (own
-    least-privilege principal); `make slim-ci` builds `state:modified+` in a `<domain>_ci`
-    sandbox with `--defer`; pull requests get the same plan against the base branch. `make prove-p16`.
-  - [x] **Microbatch + runtime-param backfill:** `sales.orders` is a monthly microbatch port; a
-    normal run merges only the latest batches; `make backfill` / the DAG's `event_time_start` /
-    `event_time_end` params reprocess exactly a window, audited before the merge. `make prove-p6`.
-- [x] **M10 — Event-driven ingestion (ADR-0016):**
-  - [x] **Arrival trigger:** inbox bucket notifications → arrival queue (`landing_events.arrivals`,
-    the local SQS) → an Airflow 3 `AssetWatcher` fires `landing/<domain>`; windowed fan-in (a burst
-    is one run), at-least-once (signal → ack on success → redeliver after a visibility timeout).
-    The PoC simulators moved to `platform_source_simulator`; nobody triggers an ingestion DAG.
-    `make prove-p17`.
-  - [x] **Arrival in the catalog:** one DataHub `ARRIVAL` operation per file at its landing time,
-    so freshness is measured from arrival.
-  - [x] **Completion signals:** `expected_files` and `marker` decide a partition as one batch
-    (all accepted, or all quarantined with one reason); `platform_landing_sla` checks each
-    contract's `timeOfAvailability` and reports `missing` / `incomplete` / `rejected`.
-    `make prove-p18`.
-  - [x] **Alerting:** quarantines and deadline misses go to the owning domain's route (registry
-    `alerts:` + a webhook secret), once per condition, recorded in `platform_meta.alerts`.
-  - [x] **Integrity:** a partner-sent `x-amz-checksum-sha256` is verified by the gate.
-  - [x] **Production bucket controls + credentials, as code:** TLS-only and SSE-KMS-per-partner
-    bucket policies, storage-class transitions, KMS keys and the secrets-manager inventory are
-    generated from `sources.yml`, drift-checked in CI and tested; applied by the production
-    deployment (production-readiness D11/D12).
+- [x] **M6 — Reporting and semantics (ADR-0010).** Domains write **Apache Ossie** semantic models
+  over their output ports, each metric with one governed definition, and CI keeps them on contract
+  columns. They are published to **Superset**, and the charts flow into DataHub, so lineage reaches
+  the chart (proof P7).
+- [x] **M7 — Governed AI.**
+  - [x] **The governed boundary (ADR-0020, proof P10).** Any MCP client (Claude, ChatGPT, Copilot,
+    Cortex) reaches the mesh through DataHub's MCP server, for discovery, and our semantic MCP
+    server, whose only metric tool compiles the domain's Ossie definition into SQL (the same
+    reader Superset's publisher uses) and runs it as a consumer role. There is no free-form SQL,
+    so ungoverned and PII columns are refused, while `request_semantic_model` turns "please govern
+    this" into a request to the owner. Proof P10 shows the AI's number equals Superset's.
+  - [x] **Federated domain agents (ADR-0021, proof P11).** The AI layer is a mesh too: one agent
+    per domain (the same server scoped by `DGP_SEMANTIC_DOMAIN`), an agent registry derived from
+    the definitions, a deterministic router that sends each question to the owning domain, and an
+    audit log of every call. Agents follow a standard (`governance/standards/ai-agent.md`), checked
+    in CI by `check-ai-agents`.
+- [x] **M8 — Security and production hardening.**
+  - [x] **PII masking by role (ADR-0013, proof P8).** The masking policy is declared on the column
+    in ODCS and enforced as a role-aware view (`dgp_platform_access.apply_masking`). End consumers
+    connect as a least-privilege `analytics_reader` and see PII masked; the `compliance` role sees
+    the raw value.
+  - [x] **Backups and a restore drill with point-in-time recovery (ADR-0022, proof P9).** WAL is
+    archived continuously, and the metadata stores are dumped with a checksummed manifest. The
+    drill measures RPO on a live write, recovers into an isolated sandbox, rebuilds the warehouse,
+    reruns the contract checks and measures each RTO (`make prove-p9`, `make dr-status`).
+  - [x] **Hardening, proven on the running stack (ADR-0023, proof P13).** TLS-only Postgres, no
+    automation running as the superuser, connection and DDL audit logging, encryption on every
+    bucket, no default credentials in production mode, and images and Actions pinned by digest and
+    commit SHA.
+  - [x] **Landing-zone lifecycle (ADR-0024, proof P14).** A partner-facing inbox (write-only per
+    source) and an object-locked archive (`accepted/`, retention-tagged; `quarantine/` with the
+    reason). Partitions follow the contract; access policies are generated from `sources.yml`; gate
+    results reach DataHub as assertions per partition.
+  - [x] **The contract gate as its own task (ADR-0025).** `land → contract_gate → load_raw`: the
+    gate files every inbox file and loads nothing; the load picks up accepted files, so it can retry
+    without re-checking. Duplicates are detected by a SHA-256 of the content.
+  - [x] **Production controls specified, with acceptance tests** (production-readiness §5): TLS
+    proxy, SSO, a secrets manager, network isolation, KMS, HA, central logging, alert routing. They
+    need infrastructure a laptop can't host, so they are go-live gates.
+- [x] **M9 — Scaling the transform layer (ADR-0015).** Each dbt model is its own Airflow task
+  (Cosmos, manifest mode); opted-in models get per-model write-audit-publish (proof P15); every
+  publish saves dbt state, and Slim CI builds only what a change touched (proof P16); microbatch
+  ports can be backfilled over an exact window (proof P6).
+- [x] **M10 — Event-driven ingestion (ADR-0016).** A partner's upload alone runs the pipeline:
+  bucket notifications feed an arrival queue that an Airflow `AssetWatcher` reads, and a burst of
+  files becomes one run (proof P17). Completion signals, delivery deadlines and alerts to the
+  owning domain are covered by proof P18; a partner-sent checksum is verified by the gate. The
+  production bucket policies, KMS keys and secrets inventory are generated from `sources.yml` and
+  drift-checked in CI (production-readiness D11/D12).
 
-### Backlog — built when a trigger appears, not on a schedule
+### Backlog: built when a real need appears, not on a schedule
 
-- [x] **Versioned output ports** (ADR-0019 amendment) — a new major ships as its own port
-  `<port>_v<N>` (`version_of`) beside the untouched v1, which is deprecated with a sunset; CI fails
-  after the sunset naming who still reads it; retirement is blocked while read and needs the
-  consumers' sign-off. Built as machinery + a worked example (`make prove-p19`, reverted), since no
-  port has such a consumer yet. Originally: dbt model versions (`v1`/`v2`) for a port that gains a
-  consumer which can't migrate atomically (external team / BI / ad-hoc SQL). Opt-in per port; the
-  approval gate already handles internal consumers.
-- **Superset native semantic-layer connection (Ossie)** — *waiting on Superset 7.0 GA* (checked
-  2026-10-19: PyPI's latest is 6.1.0; only `7.0.0rc1`/`rc2` images exist, the feature is still an
-  experimental flag and no Ossie extension exists yet). Decision: build it on the final release, not
-  an RC whose extension API can still change. Superset's external semantic-layer support
-  (SIP-182: a first-class `SemanticLayer` connection — `get_metrics()`/`get_dimensions()`/`get_table()`
-  — packaged as a `.supx` extension) is behind the `SEMANTIC_LAYERS` flag on `master`, **targeted at
-  Superset 7.0** (not the pinned 4.1.1); first integrations are dbt MetricFlow and Snowflake Semantic
-  Views. Apache **Ossie is the standard underpinning it**, so when it ships: upgrade Superset and add
-  an Ossie `.supx` extension → Superset reads the definitions **live** (no projection, no drift,
-  `bi-check-drift` retires). "Connect, don't copy."
-- [x] **Proof packaging** — `make prove-p1` (domain isolation) and `make prove-p4` (cross-domain
-  asset trigger) drive the live Airflow; every scenario P1–P18 now has a command. Building them
-  fixed two real defects: transforms waited for *all* their inputs instead of *any*, and a view
-  rebuild dropped the views built on it (ports, masking) until they were rebuilt.
+- [x] **Versioned output ports** (ADR-0019) — a new major ships as its own port, `<port>_v<N>`,
+  beside the untouched old version, which is deprecated with a sunset date. CI names who still
+  reads it once the date passes, and retiring it needs the consumers' sign-off. Built with a worked
+  example (`make prove-p19`), since no port has needed it yet.
+- **Superset's native semantic-layer connection to Ossie** — *waiting for Superset 7.0.* As of
+  2026-10-19 only 7.0 release candidates exist, the feature is behind an experimental flag, and
+  there is no Ossie extension yet. When it ships, Superset will read the Ossie definitions live
+  instead of a published copy, and the drift check retires.
+- [x] **Every proof runnable** — each scenario has a `make prove-p<N>` command. Building them found
+  two real defects: transforms waited for *all* their inputs instead of *any*, and rebuilding a view
+  dropped the views built on top of it until they were rebuilt.
 
 ---
 

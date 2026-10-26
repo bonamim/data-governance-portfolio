@@ -92,7 +92,7 @@ sends a `.ok`/`.done`/manifest). Every mode is bounded by the contract's `timeOf
 deadline: the platform never waits forever, it processes what arrived and alerts.
 
 ### 5. Access is generated from config
-`platform/access/generate_landing_access.py` reads every `sources.yml` and generates, into
+`dgp_platform_access.generate_landing_access` reads every `sources.yml` and generates, into
 `platform/access/landing/`:
 
 - `landing-partner-<source>`: `PutObject` (+ multipart) on `inbox/<source>/*` only. No list,
@@ -116,7 +116,7 @@ expire at 90 days.
 Each rule the gate executes is recorded per file in the ledger (`checks` JSON, with partition,
 object version and archive key). The `publish_quality` task that follows `contract_gate` in every
 ingestion DAG (and `make catalog-quality` for a full reconcile) runs
-`platform/context/catalog/publish_landing_quality.py`, which projects them into DataHub:
+`dgp_platform_catalog.publish_landing_quality`, which projects them into DataHub:
 
 - one **S3 dataset per landing dataset** (`<archive-bucket>/accepted/<source>/<dataset>`) with the
   contract schema, domain, owner, contract properties, and lineage into `<domain>_raw.<table>`;

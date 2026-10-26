@@ -37,15 +37,15 @@ Domains consume each other's **data products only** — never raw or staging tab
 ```mermaid
 graph LR
     CUST["customer.customers"] --> PERF["sales.sales_performance"]
-    PROD["marketplace.products"] --> PERF
+    REV["customer_experience.reviews"] --> PERF
     ORD["sales.orders"] --> PERF
-    ORD --> REV["customer_experience.reviews"]
-    GEO["reference.geolocation"] --> CUST
-    GEO --> SELL["marketplace.sellers"]
+    PROD["marketplace.products"] -.-> PERF
+    GEO["reference.geolocation"] -.-> CUST
 ```
 
-These dependencies are what the contract gate protects: when Customer changes
-`customer.customers` in a breaking way, Sales is the consumer that gets alerted.
+Solid arrows are the inputs the data product definitions declare today; dotted ones are ports that
+would follow once a consumer asks for them. These dependencies are what the contract gate protects:
+when Customer changes `customer.customers` in a breaking way, Sales is the consumer it names.
 
 ---
 

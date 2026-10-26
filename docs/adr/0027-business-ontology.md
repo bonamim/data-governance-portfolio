@@ -45,7 +45,7 @@ what is true of the idea everywhere. Every file and field follows an existing st
 | `domains/<d>/contracts/definitions/<value_type>.odcs.yaml` | The **data elements** — the data dictionary: what a column holding each value type the domain owns contains (description, business name, classification, logical type + options, synonyms, examples) | **the owning domain** (its folder, its CODEOWNERS) | an **ODCS property**; datacontract-cli's layout of definitions next to the contracts that use them |
 | `domains/reference/contracts/definitions/` | Shared place data elements (zip-code prefix, city, state) — other domains *link* them (reusing meaning); *reading* the reference domain's data needs its output port, like any domain's (none yet) | the reference domain — a domain like the others, with its own team | same |
 | `governance/tags/sensitivity.yaml`, `privacy_category.yaml` | The governed tags, one file per tag: **sensitivity** (restricted, confidential, internal, public — from ODCS `classification`) and **privacy category** (identifier, quasi_identifier, sensitive — from the custom property `privacyCategory`) | the governance guild | the **Snowflake-provided** tags `SNOWFLAKE.TAGS.SENSITIVITY` and `SNOWFLAKE.CORE.PRIVACY_CATEGORY`; DataHub tags |
-| `platform/context/semantics/vendor/ossie/` | Ossie's validator and schemas, copied unchanged at a pinned commit | platform | Apache Ossie |
+| `dgp_platform_semantics/vendor/ossie/` | Ossie's validator and schemas, copied unchanged at a pinned commit | platform | Apache Ossie |
 
 **Ownership is where a file lives, not a list.** A value type belongs to the domain whose folder
 defines it; an entity type to the domain that defines its identifying value types (`Order` →

@@ -19,7 +19,7 @@ production path: nothing consumes its output.
 
 - **One source of truth.** `portability/sqlmesh/sync_contracts.py` generates each SQLMesh port
   model's `columns (...)` and `audits (...)` from its ODCS contract, as
-  `platform/transform/sync_contracts.py` does for dbt; `make check` / CI fail on drift.
+  `platform/core/transform/generate_dbt_ports.py` does for dbt; `make check` / CI fail on drift.
 - **One judge.** `datacontract test` runs every port contract against both engines' tables.
 - **Proof P20** (`make prove-p20`): no drift; SQLMesh builds; all 8 contract runs pass (4 ports ×
   2 engines); every port is identical row for row (`EXCEPT ALL` both ways); SQLMesh's interval state

@@ -1,25 +1,36 @@
 # Semantic layer — `platform/context/semantics`
 
-The platform capability that turns the domains' Apache Ossie semantic models
-(`domains/<d>/semantics/*.semantic_model.yaml`, ADR-0010) into what each consumer computes — so a
-metric has **one governed definition**. Today the consumer is Superset; the M7 AI agent reads the
-same specs.
+This capability turns the domains' Apache Ossie semantic models
+(`domains/<d>/semantics/*.semantic_model.yaml`, ADR-0010) into what each consumer computes, so a
+metric has **one governed definition**. Two consumers read it: Superset (BI) and the governed AI
+agents (`dgp_ai`, ADR-0020).
 
-The design is **define-once, project-into-each-tool** (not a runtime semantic service like Cube):
-Ossie is the source of truth, and `publish_superset.py` projects it into Superset's native dataset
-+ metrics. The drift check keeps that projection honest.
+The design is **define once, project into each tool**, not a runtime semantic service like Cube.
+Ossie is the source of truth; `publish_superset.py` projects it into Superset's own datasets and
+metrics, and a drift check keeps that projection honest.
 
-`ossie.py` is the **shared reader** — the one place a semantic model becomes SQL. Both consumers go
-through it: this Superset adapter and the M7 governed AI (`ai/semantic_mcp`, ADR-0020). Because there
-is no second parser, "one governed definition per metric" holds in code, and proof P10
-(`make prove-p10`) shows BI and AI return the same number.
+```
+platform/context/semantics/
+  src/dgp_platform_semantics/
+    ossie.py           the shared reader: load, compile, validate a model; turn a metric into SQL
+    superset.py        a small Superset REST client (the publisher and proof P10 share it)
+    vendor/ossie/      Ossie's own validator and schemas, copied unchanged at a pinned commit
+  build_ossie.py       builds the deployable Ossie bundle in build/ossie/
+  publish_superset.py  publishes the models to Superset, or checks for drift (--check)
+  visualizer/          the Ossie Visualizer, built from a pinned upstream commit
+```
+
+`ossie.py` is the one place a semantic model becomes SQL. Everything goes through it: the Superset
+publisher, the AI agents, the bundle build and the governance checks. Because there is no second
+parser, "one governed definition per metric" holds in code, and proof P10 (`make prove-p10`)
+shows that BI and AI return the same number.
 
 ## Fields: contract columns or derived from them
 
 A field (dimension) is either a column of the port's ODCS contract, named as that column, or a
 **derived** field with its own name whose expression references only contract columns as
 `<dataset>.<column>`, e.g. `order_purchase_month` =
-`DATE_TRUNC('month', orders.order_purchase_timestamp)` in `domains/sales/semantics/orders`.
+`DATE_TRUNC('month', orders.order_purchase_timestamp)` in `domains/sales/semantics/orders.semantic_model.yaml`.
 `check-semantics` enforces this, and `check-ai-agents` blocks a derived field (or metric) that
 references a PII column, so a new grain never needs a physical column and never wraps PII. In
 Superset, group such a dataset by the source column with Superset's own time grain; the AI path
@@ -31,12 +42,12 @@ compiles the derived expression.
 |---|---|
 | `make bi-publish` | Publish each Ossie model to Superset — the warehouse connection, the dataset, and its metrics, generated from the spec (not hand-typed). Idempotent. |
 | `make bi-check-drift` | **Fail if Superset's metrics no longer match the Ossie models** (e.g. edited in the UI). This is what makes "one definition" binding rather than a one-time copy. |
-| `make ossie-build` | Build the Ossie bundle in `build/ossie/`: the ontology (each value type with the description its domain keeps in `domains/<d>/contracts/definitions/`), the compiled semantic models and the generated mappings — every document checked with Ossie's own validator (`vendor/ossie/`, ADR-0027). |
+| `make ossie-build` | Build the Ossie bundle in `build/ossie/`: the ontology (each value type with the description its domain keeps in `domains/<d>/contracts/definitions/`), the compiled semantic models and the generated mappings — every document checked with Ossie's own validator (`vendor/ossie/`, ADR-0027). `make check` runs the same build with `--check`, writing nothing. |
 | `make ossie-ui` | Build the bundle and start the Ossie Visualizer on http://127.0.0.1:4178 to explore it as a graph (`visualizer/`: a pinned upstream build, nothing vendored). `make ossie-ui-down` stops it. |
 
 ## Switching the warehouse (e.g. to Snowflake with views)
 
-The semantic layer is **engine-agnostic by design** — the metric expressions are **ANSI SQL** and the
+The semantic layer doesn't depend on the engine: the metric expressions are **ANSI SQL**, and the
 adapter never hardcodes a warehouse. Moving to Snowflake, with Snowflake views as the output ports,
 changes only the edges:
 

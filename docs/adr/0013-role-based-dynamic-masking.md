@@ -1,6 +1,6 @@
 # ADR-0013: Role-based dynamic data masking (declared in ODCS, enforced per platform)
 
-**Status:** Accepted (implemented locally in M8 — `platform/access/apply_masking.py`, proof P8)
+**Status:** Accepted (implemented locally in M8 — `dgp_platform_access.apply_masking`, proof P8)
 
 > **Amended by [ADR-0027](0027-business-ontology.md):** the column's sensitivity and privacy are now
 > two governed tags following Snowflake's own — `classification` takes the sensitivity levels
@@ -73,7 +73,7 @@ marketing and the real value to compliance — without a second data product.
   faithful stand-in, called out like ADR-0007/0011 where local ≠ prod mechanism.
 
 ## Implementation (M8)
-`platform/access/apply_masking.py` reads each output port's ODCS `maskingPolicy` and creates a
+`dgp_platform_access.apply_masking` reads each output port's ODCS `maskingPolicy` and creates a
 role-aware view `<domain>_masked.<port>`:
 `CASE WHEN pg_has_role(current_user, '<unmask_role>', 'MEMBER') THEN <raw> ELSE md5(<raw>) END`.
 Two consumption planes: **end consumers** (BI/AI) connect as the least-privilege `analytics_reader`

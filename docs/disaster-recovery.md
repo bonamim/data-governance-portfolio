@@ -89,7 +89,9 @@ regenerated, not restored.** This keeps backups small and restores simple.
 | Ransomware / malicious delete | Object-locked backups and landing files cannot be deleted inside retention; restore from them |
 | Full site loss | Redeploy platform from git in the second location; restore from replicated backups in tier order |
 
-Detailed step-by-step runbooks are added to `docs/runbooks/` with each component.
+The recovery steps for the stores in scope are automated and rehearsed: `make prove-p9` runs them
+end to end (`platform/core/recovery/restore_drill.py`, §5). Written runbooks for the scenarios above
+are a go-live item, owned by the team that operates each component in production.
 
 ---
 

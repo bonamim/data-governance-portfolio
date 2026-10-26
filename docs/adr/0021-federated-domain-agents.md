@@ -16,20 +16,20 @@ the governance boundary or making routing a black box.
 ## Decision
 
 **1. One governed agent per domain (federated data plane).** A domain agent is the *same* governed
-semantic server (`ai/semantic_mcp`) scoped to one domain via `DGP_SEMANTIC_DOMAIN`. It then sees and
+semantic server (`dgp_ai.semantic_server`) scoped to one domain via `DGP_SEMANTIC_DOMAIN`. It then sees and
 answers **only** that domain's governed products — another domain's product is invisible, not merely
 refused (domain isolation). This is the **self-serve platform** pattern: domains don't write agent
 code, they run an instance; the governance (Ossie→SQL, consumer role, no free-form SQL) is identical
 for every agent because it is the same code.
 
-**2. A deterministic, catalog-driven orchestrator (router, not supervisor).** `ai/orchestrator`
+**2. A deterministic, catalog-driven orchestrator (router, not supervisor).** `dgp_ai.router`
 routes a question to the owning domain by **looking the product up in the catalog** — a *router*
 pattern (deterministic dispatch), not an LLM *supervisor* (which picks steps by inference). Routing
 decisions are therefore testable and cannot drift or hallucinate. The orchestrator is exposed as one
 MCP gateway for clients that want a single endpoint; a client may equally connect to the per-domain
 agents directly. Both are the same governed boundary.
 
-**3. An agent registry (system-of-record), derived.** `ai/orchestrator/registry.py` lists each
+**3. An agent registry (system-of-record), derived.** `dgp_ai.agents` lists each
 domain agent — owner, contact, the governed products it serves, its consumer role — **generated**
 from the domain registry + the Ossie specs, so it can't drift from reality.
 

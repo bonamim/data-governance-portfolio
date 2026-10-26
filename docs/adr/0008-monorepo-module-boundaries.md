@@ -1,6 +1,6 @@
 # ADR-0008: Monorepo with enforced module boundaries
 
-**Status:** Accepted (§4 layout amended 2026-10-25 — see *Amendment*)
+**Status:** Accepted (§4 layout amended 2026-10-25, §4 packaging amended 2026-10-26 — see *Amendments*)
 
 ## Context
 The whole platform lives in one repository. A monorepo keeps contracts, domains, platform
@@ -28,7 +28,7 @@ source config, ODCS contracts, a dbt project, a data-product definition, and a D
 that wires platform operators. A domain team should not need to write platform code to
 onboard — this is the self-serve platform of [data-mesh.md](../data-mesh.md) section 3.
 
-### 3. Dependency direction — enforced by import-linter in CI
+### 3. Dependency direction — enforced by a boundary check in CI
 | Rule | Allowed? |
 |---|---|
 | `domains/* → platform/*`, `domains/* → governance/*` | ✅ |
@@ -36,7 +36,8 @@ onboard — this is the self-serve platform of [data-mesh.md](../data-mesh.md) s
 | `domains/A → domains/B` (one domain imports another's code) | ❌ |
 
 Domains integrate **only through published data products and contracts** — never by importing
-code. The check runs in CI (`make check-boundaries`); a violating PR fails.
+code. The check (`governance/policies/check_boundaries.py`, `make check-boundaries`) reads every
+file's imports with Python's `ast` and runs in CI; a violating PR fails.
 
 ### 4. Independent build and deploy units
 - A **uv workspace** with one package per platform capability (`platform/<cap>`), each with its
@@ -70,7 +71,9 @@ project intact, consuming the platform as a published dependency.
 - The repository can start as a monorepo and graduate domains to their own repositories
   without rework when a real team takes ownership.
 
-## Amendment (2026-10-25): the platform is laid out by governance pillar
+## Amendments
+
+### 2026-10-25: the platform is laid out by governance pillar
 `platform/<capability>` became `platform/<group>/<capability>`, so the layout says what each
 capability is for ([platform/README.md](../../platform/README.md)):
 
@@ -87,3 +90,26 @@ What does not change: CODEOWNERS (`/platform/` is one team), the dependency rule
 may import the core; nothing imports a domain), one package per capability, and the domain layout.
 Scripts that produce something are named by where the output goes — `generate_`, `build_`,
 `publish_`, `apply_` ([docs/source-compile-deploy.md](../source-compile-deploy.md)).
+
+### 2026-10-26: every capability that others import is a package
+
+§4 said "one package per platform capability", but only four were: the rest were scripts that
+reached each other by inserting folders into `sys.path` (48 places), each with its own copy of the
+helpers they shared — finding a contract, the repository root, a connection string, a Superset or
+DataHub login. Now:
+
+- **A capability whose code anything else imports is a workspace package**, with its own
+  `pyproject.toml` and its dependencies declared: `dgp_governance` (the domain registry, tags,
+  ontology, data products, output ports and approvals, read in one place), `dgp_platform_access`,
+  `dgp_platform_semantics`, `dgp_platform_catalog` and `dgp_ai` join the four that already were.
+- **A script imports packages, never another folder's script**, and nothing touches `sys.path`.
+  `uv run` installs every member (they are all in the root `dev` group), so imports resolve by
+  package name; a test of a script imports it through pytest's `pythonpath`. CI imports every
+  script (`governance/tests/test_scripts_import.py`), so a broken import fails there rather than
+  in the next restore drill.
+- **The repository root has one definition** (`dgp_governance.repo.root()`): `DGP_REPO_ROOT`, as the
+  Airflow image already set it, or the nearest folder upwards holding `governance/domains/`.
+
+The dependency rules of §3 hold unchanged, and `check-boundaries` still enforces them. The
+`governance/` package depends on the core's contract reader only; the policy checks stay scripts in
+`governance/policies/`, since they depend on nearly every package and nothing depends on them.

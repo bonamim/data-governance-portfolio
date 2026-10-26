@@ -16,8 +16,10 @@ to contracts, meaning and access too.
    landing-zone policies) — and CI fails when it drifts. Anything deployed elsewhere is built
    into `build/` or applied to a live system from git; nothing is hand-edited there.
 4. **One reader per standard.** ODCS through `dgp_platform_contracts.odcs` (links inlined), Apache
-   Ossie through `platform/context/semantics/ossie.py` (load, compile, Ossie's own validator), governance
-   through `governance/registry.py`. No generator parses a standard its own way.
+   Ossie through `dgp_platform_semantics.ossie` (load, compile, Ossie's own validator), and the
+   governed definitions (domains, tags, ontology, data products, output ports) through
+   `dgp_governance`. No generator parses a standard its own way, and none works out for itself
+   where a file lives.
 5. **Generators read sources, not each other's output** — so there are no chains to break, and a
    new consumer is one new generator.
 
@@ -33,7 +35,7 @@ to contracts, meaning and access too.
 | data products, contracts, ontology, tags | `make catalog-govern` | DataHub: domains, products, business glossary, data elements, tags | — catalog | re-applied from git (ADR-0018) |
 | compiled semantic models | `make bi-publish` | Superset datasets and metrics | — BI | `bi-check-drift` |
 
-Each script is named by where its output goes, which is this table's *Committed?* column:
+Each tool is named after where its output goes, which is this table's *Committed?* column:
 `generate_` (committed files), `build_` (an artefact in `build/`), `publish_` (catalog, BI) and
 `apply_` (warehouse access controls) — the convention is in [platform/README.md](../platform/README.md).
 
