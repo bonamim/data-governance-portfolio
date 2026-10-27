@@ -1,4 +1,4 @@
-# Customer domain — source registration (owned by the Customer team).
+# Customer domain: source registration (owned by the Customer team).
 # customers carries PII, so its contract (M2) classifies columns and defines masking.
 domain: customer
 datasets:

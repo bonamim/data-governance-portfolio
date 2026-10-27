@@ -1,6 +1,6 @@
 # ADR-0022: Backups and the automated restore drill (proof P9)
 
-**Status:** Accepted (implemented locally in M8 — `platform/core/recovery/`, `make prove-p9`)
+**Status:** Accepted (implemented locally in M8: `platform/core/recovery/`, `make prove-p9`)
 
 ## Context
 [Disaster recovery](../disaster-recovery.md) sets per-tier RPO/RTO targets and one rule: **anything
@@ -19,9 +19,9 @@ on the laptop stack with no cloud account (ADR-0009).
 | ingestion ledger (`platform_meta`) | backed up | pipeline state (ADR-0006) |
 | Airflow metadata DB | backed up | run history, data intervals |
 | DataHub metadata store (MySQL) | backed up (`mysqldump --single-transaction`) | manual catalog edits not in git |
-| Superset metadata (SQLite) | backed up (online `sqlite3` backup) | tier 3; dashboards also in git |
+| Superset metadata (SQLite) | backed up (online `sqlite3` backup) | tier 3, dashboards also in git |
 | `analytics` warehouse | **rebuilt**, not backed up | regenerable from the landing zone + `shop_oltp` + dbt |
-| landing zone | protected in place (versioning; prod: object lock + replication) | tier-1 source of truth |
+| landing zone | protected in place (versioning, plus object lock + replication in prod) | tier-1 source of truth |
 
 The base backup, together with the WAL archive (`archive_mode=on`, `archive_timeout=60s`, a
 dedicated volume standing in for the archive store), gives point-in-time recovery. After each base
@@ -37,18 +37,18 @@ cycles kept.
 `make restore-drill` (`make prove-p9` takes a fresh backup first) starts a separate compose project
 (`dgp-drill`, its own network and volumes, loopback-only ports, the **same pinned images**), then:
 1. **measures the RPO**: commits a heartbeat on the live `shop_oltp` after the backup and times its
-   WAL segment's arrival in the archive;
-2. downloads the latest backup and verifies every sha256;
+   WAL segment's arrival in the archive.
+2. downloads the latest backup and verifies every sha256.
 3. **point-in-time recovers** `shop_oltp` (base backup into an empty data dir, `recovery.signal`,
    `restore_command` from the read-only archive) and requires the post-backup heartbeat to be
    present. It restores the other stores from their dumps, and checks each holds **at least** the
-   backup-time rows (`>=`, since the live stores keep writing between count and dump);
+   backup-time rows (`>=`, since the live stores keep writing between count and dump).
 4. **rebuilds** `analytics` the way a real recovery would: roles/schemas from the git init script,
    raw reloaded from the landing zone and the *restored* `shop_oltp` through the real ingestion gate,
    then every domain published through write-audit-publish, so **every contract quality check runs on
-   the recovered data**;
+   the recovered data**.
 5. checks the rebuilt output ports equal the pre-disaster row counts, and re-runs P8 against the
-   sandbox (access control and PII masking survive a rebuild);
+   sandbox (access control and PII masking survive a rebuild).
 6. reports each store's recovery time against its RTO and writes the report to
    `s3://platform-backups/drills/<timestamp>.json`. It exits 0 only if every check passed and every
    RTO was met.
@@ -61,10 +61,10 @@ grants.
 ### 3. Local stand-ins vs production
 | Concern | Local (this repo) | Production |
 |---|---|---|
-| Postgres backups | `shop_oltp`: `pg_basebackup` + WAL archive volume (PITR); metadata DBs: logical dumps | pgBackRest: weekly full + daily diff + continuous WAL archiving to an object store, `repo1-cipher-type=aes-256-cbc` |
-| Backup location | `platform-backups` bucket (versioned, SSE) on the same MinIO; WAL on a separate volume | separate account/region, object-locked (governance mode), replicated |
-| DataHub | `mysqldump` + row-count check | managed DB snapshots + PITR; after restore run DataHub's `restore-indices` job to rebuild search |
-| Schedule | on demand (`make prove-p9`) | backups on the pgBackRest/managed schedule; the drill weekly from CI against a recovery environment, alerting on failure or on a stale last-pass |
+| Postgres backups | `shop_oltp`: `pg_basebackup` + WAL archive volume (PITR), and logical dumps for metadata DBs | pgBackRest: weekly full + daily diff + continuous WAL archiving to an object store, `repo1-cipher-type=aes-256-cbc` |
+| Backup location | `platform-backups` bucket (versioned, SSE) on the same MinIO, WAL on a separate volume | separate account/region, object-locked (governance mode), replicated |
+| DataHub | `mysqldump` + row-count check | managed DB snapshots + PITR. After restore run DataHub's `restore-indices` job to rebuild search |
+| Schedule | on demand (`make prove-p9`) | backups on the pgBackRest/managed schedule, the drill weekly from CI against a recovery environment, alerting on failure or on a stale last-pass |
 | RTO measured | at Olist scale (seconds) | at production scale: the report records the measured time, and the targets in DR §1 are the gate |
 
 The manifest + drill contract is identical in both columns. Only the dump engine and the bucket
@@ -80,4 +80,4 @@ location change.
   now `TRUNCATE` in place when the columns are unchanged (regression test in
   `platform/core/ingestion/tests/test_db_integration.py`).
 - The drill reads the live landing zone (tier 1 is protected in place, not copied). It asserts
-  versioning is on; object lock and replication are production settings.
+  versioning is on. Object lock and replication are production settings.

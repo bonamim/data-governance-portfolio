@@ -46,7 +46,7 @@ def send(
     dedup_key: str,
     detail: dict | None = None,
 ) -> bool:
-    """Record and deliver an alert; False if this dedup_key already alerted (nothing sent)."""
+    """Record and deliver an alert. False if this dedup_key already alerted (nothing sent)."""
     r = route(repo_root, domain)
     url = os.environ.get(r.get("webhook_env", "")) if r.get("webhook_env") else None
     where = f"webhook {r['webhook_env']}" if url else f"log ({r.get('channel', 'no route')})"
@@ -68,7 +68,7 @@ def send(
             "channel": r.get("channel"),
             "detail": detail or {},
         }
-        req = urllib.request.Request(  # noqa: S310 — the domain's configured alert route
+        req = urllib.request.Request(  # noqa: S310 (the domain's configured alert route)
             url,
             data=json.dumps(body, default=str).encode(),
             headers={"Content-Type": "application/json"},

@@ -9,13 +9,13 @@ Clean separation of generated vs hand-authored dbt YAML (ADR-0012):
                        models. This tool never touches it.
 
 To publish a port a team writes only the ODCS contract (with the output_port tag)
-and the dbt model SQL; this tool seeds the model into its layer's _ports.yml and
+and the dbt model SQL. This tool seeds the model into its layer's _ports.yml and
 runs `datacontract dbt sync` to fill it. Idempotent.
 
 dbt sync is given the contracts *resolved* (linked definitions inlined,
 dgp_platform_contracts.odcs): the CLI's sync reads a contract as written, so a column that takes
-its description and classification from a shared definition would otherwise reach dbt — and the
-catalog — without them.
+its description and classification from a shared definition would otherwise reach dbt (and the
+catalog) without them.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def _seed_ports_yml(layer_dir: Path, product: str) -> None:
 
 
 def _sync(datacontract: str, domain: str, ports: list[products.OutputPort]) -> int:
-    """``datacontract dbt sync`` for one domain's ports, given resolved copies; its exit code."""
+    """``datacontract dbt sync`` for one domain's ports, given resolved copies. Its exit code."""
     with tempfile.TemporaryDirectory() as tmp:
         proc = subprocess.run(
             [
@@ -122,8 +122,8 @@ def _prune_stale_tests(domain: str, port: products.OutputPort) -> None:
 
 
 def _sync_governance_tags(layer_dir: Path, port: products.OutputPort) -> None:
-    """The port's governed tags (governance/tags/) as {warehouse tag: value} in dbt meta — on each
-    column from its resolved contract, and on the model the most sensitive column's sensitivity —
+    """The port's governed tags (governance/tags/) as {warehouse tag: value} in dbt meta (on each
+    column from its resolved contract, and on the model the most sensitive column's sensitivity),
     for the post-hook dgp_dbt.apply_governance_tags to set as part of the build (ADR-0027)."""
     governed = registry.tags()
     warehouse = {
@@ -156,7 +156,7 @@ def _sync_governance_tags(layer_dir: Path, port: products.OutputPort) -> None:
 
 def _sync_deprecation(layer_dir: Path, port: products.OutputPort) -> None:
     """A deprecated port version's sunset becomes dbt's ``deprecation_date`` (ADR-0019 §3), so dbt
-    warns every model that still refs it; an active port carries none."""
+    warns every model that still refs it. An active port carries none."""
     sunset = port.sunset if port.status == "deprecated" else None
     f = layer_dir / "_ports.yml"
     ports = load_yaml(f)

@@ -1,14 +1,14 @@
-# Local self-serve platform — milestone M1.
+# Local self-serve platform, milestone M1.
 # MinIO (landing zone + platform state) and two Postgres instances
 # (operational source + analytics warehouse). Airflow is added in the same
 # milestone via docker-compose.airflow.yml.
 #
 # Images are pinned by digest (production-readiness X8). Local defaults here are
-# NOT production-safe; docs/production-readiness.md lists what changes for prod.
+# NOT production-safe. docs/production-readiness.md lists what changes for prod.
 #
 # NOTE ON THE MINIO IMAGE: MinIO's community images moved behind authentication
 # in 2025 (quay.io) and Bitnami froze its free Docker Hub tags (Aug 2025), so we
-# pin Bitnami's last free MinIO build — it is the genuine MinIO server. See
+# pin Bitnami's last free MinIO build. It is the genuine MinIO server. See
 # docs/adr/0007-minio-image-source.md for the supply-chain note and the switch
 # to the official image in production.
 
@@ -42,7 +42,7 @@ services:
       # Encryption at rest (X7): every bucket defaults to SSE-S3 under this KMS key (minio-init).
       MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY}
       # Arrival events (ADR-0016): every object put in the landing inbox is appended to
-      # landing_events.arrivals in the warehouse — the local stand-in for S3 -> SQS. Airflow's
+      # landing_events.arrivals in the warehouse, the local stand-in for S3 -> SQS. Airflow's
       # arrival trigger drains it. The queue dir holds events while Postgres is unreachable.
       MINIO_NOTIFY_POSTGRES_ENABLE_LANDING: "on"
       MINIO_NOTIFY_POSTGRES_CONNECTION_STRING_LANDING: "host=postgres-analytics port=5432 dbname=${ANALYTICS_DB} user=landing_events password=${LANDING_EVENTS_PASSWORD} sslmode=require"
@@ -50,7 +50,7 @@ services:
       MINIO_NOTIFY_POSTGRES_FORMAT_LANDING: access
       MINIO_NOTIFY_POSTGRES_QUEUE_DIR_LANDING: /events-queue
     ports:
-      - "${MINIO_API_PORT}:9000"       # S3 API (the community console was removed; see s3-browser)
+      - "${MINIO_API_PORT}:9000"       # S3 API (the community console was removed, see s3-browser)
     volumes:
       - minio_data:/bitnami/minio/data
       - minio_events:/events-queue
@@ -67,7 +67,7 @@ services:
       retries: 10
       start_period: 20s
 
-  # A fresh named volume is root-owned; MinIO runs as uid 1001. Same pinned image, run once as root.
+  # A fresh named volume is root-owned, and MinIO runs as uid 1001. Same pinned image, run once as root.
   minio-events-volume:
     image: bitnamilegacy/minio@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c
     user: "0"
@@ -150,7 +150,7 @@ services:
         ilm_once "$$LANDING_ARCHIVE_BUCKET" '"quarantine/"' --prefix "quarantine/" --expire-days 90
         echo "bucket ready (object lock, SSE-S3, retention by tag, quarantine 90d): $$LANDING_ARCHIVE_BUCKET"
 
-        # Least-privilege principals (generated policies; secrets from .env / secrets manager).
+        # Least-privilege principals (generated policies, secrets from .env / secrets manager).
         for f in /landing-access/policies/*.json; do
           mc admin policy create local "$$(basename "$$f" .json)" "$$f" >/dev/null
         done
@@ -183,7 +183,7 @@ services:
 
   # Web UI for the object store. MinIO removed its built-in console from the community
   # server in 2025 (ADR-0007), so this is a lightweight S3 browser pointed at the MinIO
-  # S3 API — reachable on the port the old console used.
+  # S3 API, reachable on the port the old console used.
   s3-browser:
     image: cloudlena/s3manager@sha256:777f443adc9225f111557c89548b52aaf5cff8a474773b7a730e6153b07a13a8
     depends_on:
@@ -207,7 +207,7 @@ services:
       - "postgres"
       - "-c"
       - "password_encryption=scram-sha-256"   # production-readiness: scram, not md5
-      # Continuous WAL archiving -> point-in-time recovery (tier 1, RPO 5 min; proof P9). A segment
+      # Continuous WAL archiving -> point-in-time recovery (tier 1, RPO 5 min, proof P9). A segment
       # is shipped at least every archive_timeout while there is activity, bounding data loss.
       - "-c"
       - "archive_mode=on"
@@ -289,7 +289,7 @@ services:
   # Database UI for every Postgres in the platform (`make pgadmin`): shop_oltp, analytics (as the
   # superuser AND as the least-privilege analytics_reader, to see exactly what consumers see) and the
   # Airflow metadata DB. Desktop mode = no login, like the other local UIs. Servers come from
-  # pgadmin/servers.template.json; the pgpass is generated from .env on every start, so no password is
+  # pgadmin/servers.template.json, and the pgpass is generated from .env on every start, so no password is
   # committed and a rotated .env is picked up on restart. Local dev only: not deployed to production
   # (preflight X2 flags its password).
   pgadmin:

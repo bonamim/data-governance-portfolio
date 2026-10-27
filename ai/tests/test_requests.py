@@ -21,7 +21,7 @@ def layer(requests_dir):
 
 @pytest.fixture
 def webhook(monkeypatch):
-    """A local webhook standing in for #customer-data; yields the bodies it received."""
+    """A local webhook standing in for #customer-data. Yields the bodies it received."""
     received: list[dict] = []
 
     class Hook(BaseHTTPRequestHandler):

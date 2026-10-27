@@ -45,7 +45,7 @@ def test_load_csv_file_creates_and_loads(tmp_path: Path, analytics):
 
 def test_reload_keeps_dependent_views(tmp_path: Path, analytics):
     """A reload with the same columns must not drop what is built on the table (output-port views,
-    masking views, grants) — only a schema change may."""
+    masking views, grants). Only a schema change may."""
     schema, table = os.environ.get("TEST_SCHEMA", "reference_raw"), "pytest_reload"
     first, second = tmp_path / "a.csv", tmp_path / "b.csv"
     first.write_text("id,name\n1,alpha\n", encoding="utf-8")

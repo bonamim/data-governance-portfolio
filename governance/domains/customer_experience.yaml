@@ -1,5 +1,5 @@
-# Domain registry entry (data-mesh.md). The single source of truth for this mesh domain —
-# the domain list and metadata are read from here, never hardcoded (see governance/src/dgp_governance/registry.py).
+# Domain registry entry (data-mesh.md). The single source of truth for this mesh domain.
+# The domain list and metadata are read from here, never hardcoded (see governance/src/dgp_governance/registry.py).
 name: customer_experience
 display_name: "Customer Experience"
 description: "Reviews and post-purchase satisfaction signals."

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Proof P13 — production hardening controls, verified on the running platform (M8).
+"""Proof P13: production hardening controls, verified on the running platform (M8).
 
 Every control that can be proven on a single machine is asserted here, against the live stack:
 
-  X3  TLS        plain TCP to Postgres is REFUSED; verify-full against the local CA succeeds with
-                 TLS >= 1.2; every open network session on the warehouse is encrypted
-  X5  least      the admin, catalog and agent roles are not superusers and cannot create roles;
-      privilege  catalog_reader can read metadata but cannot write; the admin plane owns the masking
+  X3  TLS        plain TCP to Postgres is REFUSED. verify-full against the local CA succeeds with
+                 TLS >= 1.2. Every open network session on the warehouse is encrypted
+  X5  least      the admin, catalog and agent roles are not superusers and cannot create roles.
+      privilege  catalog_reader can read metadata but cannot write. The admin plane owns the masking
                  views (not postgres)
   X9  audit      connection, disconnection and DDL logging are on, and this proof's own connection
       logging    appears in the server log
@@ -56,7 +56,7 @@ def connect(
 
 
 def tls() -> None:
-    print("X3 — TLS")
+    print("X3: TLS")
     for name, base, user, pw in (
         ("analytics", ANALYTICS, "analytics_reader", "ANALYTICS_READER_PASSWORD"),
         ("shop_oltp", OLTP, "catalog_reader", "CATALOG_READER_PASSWORD"),
@@ -87,7 +87,7 @@ def tls() -> None:
 
 
 def least_privilege() -> None:
-    print("X5 — least privilege")
+    print("X5: least privilege")
     with connect(ANALYTICS, "access_admin", "ACCESS_ADMIN_PASSWORD") as c:
         rows = c.execute(
             "SELECT rolname, rolsuper, rolcreaterole, rolcreatedb FROM pg_roles "
@@ -125,7 +125,7 @@ def least_privilege() -> None:
 
 
 def audit_logging() -> None:
-    print("X9 — audit logging")
+    print("X9: audit logging")
     marker = f"p13-{uuid.uuid4().hex[:8]}"
     with connect(ANALYTICS, "analytics_reader", "ANALYTICS_READER_PASSWORD", app=marker) as c:
         settings = {
@@ -157,7 +157,7 @@ def audit_logging() -> None:
 
 
 def encryption_at_rest() -> None:
-    print("X7 — encryption at rest")
+    print("X7: encryption at rest")
     s3 = object_store(os.environ.get("MINIO_ROOT_USER"), os.environ.get("MINIO_ROOT_PASSWORD"))
     buckets = [
         os.environ.get("LANDING_INBOX_BUCKET", "landing-inbox"),
@@ -182,7 +182,7 @@ def encryption_at_rest() -> None:
 
 
 def gates() -> None:
-    print("X2 / X8 / X10 — executable gates")
+    print("X2 / X8 / X10: executable gates")
     pre = subprocess.run(
         [sys.executable, str(REPO / "platform" / "core" / "infra" / "preflight.py")],
         env={**os.environ, "DGP_ENV": "prod"},

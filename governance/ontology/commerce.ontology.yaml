@@ -1,24 +1,24 @@
-# The business ontology (ADR-0027): what the business is made of and how it relates — customers,
-# orders, reviews, sellers, places — independent of any source system, table or analytics model.
+# The business ontology (ADR-0027): what the business is made of and how it relates (customers,
+# orders, reviews, sellers, places), independent of any source system, table or analytics model.
 # An Apache Ossie ontology document, validated with Ossie's own validator
 # (platform/context/semantics/src/dgp_platform_semantics/vendor/ossie/). Ossie requires one self-contained document, so the whole
 # business is modelled here, owned by the governance guild (one representative per domain).
 #
 # This is the business glossary in a structured form. A concept with a `description` here is a
-# BUSINESS TERM: the description is its business definition — what the business means, the rule
-# behind it, and what it is used for — and its responsible area is the domain that owns it. Entity
-# types are always business terms; a value type is one when the business has a rule about it
+# BUSINESS TERM: the description is its business definition (what the business means, the rule
+# behind it, and what it is used for), and its responsible area is the domain that owns it. Entity
+# types are always business terms, and a value type is one when the business has a rule about it
 # (Amount paid vs Items value). Metrics with a formula (a count of valid orders, an LTV) are business
 # terms too, defined executably in the owning domain's Ossie semantic model.
 #
-# Every value type also has a DATA ELEMENT definition — what a column holding it contains: format,
-# type, sensitivity — in domains/<domain>/contracts/definitions/<value_type>.odcs.yaml (snake_case
+# Every value type also has a DATA ELEMENT definition (what a column holding it contains: format,
+# type, sensitivity) in domains/<domain>/contracts/definitions/<value_type>.odcs.yaml (snake_case
 # of its name), which contract columns link to and inherit. A value type without a description
 # here (an id, a date, a state code) is a data element only, not a business term.
 version: 0.2.0.dev0
 name: commerce
 description: >-
-  The marketplace business: customers place orders and review them; customers and sellers are
+  The marketplace business: customers place orders and review them, and customers and sellers are
   located in Brazilian places.
 prefixes:
   schema: https://schema.org/
@@ -28,7 +28,7 @@ ontology:
   - concept: Customer
     type: EntityType
     description: >-
-      A person who buys on the marketplace. Identified by the customer person id; the same person
+      A person who buys on the marketplace. Identified by the customer person id. The same person
       gets a new customer key with every order, so people are counted by person id, never by key.
       Used for: counting buyers, repeat purchase and retention.
     iri: schema:Person
@@ -63,7 +63,7 @@ ontology:
       - name: has_customer_key
         description: >-
           A new customer key is issued with every order, so the key joins an order to its customer
-          record one to one; it does not identify the person (count people with CustomerPersonId).
+          record one to one. It does not identify the person (count people with CustomerPersonId).
         roles: [{concept: CustomerKey}]
         multiplicity: OneToOne
         verbalizes: ["{Order} has customer key {CustomerKey}"]
@@ -126,7 +126,7 @@ ontology:
   - concept: Location
     type: EntityType
     description: >-
-      A Brazilian place, at the precision of a zip-code prefix — where customers receive and
+      A Brazilian place, at the precision of a zip-code prefix: where customers receive and
       sellers ship from. Used for: regional analysis and delivery distances.
     iri: schema:PostalAddress
     identify_by: [has_zip_code_prefix]
@@ -155,7 +155,7 @@ ontology:
     description: >-
       Customer key (per order). Rule: the marketplace issues a new customer key with every order,
       so the key identifies the customer record of one order, not the person. Used for: joining an
-      order to its customer record. Never used to count customers — that is CustomerPersonId.
+      order to its customer record. Never used to count customers. That is CustomerPersonId.
 
   - concept: OrderId
     type: ValueType
@@ -167,7 +167,7 @@ ontology:
     extends: [Decimal]
     iri: schema:totalPaymentDue
     description: >-
-      Amount paid — revenue as received. Rule: everything customers paid for orders, all payments
+      Amount paid: revenue as received. Rule: everything customers paid for orders, all payments
       summed, including freight and instalment interest. Used for: revenue reporting by region
       (sales_performance.total_revenue). Not for seller performance or payouts: use ItemsValue.
 
@@ -175,7 +175,7 @@ ontology:
     type: ValueType
     extends: [Decimal]
     description: >-
-      Items value — merchandise revenue. Rule: the items sold at their price, excluding freight and
+      Items value: merchandise revenue. Rule: the items sold at their price, excluding freight and
       payment costs. Used for: seller performance (seller_performance.total_revenue). It is lower
       than PaymentAmount by the freight and the instalment interest customers pay.
 

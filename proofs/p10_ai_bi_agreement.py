@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Proof P10 — BI and AI agree (ADR-0010, ADR-0020, M7).
+"""Proof P10: BI and AI agree (ADR-0010, ADR-0020, M7).
 
 For every governed metric, three paths return the same number because all three compile the one
 Apache Ossie definition:
 
-  * **AI**     — the semantic MCP server's ``query_metric`` (the agent's only metric path).
-  * **BI**     — Superset's published metric, executed *through Superset* against the warehouse.
-  * **Ossie**  — a direct control: the shared reader's SQL run straight on the warehouse.
+  * **AI**:     the semantic MCP server's ``query_metric`` (the agent's only metric path).
+  * **BI**:     Superset's published metric, executed *through Superset* against the warehouse.
+  * **Ossie**:  a direct control, the shared reader's SQL run straight on the warehouse.
 
 It also checks that Superset's stored metric expression is the governed one, and that the AI path
-refuses an ungoverned/PII column, an invented metric and an ungoverned product. Deterministic — no
-LLM, no API key. Needs the live platform: warehouse up and a port published to Superset (``make
+refuses an ungoverned/PII column, an invented metric and an ungoverned product. Deterministic:
+no LLM, no API key. Needs the live platform: warehouse up and a port published to Superset (``make
 bi-publish``). Run: ``make prove-p10``.
 """
 
@@ -94,7 +94,7 @@ def check_agreement(s: Superset, ai_layer: SemanticLayer) -> tuple[list[str], in
             published = s.dataset_by_table(ossie.source_table(ds))
             if published is None:
                 table = ossie.source_table(ds)
-                failures.append(f"{table}: not published to Superset — run `make bi-publish`")
+                failures.append(f"{table}: not published to Superset. Run `make bi-publish`")
                 continue
             checked += len(ossie.metrics(spec))
             failures += _metric_failures(s, ai_layer, spec, ds, published)
@@ -117,7 +117,7 @@ def check_refusals(ai_layer: SemanticLayer) -> list[str]:
 
 
 def check_discovery(ai_layer: SemanticLayer) -> list[str]:
-    """An ungoverned product is explained — its owner and the next step — not an error."""
+    """An ungoverned product is explained (its owner and the next step), not an error."""
     listing = ai_layer.list_metrics("customers")
     if listing.get("governed") is not False or not listing.get("owner_contact"):
         return [f"list_metrics('customers') should name its owner, got {listing}"]
@@ -133,12 +133,12 @@ def main() -> int:
     failures, checked = check_agreement(Superset(), ai_layer)
     failures += check_refusals(ai_layer) + check_discovery(ai_layer)
     if failures:
-        print("\nP10 FAILED — BI and AI do not agree:")
+        print("\nP10 FAILED: BI and AI do not agree:")
         for f in failures:
             print(f"  - {f}")
         return 1
     print(
-        f"\nP10 OK: {checked} metric(s) agree across AI, BI and the Ossie definition; "
+        f"\nP10 OK: {checked} metric(s) agree across AI, BI and the Ossie definition, and "
         f"{len(REFUSALS)} ungoverned request(s) refused."
     )
     return 0

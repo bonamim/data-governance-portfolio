@@ -1,7 +1,7 @@
 """Execute an ODCS contract's column rules against a CSV file.
 
 One streaming pass (so a million-row landing file is fine). Produces a
-ValidationResult of per-rule assertions; the landing gate quarantines the file if
+ValidationResult of per-rule assertions. The landing gate quarantines the file if
 any assertion fails (proof P2). Rules checked: declared columns present, not-null
 on required columns, uniqueness, value range, and integer type.
 """

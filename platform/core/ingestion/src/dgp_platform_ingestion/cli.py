@@ -6,10 +6,10 @@
     dgp-ingest gate        # drain the landing inbox through the contract gate (accepted/quarantine)
     dgp-ingest load-raw    # load every dataset into <domain>_raw: OLTP + accepted files (+ ledger)
     dgp-ingest replay      # rebuild raw from shop_oltp + archive accepted/ (--partition-date)
-    dgp-ingest sla         # check landing delivery deadlines; alert the owner on a miss
+    dgp-ingest sla         # check landing delivery deadlines, alert the owner on a miss
     dgp-ingest all         # acquire -> seed -> land -> gate -> load-raw
 
-The Airflow DAGs call the same functions in pipeline.py; this CLI is for local
+The Airflow DAGs call the same functions in pipeline.py. This CLI is for local
 runs and for the Makefile.
 """
 
@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         "sla": lambda: [
             print(
                 f"{f.dataset} {f.partition}: {f.state} (deadline {f.deadline:%Y-%m-%d %H:%M} UTC)"
-                + (f" — {f.detail}" if f.detail else "")
+                + (f": {f.detail}" if f.detail else "")
             )
             for f in sla.check(repo_root, settings, args.domain)
         ],

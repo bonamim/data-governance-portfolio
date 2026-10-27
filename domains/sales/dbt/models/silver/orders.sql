@@ -8,7 +8,7 @@
     batch_size='month',
     lookback=1,
 ) }}
--- OUTPUT PORT: sales.orders — tagged `output_port` in its ODCS contract (the tag is
+-- OUTPUT PORT: sales.orders, tagged `output_port` in its ODCS contract (the tag is
 -- synced to dbt from the contract). A deliberate publish from the Silver layer.
 -- Conformed orders in exactly the shape its ODCS contract promises consumers.
 -- The order book grows by purchase month, so it is built in monthly microbatches (ADR-0015 §4):

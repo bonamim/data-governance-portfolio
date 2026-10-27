@@ -1,16 +1,16 @@
 """The governed semantic layer, exposed as an MCP server (M7, ADR-0020).
 
-Any MCP-capable agent — Claude, ChatGPT, GitHub Copilot, Snowflake Cortex Agents — can obtain a
+Any MCP-capable agent (Claude, ChatGPT, GitHub Copilot, Snowflake Cortex Agents) can obtain a
 business metric **only** through these tools, which compile the domain's governed Apache Ossie
 definition into SQL (the same definition Superset uses). There is no free-form-SQL tool, so the
 agent cannot invent a metric or read an ungoverned (raw/staging/PII) column. The governance is in
-the server, so it holds the same for every client; only each client's wiring differs (see
+the server, so it holds the same for every client. Only each client's wiring differs (see
 ``ai/README.md``).
 
-Transport is client-agnostic via ``MCP_TRANSPORT``: ``stdio`` (default — local clients like Claude
+Transport is client-agnostic via ``MCP_TRANSPORT``: ``stdio`` (default: local clients like Claude
 Code and Copilot/VS Code launch the process) or ``streamable-http`` (a remote server for hosted
-clients like ChatGPT connectors and Cortex Agents; set ``MCP_HOST``/``MCP_PORT``). Run with
-``make ai-mcp`` (stdio) or ``make ai-mcp-http`` (remote); ``DGP_SEMANTIC_DOMAIN`` scopes it to one
+clients like ChatGPT connectors and Cortex Agents, set ``MCP_HOST``/``MCP_PORT``). Run with
+``make ai-mcp`` (stdio) or ``make ai-mcp-http`` (remote). ``DGP_SEMANTIC_DOMAIN`` scopes it to one
 domain, which makes it that domain's agent (``make ai-agent DOMAIN=sales``).
 """
 
@@ -47,7 +47,7 @@ def list_data_products() -> list[dict]:
     (``column_privacy``: identifier, quasi_identifier, sensitive) and its
     ontology concept (``column_concepts``: columns of different products with the same concept mean
     the same thing, whatever their name). A governed
-    product also lists its metrics and dimensions, so call ``query_metric`` next — no need for
+    product also lists its metrics and dimensions, so call ``query_metric`` next, with no need for
     ``list_metrics``. Discovery is open: ungoverned products are visible so a user can ask the
     owner (``request_semantic_model``) to define metrics. Only governed ones are queryable."""
     return layer.list_data_products()
@@ -56,7 +56,7 @@ def list_data_products() -> list[dict]:
 @mcp.tool()
 def list_metrics(data_product: str) -> dict:
     """List one data product's governed metrics and dimensions (Ossie spec) with the metric
-    expressions. ``list_data_products`` already includes names and descriptions; use this only when
+    expressions. ``list_data_products`` already includes names and descriptions. Use this only when
     you need the expressions. For an ungoverned product it names the owner and the next step."""
     return layer.list_metrics(data_product)
 
@@ -67,7 +67,7 @@ def query_metric(
 ) -> dict:
     """Compute governed metric(s) for a data product, optionally broken down by dimension(s).
 
-    ``metrics`` and ``dimensions`` must be names from ``list_data_products`` — anything else is
+    ``metrics`` and ``dimensions`` must be names from ``list_data_products``. Anything else is
     refused as "not in the semantic layer". Returns the value rows, the exact governed SQL, the
     Ossie definitions used, the owner, and the classification of every column the number came from
     (so sensitivity needs no extra lookup).
@@ -80,7 +80,7 @@ def request_semantic_model(data_product: str, business_need: str, requested_by: 
     """Ask the owning domain to define governed metrics for a product that isn't governed yet.
 
     Use this when ``list_data_products`` shows a product with ``governed: false`` and the user wants
-    metrics on it. It records an auditable request routed to the owner (not a fabricated number) —
+    metrics on it. It records an auditable request routed to the owner (not a fabricated number),
     the self-serve path from discovery to a governed metric. Returns where it was filed and to whom.
     """
     return layer.request_semantic_model(data_product, business_need, requested_by)

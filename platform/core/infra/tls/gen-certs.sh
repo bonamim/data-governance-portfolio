@@ -2,7 +2,7 @@
 # Local certificate authority + server certificate for the platform's TLS endpoints (X3).
 #
 # Writes platform/core/infra/tls/out/ (gitignored): ca.crt/ca.key (the local CA) and server.crt/server.key
-# with SANs for every name a client uses to reach Postgres — localhost (host tools, the restore
+# with SANs for every name a client uses to reach Postgres: localhost (host tools, the restore
 # drill), the compose service names (containers on the platform network) and host.docker.internal
 # (containers in other compose projects). Idempotent: an existing, unexpired certificate is kept.
 # Production uses certificates from your CA / cert-manager instead (production-readiness §4.1).

@@ -1,4 +1,4 @@
-# DataHub ingestion — the operational source database (shop_oltp), so lineage starts at the
+# DataHub ingestion: the operational source database (shop_oltp), so lineage starts at the
 # real source: shop_oltp.shop.<table> -> load_raw (Airflow) -> <domain>_raw.<table> -> [dbt].
 # Secrets come from the environment (sourced from .env by `make catalog-ingest`).
 source:

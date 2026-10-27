@@ -1,7 +1,7 @@
-# DataHub ingestion — dbt models, columns, tests and lineage for ONE domain project.
+# DataHub ingestion: dbt models, columns, tests and lineage for ONE domain project.
 # Run once per domain with DBT_TARGET pointed at that project's target/ (see `make catalog-ingest`).
 # target_platform=postgres so each dbt model links to the warehouse dataset ingested by
-# postgres_analytics.yml — that join is what produces end-to-end lineage (proof P7).
+# postgres_analytics.yml. That join is what produces end-to-end lineage (proof P7).
 source:
   type: dbt
   config:
@@ -14,7 +14,7 @@ source:
     # ingested by postgres_analytics.yml share one URN (set explicitly: DataHub warns otherwise).
     convert_urns_to_lowercase: false
     # Emit only this project's nodes. dbt-loom puts other domains' public models in the manifest
-    # as stubs (no descriptions); emitting them would overwrite the owning domain's node.
+    # as stubs (no descriptions), and emitting them would overwrite the owning domain's node.
     # They still resolve lineage, so the cross-domain edges remain.
     node_name_pattern:
       allow:

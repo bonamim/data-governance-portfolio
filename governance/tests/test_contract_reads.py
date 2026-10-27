@@ -10,7 +10,7 @@ SKIP = {".venv", "__pycache__", "tests", "target", "dbt_packages"}
 USES_LOADER = re.compile(
     r"from dgp_platform_(?:contracts import .*\bodcs|quality\.rules import .*\bload_contract)\b"
 )
-# Files that name contracts without reading their meaning — each with the reason.
+# Files that name contracts without reading their meaning, each with the reason.
 NOT_READERS = {
     "proofs/p18_completion_and_sla.py": "edits the contract text to provoke a failure",
     "proofs/p19_versioned_port.py": "copies a contract to a new version (links must stay links)",

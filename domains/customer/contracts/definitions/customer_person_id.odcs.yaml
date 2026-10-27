@@ -12,7 +12,7 @@ customProperties:
   - property: maskingPolicy  # ADR-0013: every column holding a person id is masked the same way
     value:
       method: hash              # hash | partial | full | null
-      unmask_roles: [compliance]  # roles that see the raw value; all others see the mask
+      unmask_roles: [compliance]  # roles that see the raw value, all others see the mask
 authoritativeDefinitions:
   - type: ontology  # the ontology value type this data element holds
     url: ../../../../governance/ontology/commerce.ontology.yaml#CustomerPersonId

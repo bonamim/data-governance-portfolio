@@ -11,9 +11,9 @@ Use **[Colima](https://github.com/abiosoft/colima)** (MIT) on macOS/Linux, with 
 open-source Docker CLI and Docker Compose plugin (Apache 2.0).
 
 ## Consequences
-- Compose files are standard — they also run on Docker Engine on Linux, Podman Compose,
+- Compose files are standard. They also run on Docker Engine on Linux, Podman Compose,
   or Docker Desktop, so contributors are not locked in.
-- The Colima VM must be sized for the full stack (DataHub alone needs several GB);
-  see the README for the recommended profile.
+- The Colima VM must be sized for the full stack (DataHub alone needs several GB).
+  See the README for the recommended profile.
 - Production does not use Colima or Compose: the same images are deployed to
   Kubernetes or managed services (see production-readiness.md).

@@ -15,5 +15,5 @@ to public models only.
 - datacontract-cli can import from and export to dbt.
 - Cross-project references in dbt Core require the dbt-loom plugin (dbt Cloud's
   native multi-project feature is not open source).
-- SQLMesh offers stronger built-in breaking-change detection; here that role is
+- SQLMesh offers stronger built-in breaking-change detection, but here that role is
   covered by the contract gate in CI.

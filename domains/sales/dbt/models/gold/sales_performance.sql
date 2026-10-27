@@ -1,5 +1,5 @@
 {{ config(access='public') }}
--- OUTPUT PORT: sales.sales_performance — tagged `output_port` in its ODCS contract.
+-- OUTPUT PORT: sales.sales_performance, tagged `output_port` in its ODCS contract.
 -- A deliberate publish from Gold (the tag is synced to dbt from the contract).
 -- Order/revenue performance by customer state with average review score.
 -- Consumes other domains' output ports only, via dbt-loom (public models):
@@ -15,7 +15,7 @@ revenue as (
 ),
 
 customers as (
-    -- customer_unique_id arrives pseudonymised (ADR-0013); counting distinct hashes counts people.
+    -- customer_unique_id arrives pseudonymised (ADR-0013), so counting distinct hashes counts people.
     select customer_id, customer_unique_id, customer_state from {{ ref('dgp_customer', 'customers') }}
 ),
 
@@ -27,7 +27,7 @@ review as (
 
 select
     c.customer_state,
-    -- COUNT is bigint in Postgres; the contract promises integer.
+    -- COUNT is bigint in Postgres, but the contract promises integer.
     count(distinct o.order_id)::int    as num_orders,
     count(distinct o.customer_id)::int as num_customers,
     count(distinct c.customer_unique_id)::int as num_people,

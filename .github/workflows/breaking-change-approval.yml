@@ -2,14 +2,14 @@ name: Breaking-change approval (ADR-0019)
 
 # Automates consumer sign-off for a breaking change to an output port (a major version bump on its
 # ODCS contract). On such a PR it requests review from the impacted consumer domains and comments
-# who must approve; when an impacted consumer approves, it records the approval as a committed file
+# who must approve. When an impacted consumer approves, it records the approval as a committed file
 # (governance/approvals/<port>-v<N>.yaml, or <port>-retire.yaml when a port version is retired)
 # that unblocks the breaking-change gate (proof P5).
 #
-# The approval *file* is the authority; this workflow is only the automation that fills it in — a
+# The approval *file* is the authority, and this workflow is only the automation that fills it in. A
 # file can also be committed by hand. Mapping convention: a mesh domain's GitHub team slug == the
 # domain name (domain `sales` -> team @<org>/sales). Requires the repo on GitHub with those teams
-# and a token allowed to push to PR branches; until then it is inert (and no-ops on forked PRs,
+# and a token allowed to push to PR branches. Until then it is inert (and no-ops on forked PRs,
 # where GITHUB_TOKEN is read-only).
 
 on:
@@ -54,10 +54,10 @@ jobs:
             }).catch(e => core.warning(`requestReviewers: ${e.message}`));
             const lines = impact
               .filter(i => i.teams.length)
-              .map(i => `- **${i.port}** ${i.version === 'retire' ? 'retirement' : `v${i.version}`} — needs ${i.teams.map(t => `@${org}/${t}`).join(', ')}`);
+              .map(i => `- **${i.port}** ${i.version === 'retire' ? 'retirement' : `v${i.version}`}: needs ${i.teams.map(t => `@${org}/${t}`).join(', ')}`);
             await github.rest.issues.createComment({
               ...context.repo, issue_number: context.issue.number,
-              body: `### Breaking change — consumer approval required\n\n${lines.join('\n')}\n\n`
+              body: `### Breaking change: consumer approval required\n\n${lines.join('\n')}\n\n`
                   + `An affected consumer approving this PR records the sign-off and unblocks it.`,
             });
         env:

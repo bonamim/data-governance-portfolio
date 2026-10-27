@@ -1,6 +1,6 @@
 # Ossie Visualizer (github.com/blankmeadow/ossie-visualizer, Apache-2.0): a browser-only viewer for
 # Apache Ossie documents. Built from a pinned upstream commit, its source verified by checksum, and
-# served as static files — no code of ours, nothing vendored. Upgrading = new commit + checksum.
+# served as static files: no code of ours, nothing vendored. Upgrading = new commit + checksum.
 FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS build
 ARG COMMIT=d6368a3b479b2e567a11748fc98e2cb70bdc5e75
 ARG SHA256=a916a12299d1e390b8ba4cdef5bc21061890de226ecc1124c2dea65fb6b813c1

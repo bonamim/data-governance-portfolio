@@ -1,7 +1,7 @@
 """Discovery and validation of the domains' declarative source config.
 
 Each domain registers its sources in ``<domain>/ingestion/sources.yml``. The
-platform reads these *files* (data, not code — the boundary in ADR-0008 holds),
+platform reads these *files* (data, not code, so the boundary in ADR-0008 holds),
 so a domain onboards by adding config, never by changing platform code.
 
 Example (domains/sales/ingestion/sources.yml):
@@ -36,11 +36,11 @@ class Dataset:
     olist_file: str
     raw_table: str
     oltp_table: str | None  # required when source_type == "oltp"
-    source_system: str  # where the data comes from — drives the landing path
+    source_system: str  # where the data comes from, which drives the landing path
     config_path: Path
     # PoC partner simulator only: the file name the partner delivers, as a format string over
-    # the business date (e.g. 'reviews_{date:%Y%m%d}.csv'). Real partners name files their way;
-    # the landing contract describes that convention (filenamePattern, ADR-0024).
+    # the business date (e.g. 'reviews_{date:%Y%m%d}.csv'). Real partners name files their way,
+    # and the landing contract describes that convention (filenamePattern, ADR-0024).
     delivered_as: str | None = None
 
     @property
@@ -93,7 +93,7 @@ def _parse_file(path: Path) -> list[Dataset]:
 def load_datasets(repo_root: Path, domain: str | None = None) -> list[Dataset]:
     """Load and validate domain datasets from the repo.
 
-    With ``domain`` set, only that domain's datasets are returned — this is how a
+    With ``domain`` set, only that domain's datasets are returned. This is how a
     per-domain DAG stays scoped to its own data (domain isolation, proof P1).
     """
     datasets: list[Dataset] = []

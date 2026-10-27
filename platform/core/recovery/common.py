@@ -1,6 +1,6 @@
 """Shared helpers for the backup job and the restore drill (proof P9, docs/disaster-recovery.md).
 
-Backups go to the ``platform-backups`` bucket (``BACKUP_BUCKET``) — versioned, and in production a
+Backups go to the ``platform-backups`` bucket (``BACKUP_BUCKET``), versioned, and in production a
 DIFFERENT, object-locked, replicated location from the landing zone (DR §3). Each run writes
 ``backups/<UTC timestamp>/`` holding one file per store plus a ``manifest.json`` with each file's
 sha256 and the row counts the drill must reproduce after restoring.
@@ -25,7 +25,7 @@ DRILL_PREFIX = "drills/"
 # Recovery point objective for the tier-1 OLTP source (DR §1): max acceptable data loss.
 RPO_SECONDS = {"shop_oltp": 5 * 60}
 
-# Recovery objectives (docs/disaster-recovery.md §1), in seconds — the drill measures against these.
+# Recovery objectives (docs/disaster-recovery.md §1), in seconds. The drill measures against these.
 RTO_SECONDS = {
     "shop_oltp": 1 * 3600,
     "datahub": 8 * 3600,
@@ -37,7 +37,7 @@ RTO_SECONDS = {
 
 
 def s3() -> BaseClient:
-    """S3 client — MinIO locally, real S3 when MINIO_ENDPOINT is empty (ADR-0009)."""
+    """S3 client: MinIO locally, real S3 when MINIO_ENDPOINT is empty (ADR-0009)."""
     return boto3.client(
         "s3",
         endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000") or None,
@@ -89,7 +89,7 @@ def latest_manifest(client: BaseClient) -> tuple[str, dict]:
         keys += [o["Key"] for o in page.get("Contents", []) if o["Key"].endswith("manifest.json")]
     if not keys:
         raise SystemExit(
-            f"no backup found in s3://{BACKUP_BUCKET}/{BACKUP_PREFIX} — run make backup"
+            f"no backup found in s3://{BACKUP_BUCKET}/{BACKUP_PREFIX}. Run make backup"
         )
     key = max(keys)  # prefixes are sortable UTC timestamps
     body = client.get_object(Bucket=BACKUP_BUCKET, Key=key)["Body"].read()

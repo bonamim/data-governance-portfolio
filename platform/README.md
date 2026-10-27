@@ -12,8 +12,8 @@ The platform is laid out by the three pillars of data governance, on top of the 
 
 Contracts live in the core, not in a pillar, because every pillar reads them: access takes the
 masking policies from them, quality the rules, context the meaning. The rules a domain *must*
-follow are in [`governance/`](../governance/) — the what. This folder is how they are enforced —
-the how.
+follow are in [`governance/`](../governance/) (the what). This folder is how they are enforced
+(the how).
 
 ## Packages and scripts
 
@@ -38,12 +38,12 @@ Two consequences keep this honest:
 
 - **No path tricks.** Nothing inserts folders into `sys.path`. `uv run` installs every member, so
   a script or a test imports what it needs by package name. (A test of a script imports it through
-  pytest's `pythonpath` setting, in `pyproject.toml`; `test_scripts_import.py` imports every
+  pytest's `pythonpath` setting, in `pyproject.toml`, and `test_scripts_import.py` imports every
   script in CI, so a broken import can't wait for the script's next real run.)
 - **One home per fact.** Where a contract lives, which product reads a port, how to reach the
   warehouse: each is answered once, in a package, and every tool asks it.
 
-The packaged tools run as modules — `uv run python -m dgp_platform_access.apply_grants` — and the
+The packaged tools run as modules (`uv run python -m dgp_platform_access.apply_grants`), and the
 Makefile wraps each one in a target (`make grants`).
 
 The repository root is found the way `git` finds it: `DGP_REPO_ROOT` if set (the Airflow image
@@ -54,8 +54,8 @@ mounts the checkout at `/opt/airflow/repo`), otherwise the nearest folder upward
 
 - **A generator lives with the tool that reads its output**, not with its input, since nearly every
   generator reads the contracts. `transform/generate_dbt_ports.py` writes dbt YAML, so it is in
-  `core/transform`; `generate_landing_access` writes MinIO policies, so it is in `access`.
-- **Code a domain would otherwise copy** is a platform capability; a domain ships configuration
+  `core/transform`, and `generate_landing_access` writes MinIO policies, so it is in `access`.
+- **Code a domain would otherwise copy** is a platform capability, and a domain ships configuration
   only (ADR-0008 §2).
 - **Third-party code** is vendored only when we import it and there is no release to pin
   (Ossie's validator, in `dgp_platform_semantics/vendor/ossie/`). A third-party *application* is
@@ -67,9 +67,9 @@ mounts the checkout at `/opt/airflow/repo`), otherwise the nearest folder upward
 |---|---|---|
 | Folders | one lowercase word, or `snake_case` | `access`, `semantics`, `data_products` |
 | Python modules and scripts | `snake_case.py` | `apply_masking.py`, `odcs.py` |
-| Packages | `dgp_platform_<capability>` (distribution `dgp-platform-<capability>`); `dgp_governance` and `dgp_ai` outside the platform | `dgp_platform_contracts` |
+| Packages | `dgp_platform_<capability>` (distribution `dgp-platform-<capability>`), with `dgp_governance` and `dgp_ai` outside the platform | `dgp_platform_contracts` |
 | Tests | `tests/test_<subject>.py` next to the code | `tests/test_generate_dbt_ports.py` |
-| Markdown | `kebab-case.md`; a `README.md` per capability | `breaking-changes.md` |
+| Markdown | `kebab-case.md`, and a `README.md` per capability | `breaking-changes.md` |
 | YAML | `.yaml`, except where a tool fixes the name | `dbt_project.yml`, `docker-compose.<tool>.yml` |
 | Compose files | `docker-compose.<tool>.yml`, with an explicit `name:` | `docker-compose.visualizer.yml` |
 

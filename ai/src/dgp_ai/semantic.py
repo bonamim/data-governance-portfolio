@@ -1,24 +1,24 @@
-"""Governed semantic computation — the engine behind the AI consumer (ADR-0010, ADR-0020).
+"""Governed semantic computation: the engine behind the AI consumer (ADR-0010, ADR-0020).
 
 It works on two planes, on purpose:
 
 * **Discovery is open.** ``list_data_products`` lists every data product in the mesh, says which
   are *governed* (they have an Apache Ossie semantic model) and which are not, and names the
-  owning domain — so a user can explore freely and see what exists.
+  owning domain, so a user can explore freely and see what exists.
 * **Computation is governed.** A metric value comes only from compiling the domain's Ossie
   definition into SQL (``dgp_platform_semantics.ossie``, the same translation Superset uses) and
   running it against the warehouse as a **consumer role**. There is no free-form SQL: a name that
   is not a governed metric or dimension is refused, so raw, staging and PII columns can't be
-  answered at all — which is what keeps BI and AI on the same number.
+  answered at all. That is what keeps BI and AI on the same number.
 
 ``request_semantic_model`` bridges the two. When someone wants a metric on a product that isn't
-governed yet, it becomes an auditable request to the owning domain — the self-serve path — rather
+governed yet, it becomes an auditable request to the owning domain (the self-serve path) rather
 than a dead end.
 
 A ``SemanticLayer`` is scoped either to the whole platform or to one domain. A domain's agent
 (ADR-0021) is the same code scoped to its domain: it sees and answers only that domain's products,
 and connects as that domain's own warehouse role. ``semantic_server`` exposes one layer as MCP
-tools; the ``router`` holds one per domain; proof P10 calls a layer directly (no LLM) to show that
+tools, the ``router`` holds one per domain, and proof P10 calls a layer directly (no LLM) to show
 AI and Superset agree.
 """
 
@@ -42,7 +42,7 @@ from dgp_governance import products, registry
 from dgp_governance.repo import relative, root
 from dgp_platform_semantics import ossie
 
-# The consumer-role URI of the warehouse (output ports only) — never an admin or owner role.
+# The consumer-role URI of the warehouse (output ports only), never an admin or owner role.
 WAREHOUSE_URI_ENV = "SEMANTIC_WAREHOUSE_URI"
 # A domain's agent connects as its own role, granted only that domain's ports (ADR-0021, M8):
 # SEMANTIC_WAREHOUSE_URI_<DOMAIN>, e.g. ..._SALES for agent_sales. Unset: the shared reader.
@@ -78,7 +78,7 @@ def column_classification(port: products.OutputPort) -> dict[str, str]:
 
 def column_privacy(port: products.OutputPort) -> dict[str, str]:
     """Column -> privacy category, for the columns that hold personal data (identifier,
-    quasi_identifier, sensitive — SNOWFLAKE.CORE.PRIVACY_CATEGORY). A column not listed is not
+    quasi_identifier, sensitive: SNOWFLAKE.CORE.PRIVACY_CATEGORY). A column not listed is not
     personal data."""
     out = {}
     for column in port.columns:
@@ -89,7 +89,7 @@ def column_privacy(port: products.OutputPort) -> dict[str, str]:
 
 def column_concepts(port: products.OutputPort) -> dict[str, str]:
     """Column -> its ontology concept. Columns of different products that share a concept mean the
-    same thing — the join key — whatever they are called (ADR-0027)."""
+    same thing (the join key) whatever they are called (ADR-0027)."""
     out = {}
     for column in port.columns:
         if concept := registry.concept_of(column, port.contract):
@@ -114,7 +114,7 @@ class SemanticLayer:
     """The governed semantic layer as one agent sees it: every domain, or only ``domain``'s."""
 
     domain: str | None = None
-    requests_dir: Path | None = None  # where requests are filed; default governance/requests/
+    requests_dir: Path | None = None  # where requests are filed, default governance/requests/
 
     @classmethod
     def from_env(cls) -> SemanticLayer:
@@ -199,7 +199,7 @@ class SemanticLayer:
         """Compute governed metrics for a data product, optionally by dimension.
 
         Every requested metric must be a metric of the product's Ossie model and every dimension
-        one of its fields; anything else is refused, because it is not in the semantic layer. The
+        one of its fields. Anything else is refused, because it is not in the semantic layer. The
         value is the governed ANSI SQL run as the consumer role, and the SQL and the definitions
         come back with it for provenance.
         """
@@ -214,9 +214,9 @@ class SemanticLayer:
         if unknown_m or unknown_d:
             audit(self.agent, "query_metric", "refused", **asked)
             raise ValueError(
-                "refused — not in the semantic layer: "
+                "refused (not in the semantic layer): "
                 f"metrics {unknown_m or '[]'}, dimensions {unknown_d or '[]'}. "
-                f"Governed metrics: {sorted(known_metrics)}; dimensions: {sorted(known_dims)}."
+                f"Governed metrics: {sorted(known_metrics)}, dimensions: {sorted(known_dims)}."
             )
 
         sql = ossie.metric_sql(spec, dataset, metrics, dimensions)
@@ -263,7 +263,7 @@ class SemanticLayer:
         This is the self-serve bridge from the open plane to the governed one: exploring can turn
         up a product with no metrics yet, and instead of a dead end the user files an auditable
         request routed to its owner (like a breaking-change approval in governance/approvals/).
-        The domain then writes the Ossie model; nothing here makes up an ungoverned number.
+        The domain then writes the Ossie model. Nothing here makes up an ungoverned number.
         """
         known = self._entry(product)
         if known is None:
@@ -272,7 +272,7 @@ class SemanticLayer:
             )
         if known["governed"]:
             raise ValueError(
-                f"'{product}' is already governed — call list_metrics('{product}') and query it."
+                f"'{product}' is already governed. Call list_metrics('{product}') and query it."
             )
         if not business_need.strip():
             raise ValueError(
@@ -308,7 +308,7 @@ class SemanticLayer:
             "recorded": recorded,
             "routed_to": f"{known['domain']} ({known.get('owner_contact') or 'owner'})",
             "owner_notification": notification,
-            "next": "the owning domain writes the Ossie semantic model; then it is governed.",
+            "next": "the owning domain writes the Ossie semantic model, and then it is governed.",
             **record,
         }
 
@@ -319,7 +319,7 @@ class SemanticLayer:
         return [ossie.load_compiled(p) for p in ossie.models(self.domain)]
 
     def _resolve(self, product: str) -> tuple[dict, dict]:
-        """(model, dataset) for a governed product; otherwise a refusal that points to the owner."""
+        """(model, dataset) for a governed product, otherwise a refusal that points to the owner."""
         for spec in self._models():
             for dataset in ossie.datasets(spec):
                 if product in (dataset.get("name"), spec.get("name")):
@@ -397,22 +397,22 @@ def _notify_owner(domain: str, record: dict, recorded: str) -> dict:
         return {
             "notified": False,
             "channel": channel,
-            "reason": f"no webhook configured ({env or 'no alert route'} unset); the request is "
+            "reason": f"no webhook configured ({env or 'no alert route'} unset). The request is "
             "recorded but the owner has not been told",
         }
     body = {
         "text": f"[{domain}] New semantic model request for {record['data_product']}: "
-        f"{record['business_need']} (requested by {record['requested_by']}; {recorded})",
+        f"{record['business_need']} (requested by {record['requested_by']}, {recorded})",
         "domain": domain,
         "kind": "semantic_model_request",
         "channel": channel,
         "detail": {**record, "file": recorded},
     }
-    req = urllib.request.Request(  # noqa: S310 — the domain's configured alert route
+    req = urllib.request.Request(  # noqa: S310 (the domain's configured alert route)
         url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 — the domain's configured route
+        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 (the domain's configured route)
             ok = 200 <= resp.status < 300
     except OSError as exc:  # an unreachable route must not lose the request, which is on disk
         return {"notified": False, "channel": channel, "reason": f"webhook failed: {exc}"}

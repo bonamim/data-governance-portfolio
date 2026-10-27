@@ -2,10 +2,10 @@
 """Adapter: publish the Ossie semantic models to Superset (ADR-0010, M6).
 
 Reads every ``domains/*/semantics/*.semantic_model.yaml`` and, via the Superset API, ensures the
-warehouse connection, a dataset per semantic dataset, and its metrics — generated from the one
+warehouse connection, a dataset per semantic dataset, and its metrics, generated from the one
 governed Ossie definition, not hand-typed in the BI tool. Idempotent.
 
-Run: ``make bi-publish`` (needs Superset up — ``make bi-up``).
+Run: ``make bi-publish`` (needs Superset up: ``make bi-up``).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from dgp_platform_semantics.superset import Superset
 
 DB_NAME = "analytics (warehouse)"
 # The warehouse connection, as the consumer role (output ports only). Engine-agnostic: point it at
-# Postgres, Snowflake and so on — the metric SQL is ANSI, so it ports.
+# Postgres, Snowflake and so on. The metric SQL is ANSI, so it ports.
 DB_URI = os.environ.get("SUPERSET_WAREHOUSE_URI")
 
 
@@ -99,7 +99,7 @@ def _drift(superset: Superset) -> list[str]:
         expected = {m["metric_name"]: m["expression"] for m in _metrics(spec, dataset["name"])}
         published = superset.dataset_by_table(table)
         if published is None:
-            drift.append(f"{table}: not published to Superset — run `make bi-publish`")
+            drift.append(f"{table}: not published to Superset. Run `make bi-publish`")
             continue
         actual = {m["metric_name"]: m.get("expression", "") for m in published.get("metrics") or []}
         for name, expr in expected.items():
@@ -119,7 +119,7 @@ def _drift(superset: Superset) -> list[str]:
 
 def _check(superset: Superset) -> int:
     if drift := _drift(superset):
-        print("Semantic drift FAILED — Superset does not match the Ossie models:")
+        print("Semantic drift FAILED: Superset does not match the Ossie models:")
         for d in drift:
             print(f"  - {d}")
         return 1

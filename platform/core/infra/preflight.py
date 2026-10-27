@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""No-default-credential guard — production-readiness X2.
+"""No-default-credential guard: production-readiness X2.
 
 Every default admin user/password must be replaced at deploy time, and startup must FAIL if a known
 default is detected. This inspects the deployment's configuration and reports every secret that is:
@@ -11,13 +11,13 @@ default is detected. This inspects the deployment's configuration and reports ev
   * shorter than 16 characters,
 
 plus default admin user names and any password hard-coded as a literal in a compose file (the
-DataHub quickstart compose carries ``datahub``/``datahub`` — a dev artefact; production deploys
+DataHub quickstart compose carries ``datahub``/``datahub``, a dev artefact. Production deploys
 DataHub with its Helm chart and secrets from the secrets manager).
 
 Two modes:
-  * local (default): prints the findings as a warning and exits 0 — dev defaults are expected on a
+  * local (default): prints the findings as a warning and exits 0. Dev defaults are expected on a
     laptop. ``make up`` runs it so they are never invisible.
-  * production (``DGP_ENV=prod`` or ``--prod``): any finding exits 1 — the deploy pipeline runs this
+  * production (``DGP_ENV=prod`` or ``--prod``): any finding exits 1. The deploy pipeline runs this
     before rollout, so the platform refuses to start with a default credential.
 
 Values come from ``.env`` overlaid by the process environment (where a secrets manager injects
@@ -131,14 +131,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if prod:
         print(
-            f"preflight FAILED — refusing to start with {len(findings)} "
+            f"preflight FAILED: refusing to start with {len(findings)} "
             "default/weak credential(s) (X2):"
         )
         for f in findings:
             print(f"  - {f}")
         return 1
     print(
-        f"preflight: {len(findings)} dev default credential(s) in use — fine on a laptop; "
+        f"preflight: {len(findings)} dev default credential(s) in use. Fine on a laptop, but "
         "DGP_ENV=prod refuses to start with any of them (X2, `make preflight` lists them)."
     )
     if os.environ.get("PREFLIGHT_VERBOSE"):

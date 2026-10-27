@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Proof P15 — per-model write-audit-publish, dependency-safe (ADR-0015 §1–§2).
+"""Proof P15: per-model write-audit-publish, dependency-safe (ADR-0015 §1 and §2).
 
 Exercised on the sales domain, whose two output ports opt in to WAP: ``sales.orders`` (a monthly
 microbatch table) and ``sales.sales_performance`` (a table built from it).
@@ -14,8 +14,8 @@ microbatch table) and ``sales.sales_performance`` (a table built from it).
                 table as it would be after the merge, quarantines it
   4. recover    the bad rows removed, the same backfill passes and publishes
   5. airflow    (if Airflow is up) the sales_transform DAG renders one task group per model and a
-                wap_<model> pipeline per opted-in port; a quarantine there fails the audit task,
-                runs quarantine, and save_state — the only task emitting published/sales — does not
+                wap_<model> pipeline per opted-in port. A quarantine there fails the audit task,
+                runs quarantine, and save_state (the only task emitting published/sales) does not
                 run, so consuming domains are not triggered (proof P3)
 
 Leaves the warehouse as it found it. Run: ``make prove-p15`` (``--skip-airflow`` to skip step 5).
@@ -102,7 +102,7 @@ def leftovers() -> list[str]:
 
 
 def step_promote(base: dict) -> None:
-    print("1. Promote: a same-shape table is replaced in place — dependents and grants survive")
+    print("1. Promote: a same-shape table is replaced in place, and dependents and grants survive")
     sales(f"CREATE OR REPLACE VIEW {CONSUMER} AS SELECT * FROM {PERF}")
     rc, log = publish()
     check(rc == 0, "publish succeeded", "")
@@ -189,7 +189,7 @@ def _run(conf: dict) -> tuple[str, dict[str, str]]:
 
 
 def step_airflow(base: dict) -> None:
-    print("5. Airflow: one task group per model; a quarantine stops the published/sales event")
+    print("5. Airflow: one task group per model, and a quarantine stops the published/sales event")
     tasks = _airflow("tasks", "list", "sales_transform").split()
     check(
         {
@@ -224,7 +224,7 @@ def step_airflow(base: dict) -> None:
     check(ts.get("grant") == "success", "grants re-applied anyway")
     check(
         ts.get("save_state") != "success",
-        "save_state (the only published/sales outlet) did not run — consumers not triggered",
+        "save_state (the only published/sales outlet) did not run, consumers not triggered",
         ts.get("save_state"),
     )
     check(state == "failed", "the DAG run is failed, so the breach is visible", state)
@@ -238,15 +238,15 @@ def step_airflow(base: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Proof P15 — per-model write-audit-publish")
+    parser = argparse.ArgumentParser(description="Proof P15: per-model write-audit-publish")
     parser.add_argument("--skip-airflow", action="store_true", help="skip the Airflow step")
     args = parser.parse_args()
     try:
         base = snapshot()
     except psycopg.OperationalError as e:
-        sys.exit(f"analytics warehouse unreachable — `make up` first ({e})")
+        sys.exit(f"analytics warehouse unreachable. Run `make up` first ({e})")
     if leftovers():
-        sys.exit(f"stale WAP relations {leftovers()} — run `make publish` first")
+        sys.exit(f"stale WAP relations {leftovers()}. Run `make publish` first")
     try:
         step_promote(base)
         print("2. Bad batch: a row breaking a column rule is quarantined, never published")
@@ -262,13 +262,13 @@ def main() -> int:
             if subprocess.run(["docker", "inspect", SCHED], capture_output=True).returncode == 0:
                 step_airflow(base)
             else:
-                print("5. Airflow: not running — skipped (`make airflow-up`)")
+                print("5. Airflow: not running, skipped (`make airflow-up`)")
     finally:
         sales(f"DROP VIEW IF EXISTS {CONSUMER}")
     return check.verdict(
         "each opted-in model is written to a candidate, audited as the table consumers "
         "would get, and promoted in place (dependents and grants intact) or quarantined "
-        "on its own; nothing downstream is built from a quarantined model and no "
+        "on its own. Nothing downstream is built from a quarantined model and no "
         "published event is emitted."
     )
 

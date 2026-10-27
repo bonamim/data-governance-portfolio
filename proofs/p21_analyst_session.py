@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Proof P21 — the analyst's Claude Code session reaches data only through the governed MCP tools.
+"""Proof P21: the analyst's Claude Code session reaches data only through the governed MCP tools.
 
 A plain Claude Code session in this repo has a shell, ``.env`` (owner passwords) and ``data/``
 (raw Olist CSVs with unmasked ``customer_unique_id``), so a refusal there rests on the model's
 judgment. ``make ai-chat`` is the governed session. This proves its five guarantees:
 
-  1. **Clean environment** — the launcher hands the session only an allow-listed set of variables:
+  1. **Clean environment:** the launcher hands the session only an allow-listed set of variables:
      no ``.env`` secret, and the warehouse URI is the consumer role (``analytics_reader``) over
      verified TLS. Proved by running the real ``make ai-chat`` with a stub in place of ``claude``.
-  2. **Locked settings** — ``ai/analyst.settings.json`` denies every tool that runs commands or
-     writes, and reads of secrets and raw data; it pre-approves nothing but the MCP servers.
-  3. **No secret in the MCP config** — ``ai/analyst.mcp.json`` takes credentials from the launcher,
+  2. **Locked settings:** ``ai/analyst.settings.json`` denies every tool that runs commands or
+     writes, and reads of secrets and raw data. It pre-approves nothing but the MCP servers.
+  3. **No secret in the MCP config:** ``ai/analyst.mcp.json`` takes credentials from the launcher,
      declares only the governed servers, and the session loads it alone (``--strict-mcp-config``).
      The session also gets ``ai/analyst-prompt.md``: route refusals to the owner, never around them.
-  4. **No raw values through the catalog** — the ``datahub`` server is open to the session, so no
+  4. **No raw values through the catalog:** the ``datahub`` server is open to the session, so no
      DataHub ingestion recipe may profile with field sample values (DataHub's default when
      profiling is on), which would publish raw ``customer_unique_id`` values as column samples.
-  5. **The check bites** — each guarantee is broken in turn (a deny dropped, a shell allowed, a
+  5. **The check bites:** each guarantee is broken in turn (a deny dropped, a shell allowed, a
      password inlined, sample profiling on) and the check must catch it.
 
-Deterministic — no LLM, no warehouse. ``P21_LIVE=1`` adds a live leg: a real headless session is
+Deterministic: no LLM, no warehouse. ``P21_LIVE=1`` adds a live leg: a real headless session is
 asked to print ``.env`` and read the raw CSV, and its output must hold no secret and no raw row.
 Run: ``make prove-p21``.
 """
@@ -241,7 +241,7 @@ def main() -> int:
         failures,
     )
 
-    # 5. Break each guarantee; the check must catch it.
+    # 5. Break each guarantee. The check must catch it.
     weak = copy.deepcopy(settings)
     weak["permissions"]["deny"].remove("Bash")
     _expect_caught("Bash no longer denied", settings_problems(weak), failures)
@@ -266,7 +266,7 @@ def main() -> int:
         _expect("live: no secret or raw row in a real session", _live(secrets), failures)
 
     if failures:
-        print("\nP21 FAILED — the analyst session is not locked to the governed tools:")
+        print("\nP21 FAILED: the analyst session is not locked to the governed tools:")
         for f in failures:
             print(f"  - {f}")
         return 1

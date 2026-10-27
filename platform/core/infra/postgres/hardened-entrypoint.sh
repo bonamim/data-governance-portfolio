@@ -4,7 +4,7 @@
 # sandbox all run the identical hardened configuration.
 #
 #   ssl=on, TLS >= 1.2, certificate from platform/core/infra/tls (make certs)
-#   pg_hba: TLS + scram for every network client, plain TCP REJECTED; the in-container unix socket
+#   pg_hba: TLS + scram for every network client, plain TCP REJECTED. The in-container unix socket
 #           (init scripts, healthchecks, `docker exec psql`) stays local-only
 #   log_connections / log_disconnections / log_statement=ddl: who connected, and every schema/role
 #           change, in the server log (production ships it to central logging and adds pgaudit)

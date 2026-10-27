@@ -36,6 +36,6 @@ def raw_asset(domain: str) -> Asset:
 
 
 def published_asset(domain: str) -> Asset:
-    """Produced when a domain's output ports are (re)published — downstream domains
+    """Produced when a domain's output ports are (re)published. Downstream domains
     whose aggregates consume them are scheduled on this."""
     return Asset(name=f"published/{domain}")

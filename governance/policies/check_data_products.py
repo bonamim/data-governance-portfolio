@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Data product definitions meet the standard (governance/standards/data-product.md).
 
-A valid product has a purpose, a type and an owner; a named consumer with a use case; output ports
-backed by valid ODCS contracts; inputs that name other output ports; and, for an aggregate, at
+A valid product has a purpose, a type and an owner, a named consumer with a use case, output ports
+backed by valid ODCS contracts, inputs that name other output ports, and, for an aggregate, at
 least three consuming teams.
 """
 

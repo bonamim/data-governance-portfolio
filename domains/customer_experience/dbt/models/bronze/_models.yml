@@ -5,7 +5,7 @@ version: 2
 # _ports.yml from the ODCS contract and never mixed in here.
 models:
   - name: brz_reviews
-    description: "Standardized reviews (typed from raw). Internal Bronze; keeps free-text comments."
+    description: "Standardized reviews (typed from raw). Internal Bronze, keeps free-text comments."
     columns:
       - name: review_id
         description: "Review identifier."

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Record a consumer's approval of a breaking change (the approval workflow runs it, ADR-0019).
 
-Adds a team's approval to ``governance/approvals/<port>-v<version>.yaml`` — or, for retiring a port
-version (``--version retire``), to ``<port>-retire.yaml`` — creating the file if needed and never
+Adds a team's approval to ``governance/approvals/<port>-v<version>.yaml`` (or, for retiring a port
+version with ``--version retire``, to ``<port>-retire.yaml``), creating the file if needed and never
 adding a team twice. The breaking-change gate reads the file to unblock the pull request. The
-GitHub workflow runs this when an affected consumer approves; it can also be run by hand.
+GitHub workflow runs this when an affected consumer approves, and it can also be run by hand.
 """
 
 from __future__ import annotations

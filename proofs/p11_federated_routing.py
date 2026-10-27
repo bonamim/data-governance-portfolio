@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Proof P11 — federated domain agents: isolation, deterministic routing, same number (ADR-0021).
+"""Proof P11: federated domain agents. Isolation, deterministic routing, same number (ADR-0021).
 
 The AI layer is a data mesh too: one governed agent *per domain*, and an orchestrator that routes a
 question to the owning domain. This proves the three properties that make that governable:
 
-  1. **Domain isolation** — a domain-scoped agent sees and answers ONLY its own products; another
-     domain's product is refused (not merely ungoverned — invisible).
-  2. **Deterministic routing** — the orchestrator resolves each product to its owning domain from
+  1. **Domain isolation:** a domain-scoped agent sees and answers ONLY its own products. Another
+     domain's product is refused (not merely ungoverned, but invisible).
+  2. **Deterministic routing:** the orchestrator resolves each product to its owning domain from
      the catalog (no LLM, no guess), and dispatches to that domain's registered agent.
-  3. **Federation preserves the number** — a metric answered *through routing* equals the direct
+  3. **Federation preserves the number:** a metric answered *through routing* equals the direct
      governed Ossie computation (so splitting into per-domain agents changes nothing a consumer
-     sees; with P10, AI-via-orchestrator == Superset).
-  4. **Isolation in the warehouse** (M8) — each agent's own role (``agent_<domain>``) can read its
+     sees. With P10, AI-via-orchestrator == Superset).
+  4. **Isolation in the warehouse** (M8): each agent's own role (``agent_<domain>``) can read its
      domain's ports and is DENIED every other domain's port, so isolation does not depend on the
      agent code alone. Runs when the per-domain URIs (``SEMANTIC_WAREHOUSE_URI_<DOMAIN>``) are set.
 
@@ -53,7 +53,7 @@ def _warehouse_value(query: str) -> float:
 
 
 def check_isolation(router: Router, agents: list[dict]) -> list[str]:
-    """1. Each domain's agent sees only its own products; another domain's are invisible to it."""
+    """1. Each domain's agent sees only its own products. Another domain's are invisible to it."""
     failures = []
     all_products = {p["data_product"]: p["domain"] for p in router.catalog()}
     for agent in agents:

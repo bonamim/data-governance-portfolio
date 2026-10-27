@@ -60,20 +60,20 @@ or before `D`. It used to require a file in `dt=D` for every dataset, which brok
 
 ### 5. Crash safety
 - Gate: archive copy → ledger commit → delete the inbox version. A crash before the commit leaves
-  the file in the inbox and the next run redoes it; a crash after it is caught by the content
+  the file in the inbox and the next run redoes it, and a crash after it is caught by the content
   check and the file is drained as `skipped`.
 - Load: the table load and its ledger rows are one transaction, so either raw holds the file and
   the ledger says so, or neither does and the retry loads it again.
 
 ## Consequences
-- The Airflow graph shows the check before the load; a quarantine is a visible gate run with no
+- The Airflow graph shows the check before the load, and a quarantine is a visible gate run with no
   load behind it.
 - `load_raw` is retryable on its own (Airflow retries, or a clear of just that task) without
   re-checking files or touching the inbox.
-- DataHub run events come from the gate rows (the ones with `checks`); their outcome is now
+- DataHub run events come from the gate rows (the ones with `checks`), and their outcome is now
   `accepted` or `quarantined`. Load rows carry no checks and are not published.
 - `dgp-ingest all` runs `acquire → seed → land → gate → load-raw`. By hand, a landing test is
   `dgp-ingest gate` then `dgp-ingest load-raw`.
-- Proof P14 now proves the split: the gate accepts a file and the raw table stays untouched; the
-  load then loads it and its row points at the gate row; a retried load loads nothing.
+- Proof P14 now proves the split: the gate accepts a file and the raw table stays untouched, the
+  load then loads it and its row points at the gate row, and a retried load loads nothing.
 - Replay (`dgp-ingest replay`) still reads `accepted/` directly, never the inbox (§4).

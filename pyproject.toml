@@ -11,7 +11,7 @@ package = false
 
 [tool.uv.workspace]
 # One package per capability (platform/README.md, "Where a file goes"). Code another folder
-# imports lives in one of these; scripts import them and nothing else.
+# imports lives in one of these, and scripts import them and nothing else.
 members = [
     "governance",
     "platform/access",
@@ -59,7 +59,7 @@ dgp-platform-quality = { workspace = true }
 dgp-ai = { workspace = true }
 
 [tool.basedpyright]
-# The shared typed records cross package boundaries; this checks producers and consumers agree.
+# The shared typed records cross package boundaries, and this checks producers and consumers agree.
 # Standard, not strict: Airflow, dbt and the DataHub SDK ship weak stubs.
 typeCheckingMode = "standard"
 pythonVersion = "3.11"
@@ -102,7 +102,7 @@ select = [
 ]
 ignore = [
     "S603", "S607",  # subprocess runs git, docker, dbt and datacontract with argument lists, no shell
-    "S608",          # SQL interpolates only constant or governed identifiers; values are bound
+    "S608",          # SQL interpolates only constant or governed identifiers, and values are bound
 ]
 
 [tool.ruff.lint.per-file-ignores]

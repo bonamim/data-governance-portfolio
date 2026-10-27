@@ -48,9 +48,9 @@ class ObjectStore:
         access_key = access_key or settings.access_key
         secret_key = secret_key or settings.secret_key
         # Cloud-portable (ADR-0009): with an endpoint set we talk to MinIO using
-        # path-style addressing; with it unset we talk to real AWS S3 using its
+        # path-style addressing. With it unset we talk to real AWS S3 using its
         # defaults. Omitting keys lets boto3 use its default credential chain
-        # (IAM role, instance profile, env) — the norm in a cloud deployment.
+        # (IAM role, instance profile, env), the norm in a cloud deployment.
         kwargs: dict = {"config": Config(signature_version="s3v4")}
         if settings.endpoint_url:
             kwargs["endpoint_url"] = settings.endpoint_url
@@ -101,7 +101,7 @@ class ObjectStore:
     def partner_checksum(self, ref: ObjectRef) -> str | None:
         """The SHA-256 the partner sent with the upload (``x-amz-checksum-sha256``), hex, if any.
 
-        Only a full-object checksum is comparable with the content's own hash; a multipart upload's
+        Only a full-object checksum is comparable with the content's own hash. A multipart upload's
         composite checksum (``…-N``) is a checksum of part checksums, so it is not returned.
         """
         kwargs = {"Bucket": ref.bucket, "Key": ref.key, "ChecksumMode": "ENABLED"}
@@ -130,9 +130,9 @@ class ObjectStore:
         retain_until: datetime | None = None,
         tagging: str | None = None,
     ) -> str | None:
-        """Server-side copy of a pinned version into ``bucket/key``; returns the new version id.
+        """Server-side copy of a pinned version into ``bucket/key``. Returns the new version id.
 
-        With ``retain_until`` the copy is object-locked (mode from settings) — accepted evidence.
+        With ``retain_until`` the copy is object-locked (mode from settings) as accepted evidence.
         Managed transfer, so files above the 5 GB single-copy limit work too.
         """
         source = {"Bucket": src.bucket, "Key": src.key}
@@ -145,7 +145,7 @@ class ObjectStore:
         if tagging:
             extra["Tagging"] = tagging
             extra["TaggingDirective"] = "REPLACE"
-        # Multipart copy for large objects; lock + tags apply to the completed object.
+        # Multipart copy for large objects. Lock + tags apply to the completed object.
         self.client.copy(source, bucket, key, ExtraArgs=extra or None, Config=TransferConfig())
         return self.client.head_object(Bucket=bucket, Key=key).get("VersionId")
 

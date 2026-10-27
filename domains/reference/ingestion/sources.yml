@@ -1,5 +1,5 @@
-# Reference data — geolocation (owned by the platform team on behalf of the mesh).
-# Shared lookup consumed by Customer and Marketplace; arrives as a landing file.
+# Reference data: geolocation (owned by the platform team on behalf of the mesh).
+# Shared lookup consumed by Customer and Marketplace. It arrives as a landing file.
 domain: reference
 datasets:
   - name: geolocation

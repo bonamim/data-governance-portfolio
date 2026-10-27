@@ -1,23 +1,23 @@
 """Airflow 3 DAG factories for ingestion (ADR-0016: event-driven).
 
-- ``build_acquire_dag()`` — downloads the Olist dataset and publishes OLIST_CACHE.
-- ``build_simulator_dag()`` — **PoC only**: stands in for the source systems. ``seed`` fills the
+- ``build_acquire_dag()``: downloads the Olist dataset and publishes OLIST_CACHE.
+- ``build_simulator_dag()``: **PoC only**, stands in for the source systems. ``seed`` fills the
   operational database (publishes SHOP_OLTP) and ``deliver`` acts as each partner, putting its
   files into the landing inbox with write-only credentials. In production both are real producers
   and this DAG is not deployed.
-- ``build_ingestion_dag(domain)`` — one DAG per domain, a single factory call per domain
-  (ADR-0008; isolation is proof P1). It is fired by **arrivals**: the object store notifies the
+- ``build_ingestion_dag(domain)``: one DAG per domain, a single factory call per domain
+  (ADR-0008, isolation is proof P1). It is fired by **arrivals**: the object store notifies the
   arrival queue, an event trigger fires ``landing/<domain>`` (windowed: one run per burst), and
   OLTP datasets follow SHOP_OLTP. One task per step, so the order is visible (ADR-0025)::
 
       contract_gate -> load_raw -> raw/<domain>
                     -> publish_quality
 
-- ``build_landing_sla_dag()`` — every 15 minutes, checks each landing dataset's due partition
+- ``build_landing_sla_dag()``: every 15 minutes, checks each landing dataset's due partition
   against its contract deadline and alerts the owning domain on a missing, incomplete or rejected
   delivery.
 
-``contract_gate`` files every inbox delivery to accepted/ or quarantine/ and loads nothing;
+``contract_gate`` files every inbox delivery to accepted/ or quarantine/ and loads nothing.
 ``load_raw`` loads only accepted files no load has picked up yet, so it can be retried without
 re-checking. Both carry lineage into the catalog.
 """
@@ -113,7 +113,7 @@ def build_simulator_dag() -> DAG:
         catchup=False,
         default_args=_DEFAULT_ARGS,
         tags=["platform", "simulator", "poc-only"],
-        doc_md="**PoC only** — stands in for the source systems: seeds the operational database "
+        doc_md="**PoC only**: stands in for the source systems. It seeds the operational database "
         "and delivers each partner's files into the landing inbox. Not deployed in production, "
         "where real producers do both (ADR-0016).",
     )

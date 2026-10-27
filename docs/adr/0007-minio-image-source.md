@@ -21,13 +21,13 @@ frozen.
 
 For **production**, use an image your organisation controls: MinIO's official image via an
 authenticated `quay.io` pull (or an AIStor subscription), or a mirror in your own registry.
-Nothing in the platform depends on Bitnami specifics — the server is MinIO and the client is
+Nothing in the platform depends on Bitnami specifics. The server is MinIO and the client is
 `mc`, so only the `image:` lines in `platform/core/infra/docker-compose.yml` change.
 
 ## Consequences
 - Reproducible local setup with no login and no paid subscription.
-- The frozen `legacy` image will not receive security patches; this is acceptable for a
+- The frozen `legacy` image will not receive security patches. This is acceptable for a
   local demo and is called out in [production-readiness.md](../production-readiness.md) X8
-  (pin versions) and X7 (encryption at rest) — production uses a maintained, controlled image.
+  (pin versions) and X7 (encryption at rest). Production uses a maintained, controlled image.
 - This is itself a governance lesson the portfolio demonstrates: **supply-chain provenance of
   infrastructure images is part of data governance**, not separate from it.

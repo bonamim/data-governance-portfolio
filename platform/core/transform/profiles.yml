@@ -1,5 +1,5 @@
-# dbt connection profiles — platform-owned (the platform provides the warehouse
-# wiring; domains own only their models). One profile per domain: dbt connects as
+# dbt connection profiles, platform-owned (the platform provides the warehouse
+# wiring, and domains own only their models). One profile per domain: dbt connects as
 # that domain's least-privilege role and its target schema is the output-port schema
 # <domain>; staging models land in <domain>_staging via dbt's default schema
 # concatenation. Passwords come from the environment (.env locally).

@@ -22,7 +22,7 @@ log = logging.getLogger("dgp.dbt_state")
 def _store() -> ObjectStore:
     secret = os.environ.get("DBT_STATE_SECRET_KEY")
     if not secret:
-        raise RuntimeError("DBT_STATE_SECRET_KEY is not set — the dbt state principal is needed")
+        raise RuntimeError("DBT_STATE_SECRET_KEY is not set, and the dbt state principal is needed")
     user = os.environ.get("DBT_STATE_USER", "dbt-state")
     return ObjectStore(Settings.from_env().objectstore, user, secret)
 
@@ -32,7 +32,7 @@ def key(domain: str) -> str:
 
 
 def save(manifest: Path, domain: str) -> str:
-    """Publish a domain's manifest as the state baseline; returns its s3:// URI."""
+    """Publish a domain's manifest as the state baseline, and return its s3:// URI."""
     store = _store()
     bucket = store.settings.state_bucket
     store.upload_file(manifest, bucket, key(domain))
@@ -42,7 +42,7 @@ def save(manifest: Path, domain: str) -> str:
 
 
 def fetch(domain: str, dest_dir: Path) -> Path | None:
-    """Download the published manifest into ``dest_dir``; None if there is no baseline yet."""
+    """Download the published manifest into ``dest_dir``. None if there is no baseline yet."""
     store = _store()
     bucket = store.settings.state_bucket
     try:

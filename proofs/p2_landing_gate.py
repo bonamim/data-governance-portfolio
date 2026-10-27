@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Proof P2 — landing quality gate.
+"""Proof P2: landing quality gate.
 
-A landing file that violates its ODCS contract is rejected by the quality engine — the gate that
+A landing file that violates its ODCS contract is rejected by the quality engine, the gate that
 quarantines it before anything is loaded to the warehouse. Self-contained: it runs the real engine
 (`validate_file`) against the real `reviews` landing contract, on a clean file and a bad one.
 """
@@ -29,7 +29,7 @@ HEADER = [
     "review_creation_date",
     "review_answer_timestamp",
 ]
-# Enough rows to clear the contract's completeness floor; the bad file injects a content violation.
+# Enough rows to clear the contract's completeness floor. The bad file injects a content violation.
 N = 1001
 
 
@@ -56,16 +56,16 @@ def main() -> int:
     try:
         ok = validate_file(good_file, contract)
         if not ok.passed:
-            print(f"FAIL: a clean file was rejected — {ok.summary()}")
+            print(f"FAIL: a clean file was rejected: {ok.summary()}")
             return 1
-        print(f"  OK — clean file passes: {ok.summary()}")
+        print(f"  OK: clean file passes: {ok.summary()}")
 
         bad = validate_file(bad_file, contract)
         if bad.passed:
             print("FAIL: a contract-violating file passed the gate")
             return 1
         reasons = "; ".join(a.detail for a in bad.failures())
-        print(f"  OK — bad file rejected (would be quarantined, not loaded): {reasons}")
+        print(f"  OK: bad file rejected (would be quarantined, not loaded): {reasons}")
     finally:
         good_file.unlink(missing_ok=True)
         bad_file.unlink(missing_ok=True)

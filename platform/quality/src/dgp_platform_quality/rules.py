@@ -1,7 +1,7 @@
 """Load an ODCS contract and turn its schema into executable column rules.
 
 Only the subset the landing gate needs is parsed (required, unique, value range,
-logical type). datacontract-cli validates the *contract itself* in CI; this engine
+logical type). datacontract-cli validates the *contract itself* in CI, and this engine
 *executes* the rules the contract declares.
 """
 
@@ -32,12 +32,12 @@ class Contract:
     columns: list[ColumnRule] = field(default_factory=list)
     # File-completeness floor from the ODCS `quality` rowCount rule, if declared.
     min_rows: int | None = None
-    # ODCS `customProperties` as {property: value} — the landing operational rules
-    # (partitioning, file naming, retention, completeness signal; ADR-0024).
+    # ODCS `customProperties` as {property: value}: the landing operational rules
+    # (partitioning, file naming, retention, completeness signal, ADR-0024).
     properties: dict = field(default_factory=dict)
     team: str | None = None
     purpose: str | None = None
-    # ODCS `slaProperties` as {property: {value, unit, element}} — e.g. timeOfAvailability, the
+    # ODCS `slaProperties` as {property: {value, unit, element}}, e.g. timeOfAvailability, the
     # delivery deadline the landing SLA monitor checks (ADR-0016).
     sla: dict = field(default_factory=dict)
 

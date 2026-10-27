@@ -10,10 +10,10 @@ window.
 
 The lifecycle this enforces:
 
-- ``<port>_v<N>`` declares ``version_of`` a port of the same owner, and its contract is major N;
-- a port with a successor is deprecated, with a sunset date (a release starts a window that ends);
-- a deprecated port has a successor and a sunset date;
-- before the sunset, the consumers still reading the old version are listed (a notice);
+- ``<port>_v<N>`` declares ``version_of`` a port of the same owner, and its contract is major N.
+- a port with a successor is deprecated, with a sunset date (a release starts a window that ends).
+- a deprecated port has a successor and a sunset date.
+- before the sunset, the consumers still reading the old version are listed (a notice).
 - once the sunset has passed, CI fails: the version must be retired, after its consumers move
   (and retiring it is a deletion the breaking-change gate checks).
 
@@ -47,7 +47,7 @@ def _naming_violations(
     if version_of is None:
         if m and m["base"] in ports:
             return [
-                f"{port.name}: looks like a version of '{m['base']}' — declare "
+                f"{port.name}: looks like a version of '{m['base']}'. Declare "
                 f"`version_of: {m['base']}` in its data product definition"
             ]
         return []
@@ -80,7 +80,7 @@ def violations(today: date | None = None) -> tuple[list[str], list[str]]:
         successor = successors.get(port.name)
         if successor and port.status != "deprecated":
             errs.append(
-                f"{where}: '{port.name}' has a successor ({successor.name}) — mark it "
+                f"{where}: '{port.name}' has a successor ({successor.name}). Mark it "
                 "`status: deprecated` with a `sunsetDate` (the migration window)"
             )
         if port.status != "deprecated":
@@ -92,7 +92,7 @@ def violations(today: date | None = None) -> tuple[list[str], list[str]]:
         readers = products.readers_of(port.domain, port.name)
         if port.sunset is not None and port.sunset <= today:
             errs.append(
-                f"{port.name}: sunset {port.sunset} has passed — retire it"
+                f"{port.name}: sunset {port.sunset} has passed, retire it"
                 + (f" after migrating {', '.join(readers)}" if readers else "")
             )
         elif port.sunset is not None:
@@ -100,7 +100,7 @@ def violations(today: date | None = None) -> tuple[list[str], list[str]]:
             notes.append(
                 f"{port.name} is deprecated, sunset {port.sunset} ({left} days): "
                 + (f"still read by {', '.join(readers)}" if readers else "no dbt consumer left")
-                + (f"; successor {successor.name}" if successor else "")
+                + (f", successor {successor.name}" if successor else "")
             )
     return errs, notes
 

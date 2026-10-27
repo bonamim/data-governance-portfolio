@@ -1,6 +1,6 @@
 # ADR-0005: Apache Airflow 3 for orchestration
 
-**Status:** Accepted — supersedes [ADR-0002](0002-dagster-orchestration.md)
+**Status:** Accepted, supersedes [ADR-0002](0002-dagster-orchestration.md)
 
 ## Context
 ADR-0002 chose Dagster for its asset model, per-domain code locations and blocking asset
@@ -15,7 +15,7 @@ production safely, so long-term independence of core components is a requirement
 |---|---|---|
 | Per-domain deployable unit | Code locations (native) | DAG bundles + containerised tasks |
 | Blocking quality checks | Asset checks (native) | Quality task fails → downstream skipped, asset not emitted |
-| Data-product (asset) model | Core concept | Assets since 3.0; task-centric core |
+| Data-product (asset) model | Core concept | Assets since 3.0, task-centric core |
 | Cross-domain triggers | Declarative automation | Asset-triggered DAGs, asset watchers |
 | DataHub lineage | Integration available | Native OpenLineage + mature DataHub plugin |
 | Governance of the project | Vendor-owned (Prefect) | Apache Software Foundation |
@@ -33,11 +33,11 @@ Each gap is closed by design and **proven by a reproducible scenario** in
 
 | Dagster advantage | Airflow 3 design | Proof |
 |---|---|---|
-| Code locations | One DAG bundle per domain; domain tasks run in their own container image | P1 |
-| Blocking asset checks | Quality-gate task before every load and publish; failure quarantines input and emits no asset event | P2, P3 |
+| Code locations | One DAG bundle per domain, domain tasks run in their own container image | P1 |
+| Blocking asset checks | Quality-gate task before every load and publish. Failure quarantines input and emits no asset event | P2, P3 |
 | Asset-centric view | Results published to DataHub as assertions on each dataset | P2, P7 |
 | Declarative cross-domain automation | Consumer DAGs scheduled on producer data-product assets | P4 |
 
 ## Consequences
-- More platform code than Dagster would need — acceptable, and orchestrator-portable.
+- More platform code than Dagster would need, which is acceptable and orchestrator-portable.
 - Switching orchestrator later only touches `platform/core/orchestration/` and the DAG files.

@@ -1,7 +1,7 @@
 [project]
 name = "dgp-ai"
 version = "0.1.0"
-description = "Governed AI consumers of the mesh: the semantic MCP server (one per domain, or platform-wide), the agent registry and the catalog-driven router — numbers only from the governed Ossie definitions, run as a consumer role."
+description = "Governed AI consumers of the mesh: the semantic MCP server (one per domain, or platform-wide), the agent registry and the catalog-driven router. Numbers only from the governed Ossie definitions, run as a consumer role."
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=2.3",

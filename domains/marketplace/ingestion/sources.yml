@@ -1,5 +1,5 @@
-# Marketplace domain — source registration (owned by the Marketplace team).
-# products and the category translation come from shop_oltp; the sellers list
+# Marketplace domain: source registration (owned by the Marketplace team).
+# products and the category translation come from shop_oltp, and the sellers list
 # arrives as a file in the landing zone (and is quality-gated before load in M2).
 domain: marketplace
 datasets:

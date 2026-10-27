@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Proof P12 — output-port completeness. An output port is an interface people, BI and AI agents
+# Proof P12: output-port completeness. An output port is an interface people, BI and AI agents
 # read without asking the owner, so it can't be published undocumented. Strips one piece of
 # documentation at a time from the real customer.customers contract and the sales Ossie model,
 # runs the real CI gates, and shows each one blocking. Reverts everything on exit.
@@ -29,38 +29,38 @@ edit() {
 expect_blocked() {
   if make -s "$1" >"$OUT" 2>&1; then echo "FAIL: $1 should have blocked"; cat "$OUT"; exit 1; fi
   if ! grep -q "$2" "$OUT"; then echo "FAIL: $1 blocked for the wrong reason"; cat "$OUT"; exit 1; fi
-  echo "  OK — blocked: $(grep -m1 "$2" "$OUT" | sed 's/^ *- //')"
+  echo "  OK: blocked: $(grep -m1 "$2" "$OUT" | sed 's/^ *- //')"
 }
 
-echo "### P12.1 — the documented ports  ->  expect PASS"
+echo "### P12.1: the documented ports  ->  expect PASS"
 make -s check-output-ports >"$OUT" 2>&1 || { echo "FAIL: baseline should pass"; cat "$OUT"; exit 1; }
 make -s check-semantics >>"$OUT" 2>&1 || { echo "FAIL: baseline should pass"; cat "$OUT"; exit 1; }
-echo "  OK — both gates pass on the fully documented ports"
+echo "  OK: both gates pass on the fully documented ports"
 
-echo "### P12.2 — a column with no description, here or in its definition  ->  expect BLOCKED"
+echo "### P12.2: a column with no description, here or in its definition  ->  expect BLOCKED"
 edit "$CF" "[p.pop('description') for p in d['schema'][0]['properties'] if p['name']=='customer_city']"
 edit "$CITY" "d.pop('description')"
 expect_blocked check-output-ports "column 'customer_city' has no description"
 restore
 
-echo "### P12.3 — a column with no classification, here or in its definition  ->  expect BLOCKED"
+echo "### P12.3: a column with no classification, here or in its definition  ->  expect BLOCKED"
 edit "$CF" "[p.pop('classification', None) for p in d['schema'][0]['properties'] if p['name']=='customer_state']"
 edit "$STATE" "d.pop('classification')"
 expect_blocked check-output-ports "column 'customer_state' has no classification"
 restore
 
-echo "### P12.4 — a table with no description  ->  expect BLOCKED"
+echo "### P12.4: a table with no description  ->  expect BLOCKED"
 edit "$CF" "d['schema'][0].pop('description')"
 expect_blocked check-output-ports "table 'customers' has no description"
 restore
 
-# A field that is a contract column takes its description from the contract (ADR-0027); what the
+# A field that is a contract column takes its description from the contract (ADR-0027). What the
 # model itself must describe is what the contract can't: its metrics and derived fields.
-echo "### P12.5 — a metric the AI reads with no description  ->  expect BLOCKED"
+echo "### P12.5: a metric the AI reads with no description  ->  expect BLOCKED"
 edit "$SM" "[m.pop('description') for m in d['metrics'] if m['name']=='customer_count']"
 expect_blocked check-semantics "metric 'customer_count' has no description"
 restore
 
 echo
-echo "P12 proven: an output port can't be published undocumented — every table, column and"
+echo "P12 proven: an output port can't be published undocumented: every table, column and"
 echo "metric a consumer or AI agent reads says what it means, here or in its definition."

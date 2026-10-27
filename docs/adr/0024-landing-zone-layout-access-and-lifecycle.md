@@ -1,7 +1,7 @@
 # ADR-0024: Landing-zone layout, access and lifecycle (inbox + archive)
 
 **Status:** Accepted (§7 and the idempotency consequence amended by [ADR-0025](0025-separate-contract-gate-and-raw-load.md): the gate and the load are separate tasks)
-**Amends** [ADR-0011](0011-landing-zone-slas-and-partitioning.md) §2–§3 (partitioning, retention).
+**Amends** [ADR-0011](0011-landing-zone-slas-and-partitioning.md) §2 and §3 (partitioning, retention).
 **Prepares** [ADR-0016](0016-event-driven-ingestion.md) (event-driven ingestion: the trigger plugs
 into the inbox defined here).
 
@@ -19,7 +19,7 @@ files *copied* to `landing/quarantine/<key>`. Testing it end to end exposed four
 4. **The partner had to adopt our layout.** `dt=YYYY-MM-DD/` in the arrival path is our
    convention. A partner must not be forced to change their process.
 
-The landing gate's results also lived only in the ingestion ledger; DataHub never saw them.
+The landing gate's results also lived only in the ingestion ledger, and DataHub never saw them.
 
 ## Decision
 
@@ -57,7 +57,7 @@ created and covers the whole bucket, so evidence and partner drops cannot share 
 
 ### 2. No `processing/` prefix
 S3 has no atomic move: a processing folder would cost a copy and a delete per file and add no
-safety. The loader instead **pins the object version** it read from the inbox; a partner overwrite
+safety. The loader instead **pins the object version** it read from the inbox, so a partner overwrite
 mid-run is a new version, processed separately. "In flight" is a ledger status, not a folder.
 Every processed object leaves the inbox (its version is deleted) after the ledger records the
 outcome, so a bad file is never re-validated.
@@ -96,13 +96,13 @@ deadline: the platform never waits forever, it processes what arrived and alerts
 `platform/access/landing/`:
 
 - `landing-partner-<source>`: `PutObject` (+ multipart) on `inbox/<source>/*` only. No list,
-  read or delete; no other source's prefix; no archive.
-- `landing-loader`: read/delete on the inbox; write (with retention and tags) and read on the
+  read or delete, no other source's prefix, no archive.
+- `landing-loader`: read/delete on the inbox, write (with retention and tags) and read on the
   archive. **No delete on the archive.**
 - `landing-owner-<domain>`: read on `quarantine/<source>/<dataset>/*` for the datasets that domain
   owns (triage with the partner). Attached to the domain's SSO role in production.
 
-The generated files are committed and CI fails on drift (`generate_landing_access.py --check`); `minio-init`
+The generated files are committed and CI fails on drift (`generate_landing_access.py --check`), and `minio-init`
 applies them at `make up`. The ingestion loader runs as `landing-loader`, not the MinIO root. In
 the cloud the same documents become IAM / S3 Access Point policies.
 
@@ -119,11 +119,11 @@ ingestion DAG (and `make catalog-quality` for a full reconcile) runs
 `dgp_platform_catalog.publish_landing_quality`, which projects them into DataHub:
 
 - one **S3 dataset per landing dataset** (`<archive-bucket>/accepted/<source>/<dataset>`) with the
-  contract schema, domain, owner, contract properties, and lineage into `<domain>_raw.<table>`;
+  contract schema, domain, owner, contract properties, and lineage into `<domain>_raw.<table>`.
 - one **assertion per contract rule**, and one **assertion run event per file**, with the
   partition, the result and the quarantine/archive key.
 
-The ledger stays the system of record; DataHub is the read model (ADR-0018).
+The ledger stays the system of record, and DataHub is the read model (ADR-0018).
 
 ## Consequences
 - A rejected file leaves the inbox, and the evidence (file + `_reason.json`) sits in one
@@ -132,7 +132,7 @@ The ledger stays the system of record; DataHub is the read model (ADR-0018).
   sources grow. Retention per dataset is a contract value checked in CI.
 - Idempotency (P6) becomes "the latest accepted file for this dataset has the same content →
   skip" (decided by the gate, ADR-0025). A re-delivered identical file is recorded `skipped` and drained from the inbox.
-- Replay/rebuild reads `accepted/` (`dgp-ingest replay --partition-date`), never the inbox; the
+- Replay/rebuild reads `accepted/` (`dgp-ingest replay --partition-date`), never the inbox. The
   restore drill (P9) uses it.
 - Proof **P14** exercises the whole path on the live platform: partner permissions, quarantine
   with reason, filename-convention rejection, acceptance with lock and retention tag, redelivery

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Read-only metadata role for DataHub ingestion (X5) — replaces ingesting as the superuser.
+# Read-only metadata role for DataHub ingestion (X5). It replaces ingesting as the superuser.
 # Idempotent: runs on a fresh database after 00-init.sh and on a running one via `make db-roles`.
 set -euo pipefail
 

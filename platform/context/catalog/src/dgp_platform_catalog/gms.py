@@ -1,7 +1,7 @@
 """A minimal client for DataHub's metadata service (GMS): search, aspect lookups and GraphQL.
 
-The publishers write through the DataHub SDK's emitter; the few reads they need — and the proofs'
-reads — go through this client instead, so it uses the standard library only and works where the
+The publishers write through the DataHub SDK's emitter. The few reads they need (and the proofs'
+reads) go through this client instead, so it uses the standard library only and works where the
 SDK isn't installed.
 """
 
@@ -32,7 +32,7 @@ class Gms:
         data = json.dumps(body).encode() if body is not None else None
         headers = {"Content-Type": "application/json"} if data else {}
         req = urllib.request.Request(f"{self.url}{path}", data=data, headers=headers)  # noqa: S310
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:  # noqa: S310 — the configured GMS
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:  # noqa: S310 (the configured GMS)
             return json.load(resp)
 
     def search(
@@ -41,7 +41,7 @@ class Gms:
         """URNs of the ``entity`` entities, filtered to a data platform when given.
 
         GMS may ignore the platform filter (it has, on this version), so a caller that acts on the
-        result — a soft-delete — must re-check each URN itself.
+        result (a soft-delete) must re-check each URN itself.
         """
         body: dict = {"input": "*", "entity": entity, "start": 0, "count": count}
         if platform:
@@ -51,7 +51,7 @@ class Gms:
         return [e["entity"] for e in found["value"]["entities"]]
 
     def has_aspect(self, urn: str, aspect: str) -> bool:
-        """True if the entity has ``aspect`` — e.g. ``schemaMetadata`` once it has been ingested,
+        """True if the entity has ``aspect``, e.g. ``schemaMetadata`` once it has been ingested,
         not merely referenced by an aspect written about it."""
         quoted = urllib.parse.quote(urn, safe="")
         try:

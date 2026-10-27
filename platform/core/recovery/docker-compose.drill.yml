@@ -1,4 +1,4 @@
-# Restore-drill sandbox (proof P9, docs/disaster-recovery.md §5) — the dgp-drill compose project.
+# Restore-drill sandbox (proof P9, docs/disaster-recovery.md §5): the dgp-drill compose project.
 #
 # Fresh, ISOLATED stand-ins for the platform's stateful stores: their own network and anonymous
 # volumes (nothing shared with the live platform), host ports bound to 127.0.0.1 only. The drill
@@ -7,7 +7,7 @@
 # services (X8), so a backup is proven restorable on the engine version that wrote it.
 #
 #   drill-oltp       shop_oltp POINT-IN-TIME RECOVERED: base backup + replay of the WAL archive
-#   drill-analytics  analytics REBUILT (not restored) — init script from git, then load + dbt
+#   drill-analytics  analytics REBUILT (not restored): init script from git, then load + dbt
 #   drill-meta       Airflow metadata + ingestion-ledger backups restored and verified
 #   drill-datahub-db DataHub metadata store (MySQL) restored and verified
 
@@ -20,7 +20,7 @@ networks:
 volumes:
   # Data dir the drill seeds with the base backup before starting drill-oltp (removed by down -v).
   drill_oltp_data:
-  # The live shop_oltp WAL archive, read-only — locally the stand-in for the replicated archive
+  # The live shop_oltp WAL archive, read-only. Locally the stand-in for the replicated archive
   # store that recovery replays from (pgBackRest/WAL-G repository in production).
   oltp_wal_archive:
     external: true

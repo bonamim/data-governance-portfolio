@@ -3,22 +3,22 @@
 Reads every ``sources.yml`` and writes, into ``platform/access/landing/``:
 
   policies/landing-partner-<source>.json   PutObject (+ multipart) on <inbox>/<source>/* only
-  policies/landing-loader.json             drain the inbox; write + read the archive (no delete)
+  policies/landing-loader.json             drain the inbox, write + read the archive (no delete)
   policies/landing-owner-<domain>.json     read the quarantine of the datasets the domain owns
   principals.tsv                           user <TAB> policy <TAB> env var holding its secret
   production/                              the production bucket controls (ADR-0016 §5), as
                                            templates: ${AWS_ACCOUNT_ID} / ${AWS_REGION} are filled
                                            at deploy time
-    inbox-bucket-policy.json               TLS only; uploads must be SSE-KMS with the uploading
+    inbox-bucket-policy.json               TLS only, and uploads must be SSE-KMS with the uploading
                                            partner's own key
-    archive-bucket-policy.json             TLS only; SSE-KMS only; nobody deletes accepted/
+    archive-bucket-policy.json             TLS only, SSE-KMS only, nobody deletes accepted/
     inbox-lifecycle.json / archive-lifecycle.json
                                            expiry + storage-class transitions per retention class
     kms-keys.json                          one key per partner (encrypt) the loader may decrypt
     secrets.json                           where each principal's credential lives in the secrets
                                            manager, and its rotation
 
-The policies are standard IAM JSON: ``minio-init`` applies ``policies/`` locally (``make up``); in
+The policies are standard IAM JSON: ``minio-init`` applies ``policies/`` locally (``make up``). In
 the cloud the same statements become IAM / S3 Access Point policies. ``production/`` needs what a
 laptop can't host (TLS on the object store, a KMS, a remote storage tier, a secrets manager), so it
 is generated and reviewed here and applied by the production deployment (production-readiness
@@ -161,7 +161,7 @@ def _deny_insecure(bucket: str) -> list[dict]:
 
 
 def inbox_bucket_policy(sources: list[str]) -> dict:
-    """TLS only; every upload SSE-KMS; each partner's prefix only under its own key."""
+    """TLS only, every upload SSE-KMS, and each partner's prefix only under its own key."""
     return _doc(
         *_deny_insecure(INBOX),
         *[
@@ -186,7 +186,7 @@ def inbox_bucket_policy(sources: list[str]) -> dict:
 
 
 def archive_bucket_policy() -> dict:
-    """TLS only; SSE-KMS only; accepted evidence can't be deleted (object lock is the backstop)."""
+    """TLS only, SSE-KMS only, accepted evidence can't be deleted (object lock is the backstop)."""
     return _doc(
         *_deny_insecure(ARCHIVE),
         {
@@ -301,7 +301,7 @@ def generate() -> dict[str, str]:
     out = {path: json.dumps(doc, indent=2) + "\n" for path, doc in files.items()}
     # Principals created locally. Owner policies attach to the domain's SSO role in production
     # (no local user: humans do not get static keys).
-    rows = ["# user\tpolicy\tenv var holding the secret (generated — do not edit)"]
+    rows = ["# user\tpolicy\tenv var holding the secret (generated, do not edit)"]
     rows.append("landing-loader\tlanding-loader\tLANDING_LOADER_SECRET_KEY")
     rows += [
         f"partner-{s}\tlanding-partner-{s}\tLANDING_PARTNER_{s.upper()}_SECRET" for s in sources

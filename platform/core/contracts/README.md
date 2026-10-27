@@ -24,5 +24,5 @@ inherits PII is masked like one that declares it.
   linking to it (`odcs.linked_files`).
 - `governance/tests/test_contract_reads.py` fails if a new reader skips the loader.
 - The definitions columns link to are the ontology's value types, each kept by the domain that owns
-  it (`domains/<d>/contracts/definitions/`, ADR-0027); `make check-ontology` keeps each column's
+  it (`domains/<d>/contracts/definitions/`, ADR-0027), and `make check-ontology` keeps each column's
   meaning in one place.

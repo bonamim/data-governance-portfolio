@@ -1,6 +1,6 @@
 """A small Superset REST client: just what the semantic layer's BI adapter and its proof need.
 
-Superset is where BI users meet the governed metrics; ``publish_superset.py`` writes them there from
+Superset is where BI users meet the governed metrics. ``publish_superset.py`` writes them there from
 the Ossie models, and proof P10 reads them back to show BI and AI agree. Both talk to Superset
 through this client, so login and lookups are written once.
 """

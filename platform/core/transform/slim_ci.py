@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Slim CI (ADR-0015 §3): build only what a change touched; defer the rest to what is published.
+"""Slim CI (ADR-0015 §3): build only what a change touched, and defer the rest to what is published.
 
 For each domain (dependency order) the change is compared with a baseline manifest:
 
   state        the manifest the last successful publish saved to platform-state (default)
-  git:<ref>    the projects parsed at a git ref — needs no warehouse, so CI can run it
+  git:<ref>    the projects parsed at a git ref. Needs no warehouse, so CI can run it
 
   dbt ls    --select state:modified+ --state <baseline>                  what the change touches
   dbt build --select state:modified+ --defer --state <baseline> --target ci
                                                     unless --plan-only: the changed models and
                                                     their descendants are built and tested in the
-                                                    <domain>_ci sandbox; every unchanged ref is
+                                                    <domain>_ci sandbox, and every unchanged ref is
                                                     read from the published relations
 
 Run: ``make slim-ci`` (local, against the warehouse) or, in GitHub Actions,
@@ -84,7 +84,7 @@ def main() -> int:
             for d in domains:
                 state = baselines[d]
                 if state is None:
-                    print(f"{d}: no published baseline yet — a full `make publish` comes first")
+                    print(f"{d}: no published baseline yet. A full `make publish` comes first")
                     continue
                 sel = ["--select", "state:modified+", "--state", str(state)]
                 ls = _dbt(

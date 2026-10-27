@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Proof P4 — cross-domain automation: consumers react to producers, not to schedules.
+"""Proof P4: cross-domain automation. Consumers react to producers, not to schedules.
 
 ``sales.sales_performance`` consumes ``customer.customers`` (dbt-loom, a data product input). The
-sales transform DAG is scheduled on ANY of its inputs' assets — ``raw/sales``,
-``published/customer``, ``published/customer_experience`` — never on a clock:
+sales transform DAG is scheduled on ANY of its inputs' assets (``raw/sales``,
+``published/customer``, ``published/customer_experience``), never on a clock:
 
   1. publish   the customer domain republishes its ports (``customer_transform``, run by hand)
   2. react     ``published/customer`` alone triggers ``sales_transform`` (an asset-triggered run),
@@ -23,7 +23,7 @@ import _airflow as af
 from _checks import Checks, warehouse
 
 PRODUCER, CONSUMER = "customer_transform", "sales_transform"
-# Clock-scheduled platform DAGs may run during the proof; they are not domain reactions.
+# Clock-scheduled platform DAGs may run during the proof. They are not domain reactions.
 CLOCKED = {"platform_landing_sla"}
 
 check = Checks("P4")
@@ -36,7 +36,7 @@ def perf_version() -> str:
 
 def main() -> int:
     if not af.up():
-        sys.exit("Airflow is not running — `make airflow-up` first")
+        sys.exit("Airflow is not running. Run `make airflow-up` first")
     dags = [d for d in af.dag_ids() if d not in CLOCKED]
     af.unpause(PRODUCER, CONSUMER, "customer_experience_transform")
     print("   waiting for in-flight runs to finish (a clean baseline)")
@@ -82,7 +82,7 @@ def main() -> int:
 
     return check.verdict(
         "a new version of a producer's port rebuilds exactly the domains that consume it, "
-        "through assets — no schedule, no manual trigger downstream, nothing else runs."
+        "through assets, with no schedule, no manual trigger downstream, and nothing else running."
     )
 
 

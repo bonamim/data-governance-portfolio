@@ -1,15 +1,15 @@
 """Push the *governance* layer into DataHub from our source-of-truth definitions.
 
 Technical metadata (datasets, lineage, tests) comes from the dbt/Postgres ingestion recipes.
-This adds the mesh governance on top, generated — not hand-maintained in the UI — from the same
+This adds the mesh governance on top, generated (not hand-maintained in the UI) from the same
 definitions that drive grants and the data contracts:
 
-  * **Domains** — one per mesh domain; every warehouse/dbt dataset is filed under its domain.
-  * **Data products** — one per ``domains/*/data_products/*.yaml``: display name, purpose,
+  * **Domains**: one per mesh domain. Every warehouse/dbt dataset is filed under its domain.
+  * **Data products**: one per ``domains/*/data_products/*.yaml``: display name, purpose,
     owner, and the output-port datasets (Postgres + dbt sibling) as its assets.
-  * **Meaning** — the business glossary and the data dictionary from the ontology (ADR-0027), and
+  * **Meaning**: the business glossary and the data dictionary from the ontology (ADR-0027), and
     on every output-port column its data element, business term and governed tags.
-  * **Links** — each warehouse dataset to the Airflow DAG that builds it, and each BI dataset to
+  * **Links**: each warehouse dataset to the Airflow DAG that builds it, and each BI dataset to
     the output port it reads (lineage through to the chart, proof P7).
 
 Run: ``make catalog-govern``. Idempotent: re-running upserts.
@@ -66,7 +66,7 @@ from dgp_platform_semantics import ossie
 from .gms import Gms, default_url
 
 DB = os.environ.get("ANALYTICS_DB", "analytics")
-# The warehouse's DataHub platform — postgres locally, snowflake/bigquery/etc. in the cloud.
+# The warehouse's DataHub platform: postgres locally, snowflake/bigquery/etc. in the cloud.
 WAREHOUSE_PLATFORM = os.environ.get("WAREHOUSE_PLATFORM", "postgres")
 AIRFLOW_URL = os.environ.get(
     "AIRFLOW_BASE_URL", f"http://localhost:{os.environ.get('AIRFLOW_API_PORT', '8080')}"
@@ -74,13 +74,13 @@ AIRFLOW_URL = os.environ.get(
 BUSINESS_NODE = "urn:li:glossaryNode:BusinessGlossary"
 DATA_ELEMENT = "urn:li:structuredProperty:dgp.data_element"
 # A warehouse with native tags carries the governed tags itself (the dbt build sets them) and
-# DataHub ingests them from there; only a warehouse without tags (Postgres) gets them from here.
+# DataHub ingests them from there. Only a warehouse without tags (Postgres) gets them from here.
 NATIVE_TAGS = WAREHOUSE_PLATFORM in {"snowflake", "databricks", "bigquery"}
 AUDIT = AuditStampClass(time=0, actor="urn:li:corpuser:datahub")
 
 
 def _domain_of(schema: str, domains: list[str]) -> str | None:
-    """The mesh domain of a warehouse schema (``<domain>_<layer>``); the longest match wins."""
+    """The mesh domain of a warehouse schema (``<domain>_<layer>``). The longest match wins."""
     for d in sorted(domains, key=len, reverse=True):
         if schema == d or schema.startswith(d + "_"):
             return d
@@ -126,7 +126,7 @@ def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
     * Business glossary (glossary terms, grouped by the responsible domain, which owns each term):
       every entity type, and every value type the ontology gives a business definition.
     * Data dictionary (the ``Data element`` structured property): its allowed values are the data
-      elements, each with its definition; every linked column carries the one it is. A data element
+      elements, each with its definition. Every linked column carries the one it is. A data element
       is not a business term, so it is not a glossary term.
     """
     defined = {c["concept"]: c for c in registry.ontology().get("ontology") or []}
@@ -198,7 +198,7 @@ def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
             aspect=StructuredPropertyDefinitionClass(
                 qualifiedName="dgp.data_element",
                 displayName="Data element",
-                description="The data element a column holds — its definition in the data "
+                description="The data element a column holds: its definition in the data "
                 "dictionary (domains/<domain>/contracts/definitions/), linked from the column's "
                 "contract and inherited by it (ADR-0027).",
                 valueType="urn:li:dataType:datahub.string",
@@ -228,7 +228,7 @@ def _column_concepts(port: products.OutputPort) -> dict[str, str]:
 
 
 def _columns_with_tags(port: products.OutputPort) -> list[tuple[str, dict[str, str]]]:
-    """(column, {governed tag: value}) for every column of the port, from its resolved contract —
+    """(column, {governed tag: value}) for every column of the port, from its resolved contract:
     sensitivity from ``classification``, privacy category from ``privacyCategory``."""
     return [(c["name"], registry.column_tags(c)) for c in port.columns]
 
@@ -286,8 +286,8 @@ def file_datasets(emitter: DatahubRestEmitter, gms: Gms) -> None:
 
 
 def publish_tags_and_glossary(emitter: DatahubRestEmitter) -> None:
-    """The governed tags (sensitivity, privacy category) as DataHub tags — a governance label, like
-    the warehouse tag each mirrors — then the business glossary and the data dictionary."""
+    """The governed tags (sensitivity, privacy category) as DataHub tags (a governance label, like
+    the warehouse tag each mirrors), then the business glossary and the data dictionary."""
     governed = {} if NATIVE_TAGS else registry.tags()
     for name, tag in governed.items():
         for value in tag["values"]:
@@ -314,7 +314,7 @@ def _field_info(
     emitter: DatahubRestEmitter, pg_urn: str, port: products.OutputPort, business: set[str]
 ) -> list[EditableSchemaFieldInfoClass]:
     """Each column's meaning (ADR-0027): its data element (a structured property), the business
-    term that element represents or — for an identifier — the entity it identifies, and, without
+    term that element represents or (for an identifier) the entity it identifies, and, without
     native warehouse tags, its governed tags."""
     identified = _identified_entities()
     linked = _column_concepts(port)
@@ -422,8 +422,8 @@ def link_building_dags(emitter: DatahubRestEmitter, gms: Gms) -> None:
 
     It is node metadata, not a lineage edge: a DataJob and a dbt model can't merge into one node,
     so an edge would add a second upstream, while a link keeps "which DAG builds this" on the node
-    itself. On the dbt node when there is one (the DAG runs dbt; the Postgres sibling's
-    documentation stays the contract's description); on the Postgres node only for tables dbt
+    itself. On the dbt node when there is one (the DAG runs dbt, and the Postgres sibling's
+    documentation stays the contract's description). On the Postgres node only for tables dbt
     doesn't know (raw tables of a domain with no dbt project yet, loaded by its ingestion DAG).
     """
     domains, linked = registry.domain_names(), 0

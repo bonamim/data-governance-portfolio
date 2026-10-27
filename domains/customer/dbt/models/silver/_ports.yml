@@ -110,9 +110,9 @@ models:
       SP, RJ).
   - name: customer_unique_id
     data_type: text
-    description: "The person identifier (links a person's orders). PII \u2014 masked\
-      \ at read by role: consumers see a hash pseudonym, the compliance role sees\
-      \ the raw value."
+    description: 'The person identifier (links a person''s orders). PII, masked at
+      read by role: consumers see a hash pseudonym, the compliance role sees the raw
+      value.'
     data_tests:
     - not_null:
         config:

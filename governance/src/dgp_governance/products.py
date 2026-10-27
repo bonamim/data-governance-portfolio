@@ -1,7 +1,7 @@
 """Data products and the output ports they publish.
 
 A data product is declared by its definition, ``domains/<domain>/data_products/<name>.yaml``
-(purpose, owner, consumers, inputs — governance/standards/data-product.md). Its output port is the
+(purpose, owner, consumers, inputs: governance/standards/data-product.md). Its output port is the
 contract that publishes it, ``domains/<domain>/contracts/<name>.odcs.yaml``, tagged
 ``output_port`` (ADR-0012), and the dbt model of the same name builds it. The port's physical home
 follows from the medallion folder its model lives in: ``<domain>_<layer>.<name>``.
@@ -128,7 +128,7 @@ class OutputPort:
 
 
 def data_products(domain: str | None = None) -> list[DataProduct]:
-    """Every data product definition — only ``domain``'s when given — sorted by path."""
+    """Every data product definition (only ``domain``'s when given), sorted by path."""
     pattern = f"domains/{domain or '*'}/data_products/*.yaml"
     return [DataProduct.load(p) for p in sorted(root().glob(pattern))]
 

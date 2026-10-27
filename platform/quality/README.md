@@ -8,10 +8,10 @@ certain checks are required comes from governance, and this package only *runs* 
 ## Used by the landing-zone gate (proof P2)
 
 A landing file must match its ODCS contract before it is allowed into the warehouse. The
-ingestion loader calls this engine per landing file; on failure it **quarantines** the file
+ingestion loader calls this engine per landing file. On failure it **quarantines** the file
 (files it to `landing-archive/quarantine/<source>/<dataset>/<partition>/<run_id>/` with a
 `_reason.json`), records `status = quarantined` and the per-rule results in the ingestion ledger,
-and loads nothing — consumers keep the last good version. The results appear in DataHub as
+and loads nothing, so consumers keep the last good version. The results appear in DataHub as
 assertions on the landing dataset (`make catalog-quality`, ADR-0024).
 
 ## Checks executed (from the ODCS schema)
@@ -35,9 +35,9 @@ like one it declares.
 
 ## Division of labour with datacontract-cli
 
-- **datacontract-cli** validates the *contract itself* (`datacontract lint`) in CI — is the
+- **datacontract-cli** validates the *contract itself* (`datacontract lint`) in CI: is the
   ODCS well-formed? This is the `governance/policies/check_contracts.py` gate.
-- **This engine** validates *data against the contract* — does the file obey the rules? This is
+- **This engine** validates *data against the contract*: does the file obey the rules? This is
   the runtime landing gate.
 
 Output-port (table/view) contract execution reuses the same engine against warehouse tables in

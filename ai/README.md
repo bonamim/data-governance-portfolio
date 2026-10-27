@@ -1,4 +1,4 @@
-# `ai/` — Governed AI (M7)
+# `ai/`: Governed AI (M7)
 
 This is the mesh's AI consumer. It answers business questions by computing metrics from the **same
 Apache Ossie definitions Superset uses** (ADR-0010), so BI and AI give the *same number* rather
@@ -63,7 +63,7 @@ sends each question to the domain that owns the product:
             └─ the same boundary: Ossie → SQL, consumer role, no free SQL, audited ─┘
 ```
 
-A client can talk to the router (one endpoint) or to a domain's agent directly; both are the same
+A client can talk to the router (one endpoint) or to a domain's agent directly. Both are the same
 governed boundary. In production each agent runs as its own process with its own least-privilege
 role (`agent_<domain>`). The Snowflake-native equivalent is each domain publishing a semantic view
 and a Cortex Agent, with the router choosing between them.
@@ -79,12 +79,12 @@ governed tools. It is a documented option, not built, so the core stays vendor-n
 ## How it's governed
 
 The governance lives in the **server**, so it holds the same way for every client (Claude,
-ChatGPT, Copilot, Cortex); only the wiring differs. There are two MCP servers:
+ChatGPT, Copilot, Cortex). Only the wiring differs. There are two MCP servers:
 
 | Server | Role | Source |
 |---|---|---|
 | `datahub` (the official `mcp-server-datahub`) | **Discovery**: the product, its owner, PII classification, lineage | DataHub (M4) |
-| `semantic` (`dgp_ai.semantic_server`, ours) | **The governed number**: compute a metric; discover, or request one where none exists | the domains' Ossie models |
+| `semantic` (`dgp_ai.semantic_server`, ours) | **The governed number**: compute a metric, or discover or request one where none exists | the domains' Ossie models |
 
 ```
                     ┌── datahub MCP  → "sales.sales_performance, owned by Sales, revenue is public"
@@ -96,14 +96,14 @@ ChatGPT, Copilot, Cortex); only the wiring differs. There are two MCP servers:
 
 ## Tools
 
-- `list_data_products()` — every product, whether it is governed, and its owner (open discovery).
-- `list_metrics(data_product)` — the governed metrics and dimensions; for an ungoverned product,
+- `list_data_products()`: every product, whether it is governed, and its owner (open discovery).
+- `list_metrics(data_product)`: the governed metrics and dimensions, or, for an ungoverned product,
   who owns it and how to request a model.
-- `query_metric(data_product, metrics, dimensions=[])` — the value, plus the exact governed SQL and
+- `query_metric(data_product, metrics, dimensions=[])`: the value, plus the exact governed SQL and
   the Ossie definitions used, so every answer traces back to its one definition.
-- `request_semantic_model(data_product, business_need, requested_by)` — ask for an ungoverned
+- `request_semantic_model(data_product, business_need, requested_by)`: ask for an ungoverned
   product to be governed. The request goes to the owning domain and is announced on its alert
-  webhook (`ALERT_WEBHOOK_<DOMAIN>`); the answer says whether the owner was actually notified.
+  webhook (`ALERT_WEBHOOK_<DOMAIN>`), and the answer says whether the owner was actually notified.
 
 ## Works with any MCP client
 
@@ -133,7 +133,7 @@ dgp_ai.semantic_server`, so the client needs nothing installed but `uv`.
 > **Cortex's native alternative.** Cortex Analyst also has its own semantic model (Snowflake
 > semantic views). Because Ossie is our source of truth, the same define-once pattern used for
 > Superset applies: generate the semantic view from the Ossie model. That deeper integration is in
-> the backlog; the MCP path above works today on any warehouse.
+> the backlog. The MCP path above works today on any warehouse.
 
 ## Run it
 
@@ -166,7 +166,7 @@ model's judgment. `make ai-chat` starts a session whose only path to data is the
   session.
 - [`analyst-prompt.md`](analyst-prompt.md) sets how it answers: every number from `query_metric`
   with its SQL and caveats, sensitivity from DataHub, and a refusal routed to the owning domain
-  (`request_semantic_model`) rather than around the controls. That is guidance; the deny rules are
+  (`request_semantic_model`) rather than around the controls. That is guidance. The deny rules are
   the enforcement.
 - DataHub ingestion never profiles with sample values, so the `datahub` server can't hand out raw
   column values either.
@@ -181,7 +181,7 @@ platform development.
 
 ChatGPT runs in OpenAI's cloud: it can't start a local process or reach `localhost`, so it needs the
 streamable-HTTP server on a public HTTPS URL. It has no shell or files on this machine either, so the
-server is the whole boundary; there is no `make ai-chat`-style lockdown to apply. The guidance in
+server is the whole boundary, and there is no `make ai-chat`-style lockdown to apply. The guidance in
 [`analyst-prompt.md`](analyst-prompt.md) reaches it as the server's MCP `instructions`.
 
 1. Tunnel a public URL to the port: `ngrok http 8900` (or `cloudflared tunnel --url
@@ -212,7 +212,7 @@ local GMS runs without authentication, so keep DataHub off the public URL.
 > **Explore, then request:** "How many distinct customers are there per state?"
 >
 > `list_data_products` shows `customers` as not governed (owned by Customer). `query_metric`
-> refuses, since there is no governed metric yet, and points to the owner;
+> refuses, since there is no governed metric yet, and points to the owner.
 > `request_semantic_model("customers", "...")` files the request with Customer. Once Customer adds
 > the Ossie model, the metric can be queried and agrees with BI.
 
@@ -222,18 +222,18 @@ local GMS runs without authentication, so keep DataHub off the public URL.
 
 ## Proofs
 
-- `make prove-p10` — for every governed metric, the **AI** path, the **BI** path (Superset's
+- `make prove-p10`: for every governed metric, the **AI** path, the **BI** path (Superset's
   published metric) and a **direct Ossie** control return the same value.
-- `make prove-p11` — the agentic mesh: a domain's agent answers only its own products, the router
+- `make prove-p11`: the agentic mesh: a domain's agent answers only its own products, the router
   sends each product to its owning domain every time, and a routed metric equals the direct Ossie
   number, so federation changes nothing a consumer sees.
-- `make prove-p21` — the analyst session: only allow-listed environment, no shell, no secrets, only
-  the governed servers; every way of weakening it is caught.
+- `make prove-p21`: the analyst session. Only allow-listed environment, no shell, no secrets, only
+  the governed servers, and every way of weakening it is caught.
 
 All three are deterministic (no LLM and no API key), except the optional live session in P21.
 
 ## Portability
 
-`SEMANTIC_WAREHOUSE_URI` is the only engine-specific setting; the metric SQL is ANSI (ADR-0009). To
-move to Snowflake, point the URI at Snowflake; nothing in `dgp_ai` or the Ossie models changes (as
+`SEMANTIC_WAREHOUSE_URI` is the only engine-specific setting, and the metric SQL is ANSI (ADR-0009). To
+move to Snowflake, point the URI at Snowflake. Nothing in `dgp_ai` or the Ossie models changes (as
 in [`platform/context/semantics/README.md`](../platform/context/semantics/README.md)).

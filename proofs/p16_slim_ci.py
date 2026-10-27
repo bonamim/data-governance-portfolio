@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Proof P16 — dbt state + Slim CI: a change builds only what it touched (ADR-0015 §3).
+"""Proof P16: dbt state + Slim CI. A change builds only what it touched (ADR-0015 §3).
 
 The baseline is the manifest every successful publish saves to ``platform-state``.
 
   1. no change      every domain plans 0 models
-  2. leaf change    an edit to sales_performance plans exactly that model; the build lands in the
+  2. leaf change    an edit to sales_performance plans exactly that model. The build lands in the
                     sales_ci sandbox and its ref to orders is DEFERRED to the published
-                    sales_silver.orders (not rebuilt); the published port is untouched
+                    sales_silver.orders (not rebuilt), and the published port is untouched
   3. upstream edit  an edit to brz_orders plans brz_orders and its descendants (orders,
-                    sales_performance) — nothing else in the project
+                    sales_performance), nothing else in the project
   4. the CI path    the same selection against a git ref with no warehouse (what GitHub Actions
                     runs on every pull request)
 
@@ -71,7 +71,7 @@ def main() -> int:
     rc, plan, out = slim_ci("--plan-only")
     if rc or not plan:
         print(out[-1500:])
-        sys.exit("slim CI could not plan — is there a published baseline? run `make publish`")
+        sys.exit("slim CI could not plan. Is there a published baseline? Run `make publish`")
     check(all(not v for v in plan.values()), "every domain plans 0 models", str(plan))
 
     print("2. Leaf change: built alone in the sandbox, its upstream deferred to what is published")
@@ -119,7 +119,7 @@ def main() -> int:
     )
 
     print("4. The CI path: same selection against a git ref, no warehouse")
-    # Relative to HEAD the working tree may already differ; the edit must add exactly its model.
+    # Relative to HEAD the working tree may already differ, so the edit must add exactly its model.
     git = ("--domain", "sales", "--plan-only", "--baseline", "git:HEAD")
     rc0, clean, out = slim_ci(*git)
     with edited(LEAF):

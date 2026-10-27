@@ -35,7 +35,7 @@ class PostgresSettings:
     @classmethod
     def analytics(cls, user: str, password: str) -> PostgresSettings:
         """The analytics warehouse, as ``user``. Inside the compose network the internal port
-        applies (``ANALYTICS_INTERNAL_PORT``); from a laptop, the published one."""
+        applies (``ANALYTICS_INTERNAL_PORT``), and from a laptop, the published one."""
         port = os.environ.get("ANALYTICS_INTERNAL_PORT") or os.environ.get("ANALYTICS_PORT", "5433")
         return cls(
             os.environ.get("ANALYTICS_HOST", "localhost"),
@@ -60,7 +60,7 @@ class PostgresSettings:
 
 @dataclass(frozen=True)
 class ObjectStoreSettings:
-    # endpoint_url set -> MinIO (or any S3-compatible store); None -> real AWS S3.
+    # endpoint_url set -> MinIO (or any S3-compatible store), None -> real AWS S3.
     # access/secret None -> use boto3's default credential chain (IAM role, env, etc.).
     # This is the whole cloud-portability seam: local uses MinIO, cloud leaves
     # MINIO_ENDPOINT empty and the same code talks to S3 (ADR-0009).
@@ -75,8 +75,8 @@ class ObjectStoreSettings:
     lock_mode: str = "GOVERNANCE"
 
     def partner_credentials(self, source: str) -> tuple[str | None, str | None]:
-        """Write-only credentials of a source's partner — used only by the PoC partner simulator
-        (``land``) and proof P14. Real partners hold their own; the platform never does."""
+        """Write-only credentials of a source's partner, used only by the PoC partner simulator
+        (``land``) and proof P14. Real partners hold their own, and the platform never does."""
         secret = os.environ.get(f"LANDING_PARTNER_{source.upper()}_SECRET")
         return (f"partner-{source}", secret) if secret else (None, None)
 
@@ -88,7 +88,7 @@ class Settings:
     analytics_loader: PostgresSettings
     objectstore: ObjectStoreSettings
     kaggle_dataset: str
-    # The landing arrival queue (ADR-0016); None when not configured (the gate then skips acks).
+    # The landing arrival queue (ADR-0016). None when not configured (the gate then skips acks).
     landing_events: PostgresSettings | None = None
 
     @classmethod
@@ -99,7 +99,7 @@ class Settings:
             oltp_reader=oltp("oltp_reader", _env("OLTP_READER_PASSWORD")),
             analytics_loader=analytics("platform_loader", _env("PLATFORM_LOADER_PASSWORD")),
             objectstore=ObjectStoreSettings(
-                # Empty MINIO_ENDPOINT selects real AWS S3; empty keys fall back to
+                # Empty MINIO_ENDPOINT selects real AWS S3, and empty keys fall back to
                 # boto3's default credential chain (ADR-0009, cloud portability).
                 # The loader runs as the least-privilege landing-loader principal generated from
                 # sources.yml (ADR-0024), never as the object-store root.

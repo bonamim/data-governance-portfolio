@@ -1,4 +1,4 @@
-# Sales domain — source registration (owned by the Sales team).
+# Sales domain: source registration (owned by the Sales team).
 # Declarative only: the platform's ingestion capability reads this file and needs
 # no Sales-specific code (ADR-0008). Operational tables come from shop_oltp.
 domain: sales

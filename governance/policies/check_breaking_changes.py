@@ -4,7 +4,7 @@
 For every **output-port** contract changed in this PR (``domains/*/contracts/*.odcs.yaml``, not
 the landing ones), compare it against the base branch with ``datacontract breaking``. An
 ERROR-severity change (a removed/renamed/narrowed field) **fails the gate** and names the
-consuming teams that would be affected — pulled from the data-product definitions — so an
+consuming teams that would be affected (pulled from the data-product definitions), so an
 interface can never break silently.
 
 Shipping a breaking change requires a major version bump + consumer approval, or a new major as a
@@ -47,11 +47,11 @@ def _resolve_base() -> str | None:
 
 
 def _changed_output_port_contracts(base: str) -> list[Path]:
-    """Output-port contracts changed vs base — the file itself, or a definition it links to (a
+    """Output-port contracts changed vs base: the file itself, or a definition it links to (a
     changed concept changes every contract that uses it). Landing contracts live one level deeper
     (``contracts/landing/``) and are not output ports."""
     changed = set(_git("diff", "--name-only", base).stdout.splitlines())
-    # New files not committed yet (a local run on a working tree); a PR has them in the diff.
+    # New files not committed yet (a local run on a working tree). A PR has them in the diff.
     changed |= set(_git("ls-files", "--others", "--exclude-standard").stdout.splitlines())
     out = []
     for path in products.contract_files():
@@ -146,7 +146,7 @@ def _port_name(path: Path) -> str:
 
 
 def _impact(base: str) -> list[dict]:
-    """Breaking changes that still need approval: [{port, version, teams}] — the approval
+    """Breaking changes that still need approval: [{port, version, teams}]. The approval
     workflow reads this to know whose review to request (ADR-0019)."""
     out = []
     for path in _changed_output_port_contracts(base):
@@ -163,12 +163,12 @@ def _impact(base: str) -> list[dict]:
 
 
 def _check_retirement(base: str, domain: str, port: str) -> bool:
-    """Report on one retired port version; True if its retirement is blocked."""
+    """Report on one retired port version. True if its retirement is blocked."""
     readers, missing = _retirement_blockers(base, domain, port)
     print(f"\nRETIRING output port '{domain}.{port}' (its contract is deleted vs {base}):")
     if readers:
         print(
-            f"  BLOCKED: still read by {', '.join(readers)} — migrate them to the successor "
+            f"  BLOCKED: still read by {', '.join(readers)}. Migrate them to the successor "
             "version first."
         )
         return True
@@ -183,15 +183,15 @@ def _check_retirement(base: str, domain: str, port: str) -> bool:
 
 
 def _check_change(base: str, path: Path) -> bool:
-    """Report on one changed output-port contract; True if the change is blocked."""
+    """Report on one changed output-port contract. True if the change is blocked."""
     product = _port_name(path)
     old = _base_file(base, path)
     if old is None:
-        print(f"  {product}: new output-port contract (no prior version) — OK.")
+        print(f"  {product}: new output-port contract (no prior version): OK.")
         return False
     breaking = _breaking_report(old, path)
     if breaking is None:
-        print(f"  {product}: contract changed, no breaking changes — OK.")
+        print(f"  {product}: contract changed, no breaking changes: OK.")
         return False
 
     # A breaking change needs a MAJOR version bump, and approval from every affected consumer.
@@ -205,7 +205,7 @@ def _check_change(base: str, path: Path) -> bool:
         print(
             f"  BLOCKED: a breaking change needs a MAJOR version bump (contract is "
             f"{_version(old)} -> {_version(path)}), then consumer approval. Migrate the "
-            f"consumers with the change; if one can't cut over at once, ship the new major "
+            f"consumers with the change. If one can't cut over at once, ship the new major "
             f"as a versioned port '{product}_v{old_major + 1}' instead "
             f"(governance/standards/breaking-changes.md)."
         )
@@ -222,7 +222,7 @@ def _check_change(base: str, path: Path) -> bool:
 
     print(
         f"  APPROVED: v{new_major} breaking change signed off by all affected consumers "
-        f"({', '.join(sorted(consumers)) or 'none required'}); migrate them with the change "
+        f"({', '.join(sorted(consumers)) or 'none required'}). Migrate them with the change "
         f"(version the port only if a consumer can't cut over at once)."
     )
     return False
@@ -242,7 +242,7 @@ def main() -> int:
         if args.impact_json:
             print("[]")
             return 0
-        print(f"Breaking-change gate: base ref '{BASE_REF}' not found — skipping (not a PR).")
+        print(f"Breaking-change gate: base ref '{BASE_REF}' not found, skipping (not a PR).")
         return 0
 
     if args.impact_json:

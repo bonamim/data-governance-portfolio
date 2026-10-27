@@ -3,9 +3,9 @@
 
 Two arms, identical except for the MCP:
 
-  * **mcp**      — the ``make ai-chat`` session: the semantic + datahub MCP servers, the analyst
+  * **mcp**:      the ``make ai-chat`` session: the semantic + datahub MCP servers, the analyst
     settings (no shell, no secret or raw-data reads) and ``ai/analyst-prompt.md``.
-  * **baseline** — plain Claude Code with no MCP server: it reads the repo (contracts, dbt models,
+  * **baseline**: plain Claude Code with no MCP server. It reads the repo (contracts, dbt models,
     Ossie specs) and runs SQL as the **same** ``analytics_reader`` role, with the same answering
     guidance rewritten for SQL (``ai/eval/baseline-prompt.md``).
 
@@ -16,11 +16,11 @@ never reuses an answer, so runs stay independent at a fraction of the cost.
 Both arms work in a throwaway export of the committed repo outside this checkout (no ``.env``, no
 ``data/``), so neither can reach secrets or raw files, and anything they write is discarded.
 Answers are graded against truths computed from the warehouse at run time
-(``ai/eval/questions.yaml``); cost, tokens, time, turns and tool calls are recorded.
+(``ai/eval/questions.yaml``), and cost, tokens, time, turns and tool calls are recorded.
 
 Run: ``make ai-eval`` (``REPS=3`` for consistency, ``QUESTIONS=total_revenue,people_sp``).
 Results: ``ai/eval/results/<timestamp>/`` (``report.md``, ``runs.jsonl``). Once a run hits a usage
-limit no new runs start; ``RESUME=ai/eval/results/<timestamp>`` later re-runs only what errored.
+limit no new runs start. ``RESUME=ai/eval/results/<timestamp>`` later re-runs only what errored.
 """
 
 from __future__ import annotations
@@ -135,7 +135,7 @@ def grade(spec: dict, answer: str, key: dict) -> tuple[str, str]:
             return "pass", f"gave distinct people ≈ {key[spec['truth']]:,.0f}"
         if _near(nums, key[spec["trap"]], 0.0005) and not any(c in low for c in CAVEAT):
             return "fail", "presented per-order keys as people"
-        return "declined", "no distinct-people number; explained it isn't available"
+        return "declined", "no distinct-people number, explained it isn't available"
     if kind == "months":
         counts = set(key[spec["truth"]].values())
         hits = sum(1 for n in nums if n in counts)
@@ -275,7 +275,7 @@ def run_one(job: dict) -> dict:
 def _avg(rows: list[dict], field: str) -> str:
     vals = [r[field] for r in rows if r.get(field) is not None]
     if not vals:
-        return "–"
+        return "n/a"
     if field == "cost_usd":
         return f"${mean(vals):.3f}"
     if field.endswith("_tokens"):
@@ -339,7 +339,7 @@ def report(results: list[dict], questions: list[dict], arms: list[str], meta: di
         )
     lines += ["", "## Answers", ""]
     for q in questions:
-        lines += [f"### `{q['id']}` — {q['question']}", ""]
+        lines += [f"### `{q['id']}`: {q['question']}", ""]
         for r in sorted(
             (r for r in results if r["id"] == q["id"]), key=lambda r: (r["arm"], r["rep"])
         ):

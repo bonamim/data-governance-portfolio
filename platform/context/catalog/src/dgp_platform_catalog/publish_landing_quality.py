@@ -1,16 +1,16 @@
 """Publish the landing zone and its contract-gate results into DataHub (ADR-0024).
 
 For every landing dataset in ``sources.yml`` (contract = source of truth, ledger = system of
-record; DataHub is the read model, ADR-0018):
+record, DataHub is the read model, ADR-0018):
 
   * an **S3 dataset** ``<archive>/accepted/<source>/<dataset>`` with the contract schema, purpose,
     domain, owner, operational properties (partitioning, naming, retention, completion signal)
-    and where its inbox / accepted / quarantine prefixes are;
-  * **lineage** landing dataset → ``<domain>_raw.<table>``, joining the warehouse/dbt graph;
+    and where its inbox / accepted / quarantine prefixes are.
+  * **lineage** landing dataset → ``<domain>_raw.<table>``, joining the warehouse/dbt graph.
   * one **assertion per contract rule** the gate executes (schema, completeness, not-null,
-    unique, type, range, file naming);
+    unique, type, range, file naming).
   * one **assertion run event per delivered file and rule**, from the ingestion ledger: result,
-    partition, row count, and where the file was filed (accepted/ or quarantine/ + _reason.json);
+    partition, row count, and where the file was filed (accepted/ or quarantine/ + _reason.json).
   * one **operation per delivered file, at the time it landed** in the inbox (ADR-0016), so the
     dataset's freshness ("last updated") is measured from arrival, not from when we processed it.
 
@@ -103,7 +103,7 @@ def _param(value, kind=P.NUMBER) -> AssertionStdParameterClass:
 
 
 def _rules(contract, rules: LandingRules) -> list[dict]:
-    """The checks the gate runs for this contract — mirrors dgp_platform_quality.engine."""
+    """The checks the gate runs for this contract. Mirrors dgp_platform_quality.engine."""
     out = [
         {
             "check": "schema.columns_present",
@@ -266,7 +266,7 @@ def _dataset_mcps(d: Dataset, contract, rules: LandingRules, ds_urn: str) -> lis
             description=(
                 f"{contract.purpose or ''}\n\nPartner-delivered files for **{src}/{name}**, "
                 f"gated against the ODCS landing contract `{contract.id}` before load. "
-                f"Accepted files are immutable evidence ({rules.retention_days}d); rejected files "
+                f"Accepted files are immutable evidence ({rules.retention_days}d). Rejected files "
                 f"go to quarantine with a `_reason.json` (90d). Owner: **{d.domain}**."
             ).strip(),
             customProperties=props,

@@ -7,12 +7,12 @@ contract, and every field and metric uses columns that exist in that contract. S
 Superset and the AI agents compute can't drift from the data contract.
 
 A field is either a contract column (named as the column) or a **derived** field: any other name,
-whose expression reads only contract columns as ``<dataset>.<column>`` — for example
+whose expression reads only contract columns as ``<dataset>.<column>``, for example
 ``order_purchase_month`` = ``DATE_TRUNC('month', orders.order_purchase_timestamp)``.
 
 Every dataset, derived field and metric needs a ``description``. The semantic agents hand these to
 the model verbatim (``list_metrics``), and an agent with no description guesses the meaning from the
-name — counting ``customer_id`` (one per order) as people, for instance. A field that IS a contract
+name, counting ``customer_id`` (one per order) as people, for instance. A field that IS a contract
 column must not have one: its description is the contract's (and its data element's), and the
 compile step (``ossie.compile_model``) puts it into the model every consumer reads, so a column is
 described in one place (ADR-0027). The model must also pass Ossie's own validator.
@@ -43,8 +43,8 @@ def dataset_violations(dataset: dict, port: products.OutputPort, where: str) -> 
         if field_name in columns:
             if _described(field):  # one place per fact (ADR-0027)
                 errs.append(
-                    f"{where}: field '{field_name}' is a contract column — remove its "
-                    "description; it is the contract's (and its data element's), inherited"
+                    f"{where}: field '{field_name}' is a contract column. Remove its "
+                    "description, which is the contract's (and its data element's), inherited"
                 )
             continue
         if not _described(field):

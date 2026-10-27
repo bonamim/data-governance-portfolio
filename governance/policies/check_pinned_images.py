@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Federated governance policy: every container image is pinned (production-readiness X8).
 
-A tag (even ``3.3.2``) is mutable; a digest is not. Rules (a violation fails CI):
-  1. every ``image:`` in a compose file is pinned by ``@sha256:`` — unless the service also has a
-     ``build:`` (a locally built image, whose base is checked by rule 2);
-  2. every ``FROM`` in a Dockerfile is pinned by ``@sha256:``;
-  3. nothing uses ``latest``;
-  4. every GitHub Action (``uses:``) is pinned to a full 40-character commit SHA — a tag can be
-     moved to malicious code; a SHA cannot (local ``./`` actions excepted).
+A tag (even ``3.3.2``) is mutable, but a digest is not. Rules (a violation fails CI):
+  1. every ``image:`` in a compose file is pinned by ``@sha256:``, unless the service also has a
+     ``build:`` (a locally built image, whose base is checked by rule 2).
+  2. every ``FROM`` in a Dockerfile is pinned by ``@sha256:``.
+  3. nothing uses ``latest``.
+  4. every GitHub Action (``uses:``) is pinned to a full 40-character commit SHA. A tag can be
+     moved to malicious code, but a SHA cannot (local ``./`` actions excepted).
 
 It reads the files line by line: compose ``image:`` keys and Dockerfile ``FROM`` lines are flat.
 """

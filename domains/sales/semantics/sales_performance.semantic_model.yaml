@@ -1,6 +1,6 @@
 # Apache Ossie semantic model for the sales.sales_performance output port (ADR-0010).
-# Owned by the Sales domain. ODCS governs the port's interface + quality; this governs its MEANING
-# — the dimensions and metrics — so Superset (M6) and the AI agent (M7) compute the same numbers.
+# Owned by the Sales domain. ODCS governs the port's interface + quality, and this governs its MEANING
+# (the dimensions and metrics), so Superset (M6) and the AI agent (M7) compute the same numbers.
 # Validated in CI (governance/policies/check_semantics.py): every field/metric must resolve to a
 # column in the port's ODCS contract, so the semantics can't drift from the contract.
 version: "0.2.0.dev0"
@@ -8,7 +8,7 @@ name: sales_performance
 datasets:
   - name: sales_performance
     source: analytics.sales_gold.sales_performance
-    description: "Regional sales scorecard — order and revenue performance by customer state."
+    description: "Regional sales scorecard: order and revenue performance by customer state."
     primary_key: [customer_state]
     fields:
       - name: customer_state
@@ -54,7 +54,7 @@ metrics:
         - dialect: ANSI_SQL
           expression: "SUM(sales_performance.num_customers)"
   - name: people_count
-    description: "Distinct people (customers as persons, not per-order keys) across the selected states. Exact for a single state; summed over several states it counts a person once per state they ordered in, so it slightly overstates a multi-state total."
+    description: "Distinct people (customers as persons, not per-order keys) across the selected states. Exact for a single state. Summed over several states it counts a person once per state they ordered in, so it slightly overstates a multi-state total."
     datatype: Integer
     expression:
       dialects:

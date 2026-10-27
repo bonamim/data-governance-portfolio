@@ -1,7 +1,7 @@
 [project]
 name = "dgp-governance"
 version = "0.1.0"
-description = "Reads the mesh's governed definitions — domain registry, governed tags, ontology, data products, output ports and approvals — so every check, generator and agent shares one answer."
+description = "Reads the mesh's governed definitions (domain registry, governed tags, ontology, data products, output ports and approvals) so every check, generator and agent shares one answer."
 requires-python = ">=3.11"
 dependencies = ["pyyaml>=6", "dgp-platform-contracts"]
 

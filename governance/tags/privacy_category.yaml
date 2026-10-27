@@ -1,10 +1,10 @@
 # Governed tag `privacy_category` (ADR-0027): whether a column's data is about a person, and how
-# directly — the categories of the Snowflake system tag SNOWFLAKE.CORE.PRIVACY_CATEGORY, which
+# directly: the categories of the Snowflake system tag SNOWFLAKE.CORE.PRIVACY_CATEGORY, which
 # Snowflake's sensitive-data classification also applies. Not the same as sensitivity: a customer's
 # zip-code prefix is internal, and a quasi-identifier. Maintained by the governance guild.
 #
 # A column's value is its ODCS custom property `privacyCategory` (on the column, or inherited from
-# its data element); a column with none is not personal data. Applied by the build with
+# its data element). A column with none is not personal data. Applied by the build with
 # `sensitivity` (dgp_dbt.apply_governance_tags) and published to the catalog.
 tag: privacy_category
 warehouse_tag: SNOWFLAKE.CORE.PRIVACY_CATEGORY

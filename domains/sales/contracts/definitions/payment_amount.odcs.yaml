@@ -1,6 +1,6 @@
 businessName: Amount paid
 description: >-
-  Amount in BRL, two decimals, summed from the orders' payments (payment_value) — freight and
+  Amount in BRL, two decimals, summed from the orders' payments (payment_value), freight and
   instalment interest included.
 logicalType: number
 classification: public

@@ -7,8 +7,8 @@ This policy keeps the three in step, so nothing is published by accident and not
 in vain:
 
 - every output-port contract has a data product definition, and a dbt model of the same name in
-  some medallion layer;
-- every data product definition has an output-port contract;
+  some medallion layer.
+- every data product definition has an output-port contract.
 - every output-port contract is complete (governance/standards/data-product.md): the table has a
   description, and every column has a description and a classification. A port is an interface
   that people, BI and AI agents read without asking the owner, so a blank column is a promise

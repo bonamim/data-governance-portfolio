@@ -1,16 +1,16 @@
-"""Catalog-driven router — the orchestrator's governable core (ADR-0021).
+"""Catalog-driven router: the orchestrator's governable core (ADR-0021).
 
 Someone asking a question shouldn't need to know which domain owns which metric. The router works
-that out **deterministically, from the catalog** — a router, not an LLM supervisor: it finds the
+that out **deterministically, from the catalog**. A router, not an LLM supervisor, it finds the
 product's owning domain and hands the question to that domain's governed agent. Deterministic
 dispatch is what makes the orchestration testable (proof P11) and governable: the routing decision
 can't drift or hallucinate.
 
 Each agent is the same governed semantic layer scoped to a domain. Deployed, each runs as its own
-process (``DGP_SEMANTIC_DOMAIN``) over MCP; here the router holds one ``SemanticLayer`` per domain,
+process (``DGP_SEMANTIC_DOMAIN``) over MCP. Here the router holds one ``SemanticLayer`` per domain,
 so routing and isolation run through the exact governed path, with no second implementation of the
 boundary. An LLM or natural-language layer (a client, optionally a LangGraph supervisor) sits
-above this and only ever calls these governed tools; it never routes around them.
+above this and only ever calls these governed tools. It never routes around them.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ class Router:
         return self.platform.list_data_products()
 
     def owning_domain(self, product: str) -> str | None:
-        """Which domain owns ``product`` — the routing key, from the catalog."""
+        """Which domain owns ``product``: the routing key, from the catalog."""
         return next((p["domain"] for p in self.catalog() if p["data_product"] == product), None)
 
     def route_query(

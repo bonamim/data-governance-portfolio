@@ -4,8 +4,8 @@
 ``minio-init`` sets SSE-S3 as every bucket's default, which covers NEW writes. Objects that existed
 before are rewritten in place (server-side copy onto themselves with SSE), so every current object
 is encrypted at rest. The content is unchanged. A single-part object keeps its ETag (SSE-S3 keeps
-the plaintext MD5), so the ledger still skips it (P6); a multipart-uploaded object gets a new
-single-part ETag, so its next load runs once more — safe, because raw loads replace the table.
+the plaintext MD5), so the ledger still skips it (P6). A multipart-uploaded object gets a new
+single-part ETag, so its next load runs once more. That is safe: raw loads replace the table.
 Superseded versions written unencrypted expire with the bucket's noncurrent-version lifecycle.
 Idempotent.
 
@@ -51,7 +51,7 @@ def main() -> int:
                 )
                 rewritten += 1
                 print(f"  encrypted s3://{bucket}/{key}")
-    print(f"{rewritten} object(s) rewritten with SSE; every current object is encrypted at rest.")
+    print(f"{rewritten} object(s) rewritten with SSE. Every current object is encrypted at rest.")
     return 0
 
 

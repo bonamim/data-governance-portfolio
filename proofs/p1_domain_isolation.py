@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Proof P1 — domain isolation: a domain breaks and fails alone (ADR-0003, ADR-0008).
+"""Proof P1: domain isolation. A domain breaks and fails alone (ADR-0003, ADR-0008).
 
-Customer Experience is broken twice, temporarily; the other domains keep working:
+Customer Experience is broken twice, temporarily, and the other domains keep working:
 
   0. boundaries  no module imports across domains or from platform into a domain (CI policy)
   1. code        its DAG files import a dependency that does not exist: only its DAG bundle
-                 reports import errors; Customer's and Sales' DAGs still parse, run and publish
+                 reports import errors, and Customer's and Sales' DAGs still parse, run and publish
   2. model       its output-port model gets invalid SQL: its transform fails and its port keeps
-                 the last good version; Sales — which consumes that port — still builds on it
-  3. recover     the files are restored; its DAGs parse and its transform succeeds again
+                 the last good version. Sales, which consumes that port, still builds on it
+  3. recover     the files are restored, its DAGs parse and its transform succeeds again
 
 Needs the platform and Airflow up (``make airflow-up``). Run: ``make prove-p1``.
 """
@@ -114,7 +114,7 @@ def step_recover(originals: dict[Path, str], model: str) -> None:
 
 def main() -> int:
     if not af.up():
-        sys.exit("Airflow is not running — `make airflow-up` first")
+        sys.exit("Airflow is not running. Run `make airflow-up` first")
     if af.import_errors():
         sys.exit(f"Airflow already has import errors: {af.import_errors()}")
     af.unpause("customer_transform", "sales_transform", f"{BROKEN}_transform")
@@ -134,7 +134,7 @@ def main() -> int:
             f.write_text(text, encoding="utf-8")
         MODEL.write_text(model, encoding="utf-8")
     return check.verdict(
-        "a domain's broken code or model fails only that domain — the others parse, run "
+        "a domain's broken code or model fails only that domain. The others parse, run "
         "and publish, and its consumers keep reading its last good port."
     )
 

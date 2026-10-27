@@ -1,5 +1,5 @@
 """Derived semantic fields (e.g. a purchase month) may only be built from contract columns, never
-from PII — check_semantics and check_ai_agents, on throwaway repos."""
+from PII. Tests check_semantics and check_ai_agents on throwaway repos."""
 
 from pathlib import Path
 

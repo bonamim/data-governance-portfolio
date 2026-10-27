@@ -1,9 +1,9 @@
 # dbt-loom: cross-project refs to OTHER domains' public output ports only (ADR-0001,
-# ADR-0003). Reads the upstream projects' manifests; sales_performance can then
+# ADR-0003). Reads the upstream projects' manifests, so sales_performance can then
 # ref('dgp_customer','customers') and ref('dgp_customer_experience','reviews').
-# Those models are access: public — private/internal models are not importable.
+# Those models are access: public. Private/internal models are not importable.
 # DGP_DBT_PROJECT_DIR (with a trailing /) is unset locally, so the paths stay relative to this
-# project; Airflow sets it to the project's absolute path because Cosmos runs dbt from a copy.
+# project. Airflow sets it to the project's absolute path because Cosmos runs dbt from a copy.
 manifests:
   - name: dgp_customer
     type: file

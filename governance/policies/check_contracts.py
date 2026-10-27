@@ -44,7 +44,7 @@ def violations() -> list[str]:
             problems = LandingRules.from_contract(load_contract(path)).problems()
         except (re.error, ValueError) as exc:  # e.g. a filenamePattern that isn't a valid regex
             problems = [str(exc)]
-        out += [f"{where}: landing rule — {p}" for p in problems]
+        out += [f"{where}: landing rule: {p}" for p in problems]
     return out
 
 

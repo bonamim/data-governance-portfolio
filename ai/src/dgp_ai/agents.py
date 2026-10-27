@@ -4,7 +4,7 @@ Agentic-mesh governance expects one registry of *what agents exist, who owns the
 they can touch*. It is derived, never kept by hand, from the sources that already own those facts,
 so it can't drift:
 
-* the domain registry (``governance/domains/``): owner and contact;
+* the domain registry (``governance/domains/``): owner and contact.
 * each domain's Apache Ossie semantic models: the governed products its agent can serve.
 
 A domain gets an agent once it governs at least one product. Each agent is the same governed

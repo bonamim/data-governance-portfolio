@@ -1,6 +1,6 @@
 version: 2
 
-# Hand-authored minimum metadata for INTERNAL (non-port) models — a description and
+# Hand-authored minimum metadata for INTERNAL (non-port) models: a description and
 # key tests. Not governed by ODCS (these have no consumer contract). Generated
 # output-port metadata lives in _ports.yml and is never mixed in here (ADR-0012,
 # governance/standards/model-metadata.md).

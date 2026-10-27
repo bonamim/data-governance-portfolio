@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 """Federated governance policy: the business ontology, and every contract's links to it (ADR-0027).
 
-The ontology's structure is one Apache Ossie document (``governance/ontology/*.ontology.yaml``);
-each value type's meaning is an ODCS property that the domain owning it defines in
+The ontology's structure is one Apache Ossie document (``governance/ontology/*.ontology.yaml``).
+Each value type's meaning is an ODCS property that the domain owning it defines in
 ``domains/<domain>/contracts/definitions/<value_type>.odcs.yaml`` (shared places in the
 reference domain), and every contract column that means it links there and inherits it.
 
   Ontology
     1. There is one ontology document, and Ossie's own validator passes it (vendored, unchanged:
-       ``dgp_platform_semantics/vendor/ossie/``) — schema, unique names, references.
+       ``dgp_platform_semantics/vendor/ossie/``): schema, unique names, references.
     2. Value types and data element files match one to one: each file names the value type it holds
-       with an ODCS ``ontology`` link (``<…>.ontology.yaml#<ValueType>``) that resolves; no value
+       with an ODCS ``ontology`` link (``<…>.ontology.yaml#<ValueType>``) that resolves. No value
        type is defined twice. Governed-tag values (``privacyCategory``) are allowed values.
     3. Every entity type is a business term with a business definition (its description). A value
-       type with a description is a business term too; one without is a data element only.
+       type with a description is a business term too, and one without is a data element only.
     4. Ownership comes from where things live, not from a list: a value type belongs to the domain
        whose folder defines it, an entity type to the domain that defines its identifying value
        types. That domain is registered, and it also defines every value type the entity type
        declares first.
-    5. A definition is a valid ODCS property carrying meaning only — description, business name, a
-       taxonomy classification, and a logicalType that agrees with what its value type extends;
-       nothing table-specific (physical type, keys, required, quality…).
+    5. A definition is a valid ODCS property carrying meaning only (description, business name, a
+       taxonomy classification, and a logicalType that agrees with what its value type extends),
+       and nothing table-specific (physical type, keys, required, quality…).
     6. Every definition is used by a contract column.
 
   Contracts (output ports and landing)
     7. A column takes its meaning only from a definition: any link datacontract-cli resolves
-       (``businessDefinition`` — the ODCS type — or ``semantics``/``definition``) points at a
+       (``businessDefinition``, the ODCS type, or ``semantics``/``definition``) points at a
        definition file, and resolves.
     8. One place per fact: a linked column does not restate what its definition says, or blank it.
     9. A linked column's logicalType does not contradict its definition's.
@@ -35,8 +35,8 @@ reference domain), and every contract column that means it links there and inher
        object, ``…commerce.ontology.yaml#Order``) names an entity type of the ontology, in a file
        that exists.
 
-A column may still set its own description or classification where the context changes it — a
-customer's zip-code prefix is internal, the definition's public — and the contract's value wins.
+A column may still set its own description or classification where the context changes it (a
+customer's zip-code prefix is internal, the definition's public), and the contract's value wins.
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ NOT_RESTATED = [
 
 
 def _contracts(base: Path) -> list[Path]:
-    """Every contract — output ports and landing — but not the definitions."""
+    """Every contract (output ports and landing), but not the definitions."""
     paths = base.glob("domains/*/contracts/**/*.odcs.yaml")
     return sorted(p for p in paths if "definitions" not in p.parts)
 
@@ -169,7 +169,7 @@ def _term_violations(
     for name, paths in sorted(definitions.items()):
         if len(paths) > 1:
             where = ", ".join(relative(p, base) for p in paths)
-            out.append(f"value type '{name}' is defined {len(paths)} times ({where}); define once")
+            out.append(f"value type '{name}' is defined {len(paths)} times ({where}). Define once")
     out += [
         f"value type '{name}': no domain defines it (contracts/definitions/)"
         for name in sorted(values - set(definitions))
@@ -209,7 +209,7 @@ def _ownership_violations(
                     (owner,) = owners
                     out.append(
                         f"value type '{v}' belongs to entity type '{name}' (domain {owner}) but "
-                        f"is defined by {owner_of[v]}; move its definition to {owner}"
+                        f"is defined by {owner_of[v]}. Move its definition to {owner}"
                     )
     out += [
         f"value type '{name}': no entity type declares a relationship to it"
@@ -231,7 +231,7 @@ def _definition_content_violations(
         out.append(f"definition '{name}': unknown ODCS property fields {sorted(unknown)}")
     if specific := set(prop) & TABLE_SPECIFIC:
         out.append(
-            f"definition '{name}': {sorted(specific)} are table-specific; keep them on the "
+            f"definition '{name}': {sorted(specific)} are table-specific. Keep them on the "
             "contract column"
         )
     for key in ("description", "businessName"):
@@ -301,12 +301,12 @@ def _column_violations(prop: dict, meaning: dict, concept: str, where: str) -> l
             continue
         if prop[key] in ("", None, []):
             out.append(
-                f"{where}: column '{col}' sets an empty {key}, which hides the definition's; "
-                "remove it"
+                f"{where}: column '{col}' sets an empty {key}, which hides the definition's. "
+                "Remove it"
             )
         elif prop[key] == meaning.get(key):
             out.append(
-                f"{where}: column '{col}' restates its definition's {key}; remove the copy "
+                f"{where}: column '{col}' restates its definition's {key}. Remove the copy "
                 "(it is inherited)"
             )
     local, defined = prop.get("logicalType"), meaning.get("logicalType")
@@ -321,8 +321,8 @@ def _column_violations(prop: dict, meaning: dict, concept: str, where: str) -> l
 def _homonym_violations(
     by_name: dict[str, set[tuple[str, str | None]]],
 ) -> tuple[list[str], dict[str, list[str]]]:
-    """Rule 10: a column name used in several contracts links a definition in every one of them;
-    two definitions under one name is an explicit homonym."""
+    """Rule 10: a column name used in several contracts links a definition in every one of them.
+    Two definitions under one name is an explicit homonym."""
     out: list[str] = []
     homonyms: dict[str, list[str]] = {}
     for col, uses in sorted(by_name.items()):
@@ -343,7 +343,7 @@ def _homonym_violations(
 def contract_violations(
     base: Path, definitions: dict[str | None, list[Path]]
 ) -> tuple[list[str], dict]:
-    """(violations, homonyms) across every contract; homonyms: column name -> the 2+ definitions
+    """(violations, homonyms) across every contract. Homonyms: column name -> the 2+ definitions
     it links to."""
     out: list[str] = []
     meaning = {n: load_yaml(p[0]) for n, p in definitions.items() if n}
@@ -372,7 +372,7 @@ def contract_violations(
             if resolved and concept is None:  # rule 7
                 out.append(
                     f"{where}: column '{col}' takes its meaning from outside the definitions "
-                    f"({resolved[0].get('url')}); link a contracts/definitions/ file as a "
+                    f"({resolved[0].get('url')}). Link a contracts/definitions/ file as a "
                     "businessDefinition"
                 )
             elif concept is not None and concept not in meaning:

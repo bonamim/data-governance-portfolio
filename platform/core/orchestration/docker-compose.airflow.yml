@@ -1,4 +1,4 @@
-# Airflow 3 orchestration — milestone M1.
+# Airflow 3 orchestration, milestone M1.
 # Combined with the infra compose in the same project:
 #   docker compose -f platform/core/infra/docker-compose.yml -f platform/core/orchestration/docker-compose.airflow.yml ...
 # (the Makefile airflow-* targets do this). Shares the 'platform' network so DAG
@@ -41,7 +41,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
-    # In Airflow 3 the task supervisor calls back to the execution API; point it at
+    # In Airflow 3 the task supervisor calls back to the execution API, so point it at
     # the api-server service, not localhost (which is whatever container runs the task).
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
     # One local DAG bundle per domain + the platform bundle (the acquire DAG).
@@ -56,7 +56,7 @@ x-airflow-common: &airflow-common
         {"name":"reference","classpath":"airflow.dag_processing.bundles.local.LocalDagBundle","kwargs":{"path":"/opt/airflow/repo/domains/reference/pipelines"}}
       ]
     # DataHub lineage (ADR-0018): the plugin emits DAG/task + dataset lineage to GMS, which
-    # lives in the dgp-catalog compose project — reach it on the host gateway.
+    # lives in the dgp-catalog compose project. Reach it on the host gateway.
     AIRFLOW_CONN_DATAHUB_REST_DEFAULT: "datahub-rest://host.docker.internal:${DATAHUB_MAPPED_GMS_PORT}"
     # The landing-quality publisher (publish_quality task) talks to the same GMS.
     DATAHUB_GMS: "http://host.docker.internal:${DATAHUB_MAPPED_GMS_PORT}"
@@ -65,17 +65,17 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATAHUB__CAPTURE_EXECUTION: "true"
     AIRFLOW__DATAHUB__CAPTURE_OWNERSHIP_INFO: "true"
     AIRFLOW__DATAHUB__CAPTURE_TAGS_INFO: "true"
-    # Don't surface the abstract published/<domain> scheduling Assets as catalog datasets;
-    # lineage flows through the real output-port tables we declare as the task's iolets.
+    # Don't surface the abstract published/<domain> scheduling Assets as catalog datasets.
+    # Lineage flows through the real output-port tables we declare as the task's iolets.
     AIRFLOW__DATAHUB__CAPTURE_AIRFLOW_ASSETS: "false"
     # Lineage has one owner per hop (ADR-0018). dbt's own metadata draws every transformation edge
     # (raw -> bronze -> silver/gold, column level); Airflow adds only the ingestion edges dbt can't
     # see (source/landing -> raw, declared as the ingestion tasks' inlets/outlets). The transform
     # DAGs are not reported: each Cosmos task would draw its dbt model's hop again through an
     # Airflow node (Cosmos always attaches OpenLineage, and the plugin reads it). Which DAG builds a
-    # dataset is a link on the dataset (catalog-govern); transform runs are in Airflow.
+    # dataset is a link on the dataset (catalog-govern), and transform runs are in Airflow.
     AIRFLOW__DATAHUB__DAG_FILTER_STR: '{"allow": [".*"], "deny": [".*_transform$$"]}'
-    # Ingestion runtime: the repo is mounted here; the Olist cache is a shared volume.
+    # Ingestion runtime: the repo is mounted here, and the Olist cache is a shared volume.
     DGP_REPO_ROOT: /opt/airflow/repo
     DGP_DATA_DIR: /opt/airflow/data
     # Reach the platform services by compose DNS (overrides the host localhost defaults).
@@ -102,7 +102,7 @@ x-airflow-common: &airflow-common
     DBT_STATE_USER: ${DBT_STATE_USER:-dbt-state}
     # Arrival queue (ADR-0016): the triggerer watches it, the gate acks it.
     LANDING_EVENTS_PASSWORD: ${LANDING_EVENTS_PASSWORD}
-    # Per-domain alert routes (governance/domains/<d>.yaml); unset = logged + recorded only.
+    # Per-domain alert routes (governance/domains/<d>.yaml). Unset = logged + recorded only.
     ALERT_WEBHOOK_SALES: ${ALERT_WEBHOOK_SALES:-}
     ALERT_WEBHOOK_CUSTOMER: ${ALERT_WEBHOOK_CUSTOMER:-}
     ALERT_WEBHOOK_MARKETPLACE: ${ALERT_WEBHOOK_MARKETPLACE:-}

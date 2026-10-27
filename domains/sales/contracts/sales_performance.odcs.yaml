@@ -1,5 +1,5 @@
 # ODCS contract for the sales.sales_performance OUTPUT PORT (consumer-aligned).
-# Source of truth for the schema and contractual quality; the dbt model YAML and
+# Source of truth for the schema and contractual quality. The dbt model YAML and
 # tests are generated from this file by `datacontract dbt sync`.
 version: 1.1.0
 kind: DataContract

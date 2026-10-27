@@ -7,12 +7,12 @@
 #                   superuser: member of every domain role (so it can GRANT on the ports the domains
 #                   own) + CREATE on the database (for the <domain>_masked schemas). Not a superuser.
 #   catalog_reader  DataHub metadata ingestion: read-only everywhere (pg_read_all_data), no writes.
-#   agent_<domain>  one read-only role per federated domain agent (ADR-0021); granted only its own
+#   agent_<domain>  one read-only role per federated domain agent (ADR-0021), granted only its own
 #                   domain's output ports by apply_grants.py, so isolation holds in the database
 #                   too, not just in the agent's code.
 #   landing_events  the landing arrival queue (ADR-0016): MinIO's bucket notifications append to
 #                   landing_events.arrivals and Airflow's arrival trigger drains it. Owns that one
-#                   schema; reads nothing else (the local stand-in for an SQS queue).
+#                   schema and reads nothing else (the local stand-in for an SQS queue).
 set -euo pipefail
 
 DOMAINS="sales customer marketplace customer_experience reference"
@@ -41,7 +41,7 @@ for domain in $DOMAINS; do
 	ensure_login "agent_${domain}" "$(agent_password "$domain")"
 	run_sql -c "GRANT ${domain}_role TO access_admin"
 	# Slim CI sandbox (ADR-0015 §3): changed models are built here, unchanged ones deferred to the
-	# published schemas. Owned by the domain role; never granted to consumers.
+	# published schemas. Owned by the domain role, never granted to consumers.
 	run_sql -c "CREATE SCHEMA IF NOT EXISTS ${domain}_ci AUTHORIZATION ${domain}_role"
 done
 

@@ -13,7 +13,7 @@ Rules (a violation fails CI):
 2. Nothing under ``domains/<A>/`` imports ``dgp_domain_<B>_*`` for another domain B: domains
    integrate through data products and contracts, never through code.
 
-The check reads source files with ``ast``; it imports nothing it checks.
+The check reads source files with ``ast``. It imports nothing it checks.
 """
 
 from __future__ import annotations

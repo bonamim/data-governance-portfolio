@@ -13,7 +13,7 @@ models:
   columns:
   - name: order_id
     data_type: text
-    description: Identifies one order on the marketplace; the same value in every
+    description: Identifies one order on the marketplace, with the same value in every
       domain.
     data_tests:
     - not_null:

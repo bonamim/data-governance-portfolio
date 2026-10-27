@@ -50,7 +50,7 @@ def prepare_text_table(
     it survives the reload: the dbt views up the medallion (several output ports are views), the
     masking views and the consumer grants. Inside the caller's transaction, readers keep seeing the
     previous rows until the new load commits. Only a real schema change (different columns) drops
-    and recreates the table — CASCADE then removes the dependents, and the transform that follows
+    and recreates the table. CASCADE then removes the dependents, and the transform that follows
     the load rebuilds them against the new shape.
     """
     ident = sql.Identifier(schema, table)
@@ -66,7 +66,7 @@ def prepare_text_table(
 def copy_csv_into(
     conn: psycopg.Connection, schema: str, table: str, source: IO[bytes] | IO[str]
 ) -> int:
-    """COPY a CSV stream (with header) into an existing table; return row count."""
+    """COPY a CSV stream (with header) into an existing table, and return the row count."""
     ident = sql.Identifier(schema, table)
     copy_sql = sql.SQL("COPY {} FROM STDIN WITH (FORMAT csv, HEADER true)").format(ident)
     with conn.cursor() as cur:

@@ -7,7 +7,7 @@ model-paths: ["models"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
-# Medallion internal layers; output ports are tagged per-model (ADR-0012).
+# Medallion internal layers. Output ports are tagged per-model (ADR-0012).
 models:
   dgp_customer_experience:
     # Write model/column descriptions into the warehouse as COMMENTs, so the table/view asset
@@ -16,7 +16,7 @@ models:
       relation: true
       columns: true
     # Governed tags (sensitivity, privacy category) on output ports, set as part of the build so
-    # data is never in an untagged table (ADR-0027); a no-op on warehouses without object tags.
+    # data is never in an untagged table (ADR-0027). A no-op on warehouses without object tags.
     +post-hook: ["{{ dgp_dbt.apply_governance_tags() }}"]
     bronze:
       +schema: bronze

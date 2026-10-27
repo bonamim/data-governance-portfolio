@@ -14,5 +14,5 @@ Domains share data only through contract-backed **data products** (output ports)
 ## Consequences
 - Each domain owns its contracts, dbt project and data products (enforced by CODEOWNERS).
 - Global rules are enforced in CI, not by manual review.
-- More moving parts than a single dbt project — acceptable, as this is the point of the
+- More moving parts than a single dbt project, which is acceptable as this is the point of the
   demonstration. See [data-mesh.md](../data-mesh.md).

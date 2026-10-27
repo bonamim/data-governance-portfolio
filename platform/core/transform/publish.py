@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Write-audit-publish orchestrator for the CLI (ADR-0014/0015, proof P3).
 
-Runs the same per-model steps as the Airflow transform DAG (``dgp_platform_orchestration.wap``);
-all publish SQL lives in the ``dgp_dbt`` package macros. For each domain, in dependency order:
+Runs the same per-model steps as the Airflow transform DAG (``dgp_platform_orchestration.wap``).
+All publish SQL lives in the ``dgp_dbt`` package macros. For each domain, in dependency order:
 
   1. core           ``dbt build`` of everything except opted-in models and their descendants
   2. per WAP model  ``wap_prepare`` → ``dbt build`` to ``<name>__candidate`` (WRITE + AUDIT: the
                     contract DQ runs in the build) → pass: ``wap_promote`` / fail:
                     ``wap_drop_candidate`` (QUARANTINE: consumers keep the last good version)
   3. descendants    of promoted models (those of a quarantined one keep its last good version)
-  4. masking + consumer grants; on success the manifest is saved as dbt state (Slim CI)
+  4. masking + consumer grants, and on success the manifest is saved as dbt state (Slim CI)
 
 Opt-in is per data product (``publish: {audit: required}``). A microbatch model is audited and
 merged per batch window: by default the latest batches, or ``--event-time-start/--end`` for a
@@ -34,7 +34,7 @@ REPO_ROOT = root()
 def _grant() -> None:
     """Re-apply masking views, then consumer grants.
 
-    dbt's view and table materializations swap relations and drop the old one with CASCADE —
+    dbt's view and table materializations swap relations and drop the old one with CASCADE,
     taking the role-aware masking views (ADR-0013) and grants with them. So masking is re-applied
     before grants after every domain.
     """
@@ -69,7 +69,7 @@ def main() -> int:
         _grant()
         if not ok:
             print(
-                f"  QUARANTINED {domain}: an audit failed — its last good version stays published"
+                f"  QUARANTINED {domain}: an audit failed, so its last good version stays published"
             )
             exit_code = 1
         elif not args.no_state:

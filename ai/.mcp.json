@@ -1,5 +1,5 @@
 {
-  "_comment": "Governed-AI wiring for M7 (ADR-0020). Two MCP servers: 'datahub' for catalog/governance discovery (what exists, owner, PII class, lineage) and 'semantic' for the governed metric number (compiled from the same Apache Ossie specs Superset uses). Replace /ABSOLUTE/PATH/TO/REPO and the warehouse password/port. Local DataHub needs no token; for prod see the _comment in the datahub env. See ai/README.md.",
+  "_comment": "Governed-AI wiring for M7 (ADR-0020). Two MCP servers: 'datahub' for catalog/governance discovery (what exists, owner, PII class, lineage) and 'semantic' for the governed metric number (compiled from the same Apache Ossie specs Superset uses). Replace /ABSOLUTE/PATH/TO/REPO and the warehouse password/port. Local DataHub needs no token. For prod see the _comment in the datahub env. See ai/README.md.",
   "mcpServers": {
     "datahub": {
       "command": "uvx",

@@ -1,11 +1,11 @@
 # Semantic model requests
 
-Business requests to **govern a data product** — i.e. to add an Apache Ossie semantic model
+Business requests to **govern a data product**, i.e. to add an Apache Ossie semantic model
 (metrics + dimensions, ADR-0010) to a product that doesn't have one yet.
 
 The governed AI (`dgp_ai.semantic_server`, M7) will not fabricate a metric that isn't defined. When a user
 explores the catalog and wants a number on an *ungoverned* product, the agent's
-`request_semantic_model` tool drops an auditable request here, routed to the owning domain — the
+`request_semantic_model` tool drops an auditable request here, routed to the owning domain. This is the
 self-serve path from discovery to a governed metric. Each file is one open request, named
 `<domain>.<product>.<UTC timestamp>.yaml` so a second request never overwrites an open one:
 
@@ -24,7 +24,7 @@ route from `governance/domains/<domain>.yaml` (`alerts.webhook_env`, the same Sl
 webhook as landing-zone alerts, ADR-0016) with `kind: semantic_model_request`. The tool's result
 carries `owner_notification` (`notified`, `channel`, and a `reason` when it wasn't sent: no webhook
 configured, or the webhook failed), so the agent reports what actually happened. A failed
-notification never loses the request; the file is written first.
+notification never loses the request, because the file is written first.
 
 The owning domain authors `domains/<domain>/semantics/<product>.semantic_model.yaml` to satisfy the
 request (CI's `check-semantics` keeps it on the contract's columns, or fields derived only from them), then resolves/removes the file.

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Proof P6 — state and idempotency: reruns and backfills are safe (ADR-0006, ADR-0015 §4).
+"""Proof P6: state and idempotency. Reruns and backfills are safe (ADR-0006, ADR-0015 §4).
 
 On the microbatch port ``sales.orders`` (monthly batches, write-audit-publish):
 
-  1. normal run   processes only the latest batches (current month + lookback); for the static
+  1. normal run   processes only the latest batches (current month + lookback). For the static
                   Olist history that window is empty, so no published row is rewritten
   2. backfill     ``--event-time-start 2017-03-01 --event-time-end 2017-05-01`` rewrites exactly
-                  the rows of March–April 2017 and no other row; the count is unchanged
+                  the rows of March to April 2017 and no other row, and the count is unchanged
   3. rerun        the same backfill again: same rows, no duplicates (unique order_id holds)
 
 "Rewritten" is read from Postgres row versions (``xmin``): a row the merge replaced gets a new one,
@@ -68,9 +68,9 @@ def main() -> int:
     try:
         v0 = versions()
     except psycopg.OperationalError as e:
-        sys.exit(f"analytics warehouse unreachable — `make up` first ({e})")
+        sys.exit(f"analytics warehouse unreachable. Run `make up` first ({e})")
     in_window = {k for k, (_, w) in v0.items() if w}
-    print(f"   {len(v0)} orders published; {len(in_window)} in {START} .. {END}")
+    print(f"   {len(v0)} orders published, {len(in_window)} in {START} .. {END}")
 
     print("1. Normal run: only the latest batches are processed")
     rc, log = publish()

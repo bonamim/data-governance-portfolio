@@ -37,9 +37,9 @@ jobs:
         run: uv run python governance/policies/check_output_ports.py
       - name: Ontology (Apache Ossie) and the contract links to it, one definition per column
         run: uv run python governance/policies/check_ontology.py
-      - name: Ossie bundle builds and validates (ontology, compiled semantic models, mappings — ADR-0027)
+      - name: Ossie bundle builds and validates (ontology, compiled semantic models, mappings, ADR-0027)
         run: uv run python platform/context/semantics/build_ossie.py --check
-      - name: Versioned ports (deprecated versions carry a sunset; none outlives it, ADR-0019)
+      - name: Versioned ports (deprecated versions carry a sunset and none outlives it, ADR-0019)
         run: uv run python governance/policies/check_port_versions.py
       - name: Semantic governance (Ossie models build on contract columns, ADR-0010)
         run: uv run python governance/policies/check_semantics.py
@@ -51,11 +51,11 @@ jobs:
         run: |
           make dbt-ports
           git diff --exit-code -- domains \
-            || { echo "dbt model YAML drifted from the ODCS contracts — run 'make dbt-ports' and commit."; exit 1; }
+            || { echo "dbt model YAML drifted from the ODCS contracts. Run 'make dbt-ports' and commit."; exit 1; }
       - name: Breaking-change contract gate (proof P5)
         if: github.event_name == 'pull_request'
         run: BASE_REF=origin/${{ github.base_ref }} make check-breaking
-      - name: Slim CI plan — the models this change rebuilds (ADR-0015 §3)
+      - name: Slim CI plan, the models this change rebuilds (ADR-0015 §3)
         if: github.event_name == 'pull_request'
         # Parse only (dbt ls against the base branch's manifests): no warehouse is reached, the
         # profile just needs its variables set. `make slim-ci` builds them for real.

@@ -2,7 +2,7 @@
 
 Federated governance, executed by the platform (data-mesh.md §4, the self-serve "Access" row): a
 consumer named on a data product gets USAGE on the owning domain's output schema and SELECT on that
-one port — nothing else. Consumers therefore read output ports, never raw or staging tables.
+one port, nothing else. Consumers therefore read output ports, never raw or staging tables.
 
 Run: ``make grants``. Idempotent: GRANT is additive and safe to re-run.
 """
@@ -84,7 +84,7 @@ def admin_conninfo() -> str:
     """The access admin plane connects as ``access_admin``, never the superuser (X5).
 
     ``access_admin`` is a member of every domain role, so it can GRANT on the ports the domains own
-    and own the ``<domain>_masked`` schemas; it holds no superuser or role-creation rights.
+    and own the ``<domain>_masked`` schemas. It holds no superuser or role-creation rights.
     """
     return PostgresSettings.analytics(
         "access_admin", os.environ["ACCESS_ADMIN_PASSWORD"]
@@ -104,7 +104,7 @@ def main() -> int:
     applied = 0
     with psycopg.connect(admin_conninfo(), autocommit=False) as conn:
         for grant in planned:
-            # A dbt rebuild drops table grants, so this runs again after every transform; a port
+            # A dbt rebuild drops table grants, so this runs again after every transform. A port
             # that isn't built yet is simply granted next time.
             if not relation_exists(conn, grant.relation):
                 print(f"  skip {grant.relation} (not built yet)")

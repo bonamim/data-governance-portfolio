@@ -6,7 +6,7 @@ per-model write-audit-publish (ADR-0015).
 ``published/<domain>`` when everything published. The graph, rendered from the dbt manifest
 (``LoadMode.DBT_MANIFEST``: no ``dbt ls`` at parse time):
 
-    models          every model except the opted-in ones and their descendants — one run + test
+    models          every model except the opted-in ones and their descendants: one run + test
                     task group per model (Cosmos), so a failure names the model and retries it alone
     wap_<model>     per opted-in model: plan -> stage -> write -> audit_view -> audit -> publish,
                     with quarantine on failure (consumers keep the last good version)
@@ -15,7 +15,7 @@ per-model write-audit-publish (ADR-0015).
     save_state      the manifest to platform-state for Slim CI, only when everything published
 
 Backfill: trigger the same DAG with params ``event_time_start`` / ``event_time_end`` (microbatch
-WAP models audit and merge exactly that window) or ``full_refresh`` — never a cloned DAG.
+WAP models audit and merge exactly that window) or ``full_refresh``, never a cloned DAG.
 """
 
 from __future__ import annotations
@@ -215,8 +215,8 @@ def build_transform_dag(
 ) -> DAG:
     """Build one transform DAG for ``domain``.
 
-    The platform ships paved defaults; a domain overrides only what it needs (self-serve
-    platform, federated governance — ADR-0003/0008/0015). Keys in ``default_args`` win over
+    The platform ships paved defaults, and a domain overrides only what it needs (self-serve
+    platform, federated governance, ADR-0003/0008/0015). Keys in ``default_args`` win over
     the ``retries`` / ``retry_delay`` shorthands.
     """
     args = {
@@ -259,7 +259,7 @@ def build_transform_dag(
             exclude=[f"{n}+" for n in names],
         )
         published = [core]  # must all succeed for save_state
-        quarantines = []  # skipped on success; only grant waits on them
+        quarantines = []  # skipped on success, and only grant waits on them
         publish_of: dict[str, object] = {}
 
         for m in wap_models:

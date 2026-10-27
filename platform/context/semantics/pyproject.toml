@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "The semantic layer's one Apache Ossie reader: loads, compiles and validates the domains' semantic models and turns a governed metric into SQL, for the BI publisher, the AI agents, the bundle build and the governance checks alike."
 requires-python = ">=3.11"
 # jsonschema and sqlglot are what the vendored Ossie validator imports. Its script header asks
-# for sqlglot 30.12; 30.8, the version the lock resolves, validates every document here.
+# for sqlglot 30.12, but 30.8, the version the lock resolves, validates every document here.
 dependencies = ["pyyaml>=6", "requests>=2.31", "jsonschema>=4.26", "sqlglot>=30.8", "dgp-governance"]
 
 [tool.uv.sources]

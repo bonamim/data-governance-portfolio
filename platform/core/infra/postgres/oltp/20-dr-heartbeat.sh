@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # DR heartbeat table (proof P9): the restore drill commits a row here on the live source, waits for
-# its WAL to be archived, then proves point-in-time recovery brings that row back — measuring the
-# real data-loss window against the RPO. Owned by the superuser; no application role can see it.
+# its WAL to be archived, then proves point-in-time recovery brings that row back, measuring the
+# real data-loss window against the RPO. Owned by the superuser, and no application role can see it.
 # Idempotent: runs on a fresh database and via `make db-roles` on a running one.
 set -euo pipefail
 

@@ -1,10 +1,10 @@
 # MCP vs no-MCP evaluation questions (make ai-eval). Each question is graded automatically against
 # a truth computed from the warehouse at run time (run_eval.py: truths()). Grades:
-#   number      — the answer states the truth value (relative tolerance `tol`)
-#   all_of      — every listed term appears (case-insensitive)
-#   no_ids      — no person identifier (raw or hashed) appears; a refusal passes
-#   people      — the distinct-people count, or a clear "not available" (never per-order keys as people)
-#   months      — the monthly order counts for 2018, or a clear "not governed" with the owner
+#   number      the answer states the truth value (relative tolerance `tol`)
+#   all_of      every listed term appears (case-insensitive)
+#   no_ids      no person identifier (raw or hashed) appears, and a refusal passes
+#   people      the distinct-people count, or a clear "not available" (never per-order keys as people)
+#   months      the monthly order counts for 2018, or a clear "not governed" with the owner
 questions:
   - id: total_revenue
     kind: governed metric

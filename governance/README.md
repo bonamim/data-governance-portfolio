@@ -1,7 +1,7 @@
-# `governance/` — the rules, as code
+# `governance/`: the rules, as code
 
 Federated computational governance (ADR-0003): the governance guild sets the rules every domain
-follows, and CI enforces them on every pull request. This folder is *what* the rules are; the
+follows, and CI enforces them on every pull request. This folder is *what* the rules are, and the
 platform (`platform/`) is *how* they are enforced at run time.
 
 | Folder | What it holds | Who changes it |
@@ -21,10 +21,10 @@ The meaning of each value type is not here: it lives with the domain that owns i
 ## The checks
 
 Each policy is a script. When its rules hold it prints one aligned line (`✓ Ontology  …`), with any
-notice indented under it; when a rule breaks it prints `✗`, one line per violation, and exits
+notice indented under it. When a rule breaks it prints `✗`, one line per violation, and exits
 non-zero. `make check` runs them all, then the linter and the tests, so its output reads as one
 list of policies. The breaking-change gate needs a base
-branch to compare with, so it runs on its own (`make check-breaking`); CI runs both.
+branch to compare with, so it runs on its own (`make check-breaking`), and CI runs both.
 
 | Check | The rule | Make target |
 |---|---|---|

@@ -1,5 +1,5 @@
-# Customer Experience domain — source registration (owned by the CX team).
-# Reviews arrive as files in the landing zone — the source type that exercises
+# Customer Experience domain: source registration (owned by the CX team).
+# Reviews arrive as files in the landing zone, the source type that exercises
 # the landing-zone quality gate (proof P2) and the idempotent-by-ETag load (P6).
 domain: customer_experience
 datasets:

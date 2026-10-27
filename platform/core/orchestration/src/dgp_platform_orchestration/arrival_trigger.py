@@ -4,12 +4,12 @@ An Airflow 3 ``AssetWatcher`` runs this in the triggerer. It watches the arrival
 (``landing_events.arrivals``, fed by the object store's bucket notifications) for the domain's
 inbox prefixes and fires the domain's ``landing/<domain>`` asset, which schedules its ingestion
 DAG. Fan-in is windowed: when something arrives it waits ``window_seconds`` for the rest of the
-burst, then signals every due row at once — a thousand files are one event, not a thousand DAG
+burst, then signals every due row at once: a thousand files are one event, not a thousand DAG
 runs. Rows are stamped ``signalled_at`` (not deleted): the contract gate acks them once their file
 has left the inbox, and a row still present after ``visibility_seconds`` is signalled again, so a
 lost signal or a file still waiting on its completion signal is retried (at least once, like SQS).
 
-In AWS the queue is SQS and this class is swapped for the common-messaging ``MessageQueueTrigger``;
+In AWS the queue is SQS and this class is swapped for the common-messaging ``MessageQueueTrigger``,
 the domain DAGs and the gate do not change.
 """
 

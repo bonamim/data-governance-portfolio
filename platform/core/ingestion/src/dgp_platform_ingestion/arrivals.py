@@ -1,11 +1,11 @@
 """The landing arrival queue (ADR-0016): object-store notifications -> Airflow, at least once.
 
 Locally MinIO appends one row per ``s3:ObjectCreated`` event in the inbox to
-``landing_events.arrivals`` (``event_time``, ``event_data`` in the S3 event format); in AWS the same
+``landing_events.arrivals`` (``event_time``, ``event_data`` in the S3 event format). In AWS the same
 records arrive on an SQS queue. The semantics are SQS's:
 
   signal   Airflow's arrival trigger stamps unsignalled rows (``signalled_at``) and fires the
-           domain's arrival asset — one event per window, however many files arrived
+           domain's arrival asset, one event per window, however many files arrived
   ack      the contract gate deletes the rows of objects that have left the inbox (processed)
   redeliver a row still present after the visibility timeout (its file is still waiting on a
            completion signal, or a signal was lost) is signalled again
@@ -28,7 +28,7 @@ log = logging.getLogger("dgp.arrivals")
 
 TABLE = "landing_events.arrivals"
 
-# MinIO creates the table (event_time, event_data); the queue bookkeeping is ours.
+# MinIO creates the table (event_time, event_data), and the queue bookkeeping is ours.
 MIGRATIONS = [
     f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS id bigint GENERATED ALWAYS AS IDENTITY",
     f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS signalled_at timestamptz",
@@ -67,7 +67,7 @@ def parse(event_data: dict, event_time: datetime | None = None) -> list[Arrival]
 
 
 def ensure_schema(conn: psycopg.Connection) -> bool:
-    """Add the queue columns; False when MinIO has not created the table yet (no events)."""
+    """Add the queue columns. False when MinIO has not created the table yet (no events)."""
     row = conn.execute("SELECT to_regclass(%s)", (TABLE,)).fetchone()
     if row is None or row[0] is None:
         return False

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Proof P14 — landing-zone lifecycle, end to end on the live platform (ADR-0024).
+"""Proof P14: landing-zone lifecycle, end to end on the live platform (ADR-0024).
 
-A partner delivers files into the inbox; the contract gate files each one to ``accepted/``
-(locked) or ``quarantine/`` (with ``_reason.json``); the raw load then loads only what was accepted
-(ADR-0025); the results appear in DataHub as assertions on the landing dataset. Exercised with the
+A partner delivers files into the inbox. The contract gate files each one to ``accepted/``
+(locked) or ``quarantine/`` (with ``_reason.json``), the raw load then loads only what was accepted
+(ADR-0025), and the results appear in DataHub as assertions on the landing dataset. Exercised on the
 ``reviews`` dataset:
 
   0. layout     archive has object lock + one lifecycle rule per retention class + quarantine rule
@@ -11,12 +11,12 @@ A partner delivers files into the inbox; the contract gate files each one to ``a
   2. bad name   a file not following the partner's naming convention -> quarantined (naming)
   2b. future    a business date in the future -> quarantined (naming.business_date)
   3. good       a conforming file -> the gate files it to accepted/ (partition from the FILE NAME,
-                lock, retention tag) and loads nothing; load_raw then loads it; a retried
+                lock, retention tag) and loads nothing. load_raw then loads it, and a retried
                 load_raw loads nothing again (no re-check, no double load)
   4. real       the real Olist file -> accepted + loaded (restores the real data)
   5. resend     the same bytes again, as a multipart upload (another ETag) -> skipped on content
                 (idempotent, P6), inbox drained
-  6. access     partner is write-only to its own prefix; nobody deletes accepted evidence
+  6. access     partner is write-only to its own prefix, and nobody deletes accepted evidence
   7. catalog    `make catalog-quality` -> DataHub shows FAILURE/SUCCESS runs per partition
 
 Leaves customer_experience_raw.reviews holding the real Olist file, as before. Run:
@@ -88,7 +88,7 @@ class Ctx:
         self.loader = ObjectStore(self.settings.objectstore)
         access, secret = self.settings.objectstore.partner_credentials(SOURCE)
         if not secret:
-            sys.exit("LANDING_PARTNER_OLIST_SECRET is not set — run `make up` with the new .env")
+            sys.exit("LANDING_PARTNER_OLIST_SECRET is not set. Run `make up` with the new .env")
         self.partner = ObjectStore(self.settings.objectstore, access, secret).client
         self.root = object_store(
             os.environ.get("MINIO_ROOT_USER"), os.environ.get("MINIO_ROOT_PASSWORD")
@@ -318,7 +318,7 @@ def step_real_and_resend(c: Ctx) -> None:
 
 
 def step_access(c: Ctx) -> None:
-    print("6. Access: partner write-only to its own prefix; accepted evidence is undeletable")
+    print("6. Access: partner write-only to its own prefix, accepted evidence is undeletable")
     p, own = c.partner, layout.inbox_prefix(SOURCE, DATASET)
     check(_denied(lambda: p.list_objects_v2(Bucket=c.inbox, Prefix=own)), "partner cannot list")
     key = c.deliver("p14-probe.txt", b"probe")
@@ -419,7 +419,7 @@ SCHED = "governance-platform-airflow-scheduler-1"
 
 
 def _airflow_pause(pause: bool) -> None:
-    """Arrivals fire the domain's ingestion DAG (ADR-0016); while this proof drives the gate
+    """Arrivals fire the domain's ingestion DAG (ADR-0016). While this proof drives the gate
     itself, the DAG is paused so one gate at a time works the inbox."""
     if subprocess.run(["docker", "inspect", SCHED], capture_output=True).returncode == 0:
         verb = "pause" if pause else "unpause"
@@ -430,16 +430,16 @@ def _airflow_pause(pause: bool) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Proof P14 — landing lifecycle")
+    parser = argparse.ArgumentParser(description="Proof P14: landing lifecycle")
     parser.add_argument("--skip-catalog", action="store_true", help="skip the DataHub step")
     args = parser.parse_args()
     c = Ctx()
     try:
         psycopg.connect(c.settings.analytics_loader.conninfo()).close()
     except psycopg.OperationalError as e:
-        sys.exit(f"analytics warehouse unreachable — `make up` first ({e})")
+        sys.exit(f"analytics warehouse unreachable. Run `make up` first ({e})")
     if not c.inbox_empty():
-        sys.exit("the reviews inbox is not empty — drain it (`dgp-ingest gate`) before P14")
+        sys.exit("the reviews inbox is not empty. Drain it (`dgp-ingest gate`) before P14")
     _airflow_pause(True)
     try:
         step_layout(c)

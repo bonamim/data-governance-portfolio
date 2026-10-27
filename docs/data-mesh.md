@@ -20,7 +20,7 @@ The Olist dataset contains nine files. Each one is assigned to exactly one ownin
 A domain publishes an output port only for a named consumer with a use case
 ([data-product standard](../governance/standards/data-product.md)): marketplace and reference ingest
 and govern their data (landing contracts, raw tables) but publish nothing until someone needs it. A
-landing contract is not an output port either way — it governs what a partner delivers; consumers
+landing contract is not an output port either way. It governs what a partner delivers, and consumers
 read the owning domain's published port, never the landing file or its raw table.
 
 Each domain is registered in `governance/domains/` with its owner, team, and contact channel.
@@ -32,7 +32,7 @@ the platform's: the platform runs the tools, a domain owns the data and its mean
 
 ### Cross-domain consumption
 
-Domains consume each other's **data products only** — never raw or staging tables.
+Domains consume each other's **data products only**, never raw or staging tables.
 
 ```mermaid
 graph LR
@@ -43,7 +43,7 @@ graph LR
     GEO["reference.geolocation"] -.-> CUST
 ```
 
-Solid arrows are the inputs the data product definitions declare today; dotted ones are ports that
+Solid arrows are the inputs the data product definitions declare today. Dotted ones are ports that
 would follow once a consumer asks for them. These dependencies are what the contract gate protects:
 when Customer changes `customer.customers` in a breaking way, Sales is the consumer it names.
 
@@ -63,7 +63,7 @@ product definition that is missing any of them.
 | ODCS contract with schema and quality rules | `domains/<domain>/contracts/` |
 | SLA: freshness and availability | Contract `slaProperties` |
 | Classification of every column (public / internal / PII) | Contract column `classification` |
-| Semantic version | Contract `version` — major bump required for breaking changes |
+| Semantic version | Contract `version`, with a major bump required for breaking changes |
 | Certification status in DataHub | Set automatically when all quality checks pass |
 
 ### Data product heuristics
@@ -73,15 +73,15 @@ They define the standard for *what is a valid data product* and are the basis of
 `governance/standards/data-product.md` (some are CI-checkable, some are review guidance):
 
 - **Fundamental:** a clearly defined consumer and use case ("without a use case there is no
-  data product"); one stable owner; data quality and semantics **consistent across all output
-  ports**; low integration burden (consumers never have to stitch products together for a
-  simple question); bounded, maintainable scope.
+  data product"), one stable owner, data quality and semantics **consistent across all output
+  ports**, low integration burden (consumers never have to stitch products together for a
+  simple question), and a bounded, maintainable scope.
 - **By type:**
-  - *Source-aligned* — semantically coherent (one meaning per concept), a single business
+  - *Source-aligned:* semantically coherent (one meaning per concept), a single business
     domain, and a contained source **blast radius** (a source change touches only this product).
-  - *Aggregate* — build only when **three or more** teams need the same facts; general-purpose
-    content only, with dedicated ownership; never a mini-warehouse.
-  - *Consumer-aligned* — one decision context, boundaries that follow **process** lines not
+  - *Aggregate:* build only when **three or more** teams need the same facts. General-purpose
+    content only, with dedicated ownership, and never a mini-warehouse.
+  - *Consumer-aligned:* one decision context, boundaries that follow **process** lines not
     system boundaries, a named business consumer, and only what that team needs.
 
 The **smallest useful standalone unit** wins: decompose by domain/process, not by source
@@ -100,9 +100,9 @@ infrastructure code:
 | Quality | Quality rules in its contracts | Test runner, quality gate, results in DataHub |
 | Transformation | A dbt project | Airflow integration, write-audit-publish, warehouse roles, CI |
 | Cataloging | Contracts and data product definitions | DataHub ingestion, ownership and domain assignment |
-| Access | List of consumers + PII masking policies in contracts | Postgres roles and grants, generated from definitions; role-based masking views for PII (ADR-0013); least-privilege `analytics_reader` for BI/AI |
+| Access | List of consumers + PII masking policies in contracts | Postgres roles and grants, generated from definitions. Role-based masking views for PII (ADR-0013), and a least-privilege `analytics_reader` for BI/AI |
 
-Adding a fifth domain means adding a folder under `domains/` — no platform change.
+Adding a fifth domain means adding a folder under `domains/`. No platform change is needed.
 
 ---
 
@@ -114,7 +114,7 @@ domain plus the platform team) and **enforced as code**, not by review meetings.
 | Global policy | Enforced by |
 |---|---|
 | Every dataset has an ODCS contract with an owner | CI contract validation |
-| Every column has a classification; PII columns have a masking rule | CI contract validation |
+| Every column has a classification, and PII columns have a masking rule | CI contract validation |
 | Breaking changes need a major version bump and consumer sign-off | CI breaking-change gate |
 | Consumers read output ports only | Postgres grants: consumer roles have `SELECT` on output schemas only |
 | Data products are certified only when quality checks pass | Quality runner → DataHub certification |
@@ -129,39 +129,39 @@ release cadence, and tests beyond the global minimum.
 
 | Responsibility | Example | Owner | Location |
 |---|---|---|---|
-| **The standard** — what quality must mean for everyone | Every data product declares freshness and completeness checks; PII columns have a masking rule; a product is certified only when its checks pass | Governance guild | `governance/standards/`, `governance/policies/` |
-| **The mechanism** — the engine that runs checks and blocks a bad load | Test runner, quality gate, assertion results pushed to DataHub | Platform team | `platform/quality/` |
-| **The specific rules** — the values for one dataset | `review_score` between 1 and 5; `order_id` not null; freshness ≤ 24 h | The domain | `domains/<domain>/contracts/` (ODCS) |
+| **The standard:** what quality must mean for everyone | Every data product declares freshness and completeness checks. PII columns have a masking rule. A product is certified only when its checks pass | Governance guild | `governance/standards/`, `governance/policies/` |
+| **The mechanism:** the engine that runs checks and blocks a bad load | Test runner, quality gate, assertion results pushed to DataHub | Platform team | `platform/quality/` |
+| **The specific rules:** the values for one dataset | `review_score` between 1 and 5, `order_id` not null, freshness ≤ 24 h | The domain | `domains/<domain>/contracts/` (ODCS) |
 
 The platform's quality component is an **engine, not a policy**: it executes whatever rules a
 contract declares and enforces the gate. The decision that certain checks are *mandatory*
 lives in governance and is enforced in CI against every domain's contract (the rows above).
 A domain is free to add stricter checks, never fewer.
 
-### Where contracts live — two governed boundaries
+### Where contracts live: two governed boundaries
 
 A contract is an agreement at a **boundary where a producer hands data to a consumer**.
-There are exactly two such boundaries; the layers in between are internal and carry only
+There are exactly two such boundaries. The layers in between are internal and carry only
 *engineering* quality checks, never a consumer-facing contract.
 
 | Layer | Governed? | Contract | Quality | Consumed by |
 |---|---|---|---|---|
-| **Landing zone** (files in object storage) | **Yes — governed boundary** | **ODCS** (file contract) | Gate: a file must match its contract **before load**, or it is quarantined (proof P2) | Every domain that ingests the file — governed so all consume the same standardized shape |
-| `<domain>_raw`, `<domain>_bronze/silver/gold` (internal medallion) | No contract | — | Engineering DQ, owned by the domain (dbt tests) | The owning domain only |
-| **Output port** — a model tagged `output_port` in any layer | **Yes — governed boundary** | **ODCS** (table/view contract, carrying the `output_port` tag) | Contractual DQ declared in the contract; results visible to consumers | Other domains, BI, AI — output ports only |
-| **Semantic output port** | **Yes — governed boundary** | **Apache Ossie** (semantic model) | Definitions resolve to governed concepts | BI and the AI agent (one metric definition for both) |
+| **Landing zone** (files in object storage) | **Yes, governed boundary** | **ODCS** (file contract) | Gate: a file must match its contract **before load**, or it is quarantined (proof P2) | Every domain that ingests the file, governed so all consume the same standardized shape |
+| `<domain>_raw`, `<domain>_bronze/silver/gold` (internal medallion) | No contract | none | Engineering DQ, owned by the domain (dbt tests) | The owning domain only |
+| **Output port**: a model tagged `output_port` in any layer | **Yes, governed boundary** | **ODCS** (table/view contract, carrying the `output_port` tag) | Contractual DQ declared in the contract, with results visible to consumers | Other domains, BI, AI (output ports only) |
+| **Semantic output port** | **Yes, governed boundary** | **Apache Ossie** (semantic model) | Definitions resolve to governed concepts | BI and the AI agent (one metric definition for both) |
 
 **Landing is not Raw.** Landing is the shared, governed file boundary where data enters the
-platform once and many data products consume it; `<domain>_raw` is each domain's private
+platform once and many data products consume it. `<domain>_raw` is each domain's private
 copy after ingestion. Governing the landing files with ODCS is what makes consumption
 *standardized* across domains.
 
-ODCS therefore applies to **files, tables and views**; Apache Ossie governs the **semantic
+ODCS therefore applies to **files, tables and views**, and Apache Ossie governs the **semantic
 model**. Two kinds of quality run on top:
 
-- **Engineering DQ** — internal, per-layer checks the domain owns (dbt tests), for its own
+- **Engineering DQ:** internal, per-layer checks the domain owns (dbt tests), for its own
   raw/staging/models. Not visible to consumers.
-- **Contractual DQ** — declared in the ODCS contract at a governed boundary, executed by the
+- **Contractual DQ:** declared in the ODCS contract at a governed boundary, executed by the
   platform, and **visible to consumers** (landing gate results and output-port assertions).
 
 And two kinds of ownership: **technical ownership** of every asset (who operates it) and
@@ -173,7 +173,7 @@ to consumers).
 ## 5. Warehouse layout and access
 
 Each domain has its own medallion schemas in the `analytics` database and its own Postgres
-role. **Output ports are not a separate schema** — they are models tagged `output_port`
+role. **Output ports are not a separate schema.** They are models tagged `output_port`
 (from their ODCS contract) that live in whichever layer produced them (ADR-0012).
 
 | Schema | Contents | Who can read |
@@ -184,7 +184,7 @@ role. **Output ports are not a separate schema** — they are models tagged `out
 | `<domain>_gold` | Business-ready (aggregates/marts) | Domain role only |
 | *(any layer)* | A model tagged `output_port` is a **published port** | Domain role + declared consumer roles (per-model grant) |
 
-An output port lives where it was produced — e.g. `sales_silver.orders`, `sales_gold.sales_performance` —
+An output port lives where it was produced (for example `sales_silver.orders` or `sales_gold.sales_performance`),
 and consumers receive `USAGE` on that layer schema plus `SELECT` on the one port model. The
 logical name (`sales.orders`) maps to the physical location through its data-product definition,
 surfaced in the DataHub catalog (M4).

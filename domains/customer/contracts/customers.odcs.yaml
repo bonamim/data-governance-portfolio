@@ -1,6 +1,6 @@
 # ODCS contract for the customer.customers OUTPUT PORT (a published table).
 # Demonstrates PII governance as a ROLE-BASED POLICY (ADR-0013): the person identifier is stored
-# and masked AT READ by role — consumers see a pseudonym, an unmask role sees the raw value.
+# and masked AT READ by role: consumers see a pseudonym, an unmask role sees the raw value.
 # The policy is declared on the column here (source of truth) and enforced per platform.
 version: 1.0.0
 kind: DataContract
@@ -31,7 +31,7 @@ schema:
         authoritativeDefinitions:
           - type: businessDefinition
             url: definitions/customer_person_id.odcs.yaml
-        description: "The person identifier (links a person's orders). PII — masked at read by role: consumers see a hash pseudonym, the compliance role sees the raw value."
+        description: "The person identifier (links a person's orders). PII, masked at read by role: consumers see a hash pseudonym, the compliance role sees the raw value."
         physicalType: text
         required: true
       - name: customer_zip_code_prefix

@@ -1,7 +1,7 @@
 """What the policy checks share: how they report, and how they lint a contract.
 
-Every check prints the same way and exits the same way — 0 when the rules hold, 1 with one line per
-violation when they don't — so CI logs read alike whichever policy failed.
+Every check prints the same way and exits the same way (0 when the rules hold, 1 with one line per
+violation when they don't), so CI logs read alike whichever policy failed.
 """
 
 from __future__ import annotations

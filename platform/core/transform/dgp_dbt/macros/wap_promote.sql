@@ -16,10 +16,10 @@
       rows are replaced IN PLACE (truncate + insert, one transaction) so the table keeps its
       identity: dependent views, grants and masking survive. A new shape is renamed in, which
       is refused while anything depends on the old table (never DROP ... CASCADE).
-    * incremental / microbatch with a window: the candidate holds only the audited batches;
-      they are merged into the port (delete the window, insert the batch).
+    * incremental / microbatch with a window: the candidate holds only the audited batches,
+      and they are merged into the port (delete the window, insert the batch).
   On a warehouse the same steps map to a zero-copy clone swap / MERGE, on a lakehouse to an
-  Iceberg branch fast-forward; the macro names stay the same.
+  Iceberg branch fast-forward. The macro names stay the same.
 -#}
 
 {% macro _wap_node(model) %}
@@ -71,7 +71,7 @@
 {% endmacro %}
 
 
-{#- STAGE: drop any stale candidate; for an incremental model whose published table exists and
+{#- STAGE: drop any stale candidate. For an incremental model whose published table exists and
     that is not being rebuilt in full, start an EMPTY candidate of the same shape, so dbt runs it
     incrementally and the candidate ends up holding exactly the window's batches. -#}
 {% macro wap_prepare(model, full_refresh=false) %}
@@ -89,9 +89,9 @@
 {% endmacro %}
 
 
-{#- AUDIT: the table as consumers would get it after the promote — the candidate itself, or for a
+{#- AUDIT: the table as consumers would get it after the promote: the candidate itself, or for a
     batch window the published rows outside the window plus the new batches. A view, so it
-    costs nothing; the model's dbt tests (the contract DQ, including table-level rules such as
+    costs nothing. The model's dbt tests (the contract DQ, including table-level rules such as
     row counts and uniqueness) run against it. -#}
 {% macro wap_audit_view(model, window_start=none, window_end=none) %}
   {%- if not execute -%}{{ return('') }}{%- endif -%}
@@ -119,14 +119,14 @@
 
 
 {#- PUBLISH: promote the audited candidate. window_start/window_end are the batch window the
-    candidate was built for (incremental); without them the candidate replaces the port. -#}
+    candidate was built for (incremental). Without them the candidate replaces the port. -#}
 {% macro wap_promote(model, window_start=none, window_end=none) %}
   {%- if not execute -%}{{ return('') }}{%- endif -%}
   {%- set node = dgp_dbt._wap_node(model) -%}
   {%- set r = dgp_dbt._wap_relations(node) -%}
   {%- if r.cand is none -%}
     {{ exceptions.raise_compiler_error(
-        r.port_name ~ " opted in to write-audit-publish but no candidate was built — only table "
+        r.port_name ~ " opted in to write-audit-publish but no candidate was built. Only table "
         ~ "and incremental models support it (ADR-0014/0015).") }}
   {%- endif -%}
   {%- do run_query("drop view if exists " ~ r.audit_name) -%}
@@ -139,7 +139,7 @@
     {#- MERGE the audited batches: replace the window in the published table. -#}
     {%- if dgp_dbt._wap_columns(r.port_name) != cand_cols -%}
       {{ exceptions.raise_compiler_error(
-          r.port_name ~ ": the batch's columns differ from the published table — rebuild it in "
+          r.port_name ~ ": the batch's columns differ from the published table. Rebuild it in "
           ~ "full (full_refresh) instead of merging a batch.") }}
     {%- endif -%}
     {%- set et = adapter.quote(node.config.event_time) -%}
@@ -175,13 +175,13 @@
 
   {%- else -%}
     {#- First publish, a view being replaced by a table, or a new shape: rename the candidate in.
-        Refused while anything depends on the old relation — CASCADE would silently drop it. -#}
+        Refused while anything depends on the old relation, because CASCADE would silently drop it. -#}
     {%- if r.port is not none -%}
       {%- set deps = dgp_dbt._wap_dependents(r.port_name) -%}
       {%- if deps | length > 0 -%}
         {{ exceptions.raise_compiler_error(
             "cannot replace " ~ r.port_name ~ " with a new shape: dependent object(s) "
-            ~ (deps | join(', ')) ~ " would be lost — migrate them first (ADR-0019).") }}
+            ~ (deps | join(', ')) ~ " would be lost. Migrate them first (ADR-0019).") }}
       {%- endif -%}
       {%- do run_query("drop " ~ ("view" if r.port.is_view else "table") ~ " " ~ r.port_name
                        ~ " restrict") -%}
@@ -192,7 +192,7 @@
 {% endmacro %}
 
 
-{#- QUARANTINE: the audit failed — drop the candidate; consumers keep the last good version. -#}
+{#- QUARANTINE: the audit failed. Drop the candidate, and consumers keep the last good version. -#}
 {% macro wap_drop_candidate(model) %}
   {%- if not execute -%}{{ return('') }}{%- endif -%}
   {%- set r = dgp_dbt._wap_relations(dgp_dbt._wap_node(model)) -%}

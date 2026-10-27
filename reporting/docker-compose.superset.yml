@@ -1,7 +1,7 @@
-# Apache Superset — the dgp-bi capability (a consumer app in reporting/, ADR-0017 topology). It reads
-# the analytics warehouse; its datasets + metrics are generated from the Ossie semantic models by the
+# Apache Superset: the dgp-bi capability (a consumer app in reporting/, ADR-0017 topology). It reads
+# the analytics warehouse, and its datasets + metrics are generated from the Ossie semantic models by the
 # platform/context/semantics adapter (ADR-0010), so a metric has one governed definition. The image is pinned
-# by digest (ADR-0007). Local dev only — SQLite metadata for a lean single node; production uses a
+# by digest (ADR-0007). Local dev only: SQLite metadata for a lean single node. Production uses a
 # real metadata DB, SSO/OIDC and a secrets manager (docs/production-readiness.md).
 name: dgp-bi
 

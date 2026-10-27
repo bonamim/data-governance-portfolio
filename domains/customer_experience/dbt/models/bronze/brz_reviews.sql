@@ -1,4 +1,4 @@
--- Bronze: standardized reviews from raw (typed). Internal; keeps free-text comments.
+-- Bronze: standardized reviews from raw (typed). Internal, keeps free-text comments.
 select
     review_id,
     order_id,

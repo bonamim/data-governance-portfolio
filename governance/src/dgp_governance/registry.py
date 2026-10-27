@@ -4,7 +4,7 @@ The domains and their owners live in ``governance/domains/``, the governed tags 
 ``governance/tags/`` and the ontology (entity types, value types and their relationships) in
 ``governance/ontology/`` (ADR-0027). The policy checks, the dbt generator, the catalog publisher
 and the semantic agents all read them from here, so none of them hardcodes a domain, a tag or a
-concept — the copies that used to drift apart.
+concept. Those copies used to drift apart.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def classification_values() -> dict[str, dict]:
 
 def column_tags(prop: dict) -> dict[str, str]:
     """Governed tag -> value for a (resolved) contract column. Each tag reads one ODCS field or
-    custom property; a value the tag does not allow is left out (the checks report it)."""
+    custom property. A value the tag does not allow is left out (the checks report it)."""
     out: dict[str, str] = {}
     custom = odcs.custom_properties(prop)
     for name, tag in tags().items():
@@ -68,7 +68,7 @@ def column_tags(prop: dict) -> dict[str, str]:
 
 
 def ontology_files(base: Path | None = None) -> list[Path]:
-    """The ontology documents; there must be exactly one (``check_ontology`` says so)."""
+    """The ontology documents. There must be exactly one (``check_ontology`` says so)."""
     return sorted((_governance(base) / "ontology").glob("*.ontology.yaml"))
 
 
@@ -91,7 +91,7 @@ def ontology_link(doc: dict) -> str | None:
 def definition_files(base: Path | None = None) -> dict[str | None, list[Path]]:
     """Value type -> its data element file(s) in ``domains/<domain>/contracts/definitions/``,
     keyed by the value type each file names with its ``ontology`` link (None: files that name
-    none). A value type has exactly one; ``check_ontology`` reports duplicates and missing links."""
+    none). A value type has exactly one. ``check_ontology`` reports duplicates and missing links."""
     out: dict[str | None, list[Path]] = {}
     for path in sorted((base or root()).glob("domains/*/contracts/definitions/*.odcs.yaml")):
         out.setdefault(ontology_link(load_yaml(path)), []).append(path)
@@ -155,6 +155,6 @@ def concept_of(prop: dict, contract: Path) -> str | None:
 
 
 def entity_of_table(obj: dict) -> str | None:
-    """The entity type a contract's schema object (a table or file) represents — one row is one of
-    it — from its ODCS ``ontology`` link, or None."""
+    """The entity type a contract's schema object (a table or file) represents (one row is one of
+    it), from its ODCS ``ontology`` link, or None."""
     return ontology_link(obj)

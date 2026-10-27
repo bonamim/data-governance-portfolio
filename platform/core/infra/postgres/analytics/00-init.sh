@@ -9,7 +9,7 @@
 #   - the platform_meta.ingestion_ledger table (pipeline state, ADR-0006)
 #
 # Cross-domain consumer grants (consumers read output ports only) are generated
-# from data product definitions in milestone M3 — this sets up the base roles.
+# from data product definitions in milestone M3. This sets up the base roles.
 set -euo pipefail
 
 DOMAINS="sales customer marketplace customer_experience reference"
@@ -107,7 +107,7 @@ for domain in $DOMAINS; do
 		-- Medallion layers (internal, engineering DQ). raw is loaded by the platform;
 		-- bronze/silver/gold are the domain's progression. Output ports are models
 		-- deliberately tagged `output_port` that live in one of these layer schemas
-		-- (ADR-0012) — there is no separate output schema; publishing is a tag, not a
+		-- (ADR-0012). There is no separate output schema: publishing is a tag, not a
 		-- location. Consumer access to a port is granted per-model.
 		CREATE SCHEMA IF NOT EXISTS ${domain}_raw    AUTHORIZATION platform_loader;
 		CREATE SCHEMA IF NOT EXISTS ${domain}_bronze AUTHORIZATION ${domain}_role;

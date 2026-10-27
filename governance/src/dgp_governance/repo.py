@@ -1,8 +1,8 @@
 """Where the repository is, and how its YAML files are read.
 
 Every tool runs against a checkout of this repository. ``DGP_REPO_ROOT`` names it explicitly (the
-Airflow image mounts it at ``/opt/airflow/repo``; a test points it at a temporary copy); otherwise
-it is the nearest directory, from the current one up, that holds ``governance/domains/`` — so a
+Airflow image mounts it at ``/opt/airflow/repo``, a test points it at a temporary copy). Otherwise
+it is the nearest directory, from the current one up, that holds ``governance/domains/``, so a
 command works from any folder inside the checkout, the way ``git`` does.
 """
 
@@ -26,13 +26,13 @@ def root() -> Path:
         if (candidate / _MARKER).is_dir():
             return candidate
     raise RuntimeError(
-        f"not inside the repository (no {_MARKER}/ above {here}); run from the checkout or set "
+        f"not inside the repository (no {_MARKER}/ above {here}). Run from the checkout or set "
         f"{ROOT_ENV}"
     )
 
 
 def load_yaml(path: Path) -> dict:
-    """A YAML mapping from ``path``; an empty file reads as ``{}``."""
+    """A YAML mapping from ``path``. An empty file reads as ``{}``."""
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
 
 

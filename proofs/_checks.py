@@ -19,13 +19,13 @@ class Checks:
         self.failures: list[str] = []
 
     def __call__(self, ok: bool, what: str, detail: str = "") -> bool:
-        print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f" — {detail}" if detail else ""))
+        print(f"  {'OK  ' if ok else 'FAIL'} {what}" + (f": {detail}" if detail else ""))
         if not ok:
             self.failures.append(what)
         return ok
 
     def verdict(self, proven: str) -> int:
-        """Print what the proof showed — or which checks failed — and return the exit code."""
+        """Print what the proof showed, or which checks failed, and return the exit code."""
         if self.failures:
             print(
                 f"\n{self.proof} FAILED: {len(self.failures)} check(s): {', '.join(self.failures)}"
@@ -42,7 +42,7 @@ def warehouse(user: str, password_env: str, *, autocommit: bool = False) -> psyc
 
 
 def object_store(access_key: str | None, secret_key: str | None) -> BaseClient:
-    """An S3 client for MinIO as one principal — a proof checks what each principal may do."""
+    """An S3 client for MinIO as one principal. A proof checks what each principal may do."""
     return boto3.client(
         "s3",
         endpoint_url=os.environ.get("MINIO_ENDPOINT", "http://localhost:9000") or None,

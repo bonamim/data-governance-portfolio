@@ -5,7 +5,7 @@ A landing contract declares when a partition must be available
 days): with 04:00 UTC and one day, dt=D-1 is due by 04:00 on day D. Once a deadline has passed,
 the due partition is:
 
-  delivered   a file of it was accepted (or skipped as an unchanged re-delivery) — nothing to do
+  delivered   a file of it was accepted (or skipped as an unchanged re-delivery), nothing to do
   incomplete  files of it are in the inbox, waiting on their completion signal (expected_files /
               marker): the partner sent part of the batch
   rejected    files of it arrived but every one was quarantined
@@ -56,7 +56,7 @@ def classify(statuses: set[str], waiting_files: int) -> str:
 def check(
     repo_root: Path, settings: Settings, domain: str | None = None, now: datetime | None = None
 ) -> list[Finding]:
-    """Check every landing dataset's due partition; alert the owner on a miss. Returns findings."""
+    """Check every landing dataset's due partition, alert the owner on a miss. Returns findings."""
     now = now or datetime.now(UTC)
     store = ObjectStore(settings.objectstore)
     findings = []
@@ -98,7 +98,7 @@ def check(
                     domain=d.domain,
                     kind=f"landing.sla.{state}",
                     subject=f"{dataset_id} {partition} {state} at its {deadline:%H:%M} UTC "
-                    f"deadline — {detail}",
+                    f"deadline: {detail}",
                     dedup_key=f"landing.sla:{dataset_id}:{partition}",
                     detail={
                         "partition": partition,

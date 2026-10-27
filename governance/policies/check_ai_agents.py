@@ -2,21 +2,21 @@
 """Every domain agent meets the AI-agent standard (governance/standards/ai-agent.md).
 
 Federated computational governance, applied to the mesh's AI layer (ADR-0020, ADR-0021). Each
-domain that governs a product has one agent — the platform's semantic layer scoped to that
-domain — derived from what the domain already owns. This check holds every such agent to the
+domain that governs a product has one agent (the platform's semantic layer scoped to that
+domain), derived from what the domain already owns. This check holds every such agent to the
 standard's CI-checkable rules:
 
-1. each semantic model sits under a registered domain;
-2. an agent serves ONLY its own domain's output ports (domain isolation);
-3. the agent's domain names an owner, team and contact (accountability);
+1. each semantic model sits under a registered domain.
+2. an agent serves ONLY its own domain's output ports (domain isolation).
+3. the agent's domain names an owner, team and contact (accountability).
 4. no raw personal data is exposed: no field or metric reads a column of the port whose privacy
    category (governed tag ``privacy_category``, SNOWFLAKE.CORE.PRIVACY_CATEGORY) is
    ``identifier`` or ``sensitive``. Unmasking is governed by ADR-0013. A quasi-identifier, such as
    a customer's state, may be a dimension.
 
 It reads the governed definitions only and imports none of the agent's code (``dgp_ai``), so it
-checks the agents independently of how they are built. Their runtime rules — governed tools only,
-least privilege, audit, deterministic routing — are properties of the shared boundary, proven by
+checks the agents independently of how they are built. Their runtime rules (governed tools only,
+least privilege, audit, deterministic routing) are properties of the shared boundary, proven by
 P10 and P11.
 """
 
@@ -79,7 +79,7 @@ def model_violations(path: Path, owners: dict[str, dict]) -> list[str]:
             errs.append(f"agent '{domain}': serves '{product}' owned by '{port_owner}' (isolation)")
         if exposed := exposed_columns(spec, dataset, personal_columns(product)):  # 4. no raw PII
             errs.append(
-                f"agent '{domain}': exposes PII column(s) {sorted(exposed)} of '{product}' — "
+                f"agent '{domain}': exposes PII column(s) {sorted(exposed)} of '{product}', which "
                 "must be masked (ADR-0013) or excluded"
             )
     return errs

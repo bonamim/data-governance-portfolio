@@ -51,7 +51,7 @@ models:
           generated: true
         governance_tags:
           SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
-    description: Identifies one order on the marketplace; the same value in every
+    description: Identifies one order on the marketplace, with the same value in every
       domain.
   - name: review_score
     data_type: integer
@@ -122,7 +122,7 @@ models:
           generated: true
         governance_tags:
           SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
-    description: When the customer answered the satisfaction survey; empty if not
+    description: When the customer answered the satisfaction survey, empty if not
       answered yet.
   description: 'One row per customer satisfaction review of an order: the score, when
     it was sent and answered, and whether it has a comment.'

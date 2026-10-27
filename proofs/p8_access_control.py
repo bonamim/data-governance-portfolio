@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Proof P8 — access control: consumers see PII masked and are denied raw/staging (ADR-0013, M8).
+"""Proof P8: access control. Consumers see PII masked and are denied raw/staging (ADR-0013, M8).
 
 The masking policy is declared on the column in ODCS and enforced as a role-aware Postgres view
 (dgp_platform_access.apply_masking). This proves the three guarantees, against the live warehouse:
 
   1. a least-privilege consumer (``analytics_reader``) is **denied** the raw schema and the base
-     output-port table — it can only reach the masking view;
-  2. through that view the consumer sees the PII **masked** — the value equals ``md5(raw)``, not the
-     real identifier;
+     output-port table, and can only reach the masking view.
+  2. through that view the consumer sees the PII **masked**: the value equals ``md5(raw)``, not the
+     real identifier.
   3. the ``compliance`` unmask role sees the **raw** value through the same view.
 
 Deterministic (no LLM). Needs the live platform with the port built + masked (``make transform`` or
@@ -50,17 +50,17 @@ def _denied(conn: psycopg.Connection, relation: str) -> bool:
 def main() -> int:
     failures: list[str] = []
 
-    # compliance (unmask) — read the raw value for a known row through the view.
+    # compliance (unmask): read the raw value for a known row through the view.
     with _conn("compliance", "COMPLIANCE_PASSWORD") as c:
         row = c.execute(
             f"SELECT customer_id, customer_unique_id FROM {VIEW} ORDER BY customer_id LIMIT 1"
         ).fetchone()
     if not row:
-        print("P8: no rows in the port — run `make transform` first.")
+        print("P8: no rows in the port. Run `make transform` first.")
         return 2
     customer_id, raw_value = row
 
-    # analytics_reader (consumer) — denied raw/base, and sees the masked value through the view.
+    # analytics_reader (consumer): denied raw/base, and sees the masked value through the view.
     with _conn("analytics_reader", "ANALYTICS_READER_PASSWORD") as r:
         if not _denied(r, RAW):
             failures.append(f"analytics_reader could read {RAW} (raw schema must be denied)")

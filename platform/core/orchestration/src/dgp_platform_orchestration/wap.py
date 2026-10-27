@@ -11,7 +11,7 @@ A domain is published in three parts:
   descendants   models downstream of a promoted WAP model, built after it (skipped if quarantined)
 
 Opt-in is per data product (``publish: {audit: required}``). A microbatch model is audited per
-batch window and merged; any other table/incremental model is rebuilt in full into the candidate.
+batch window and merged. Any other table/incremental model is rebuilt in full into the candidate.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def wap_products(repo_root: Path, domain: str) -> list[str]:
 def load_manifest(repo_root: Path, domain: str) -> dict:
     path = project_dir(repo_root, domain) / "target" / "manifest.json"
     if not path.exists():
-        raise FileNotFoundError(f"{path} missing — run `make dbt-manifests` first")
+        raise FileNotFoundError(f"{path} missing. Run `make dbt-manifests` first")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -194,7 +194,7 @@ def batch_window(
     """The batch window to build and merge, aligned to whole batches.
 
     A normal run takes the batch ``now`` falls in plus ``lookback`` earlier ones (dbt's own
-    default); a backfill passes ``start``/``end``. Both build and merge use the same window, so
+    default). A backfill passes ``start``/``end``. Both build and merge use the same window, so
     a merge replaces exactly what the candidate was built for.
     """
     size = model.batch_size or "day"
@@ -247,11 +247,11 @@ def _wap_vars(model: WapModel, stage: str = "") -> list[str]:
 
 
 def dbt_audit(repo_root: Path, domain: str, model: WapModel, window: Window | None) -> int:
-    """WRITE + AUDIT one model into its candidate; 0 if the audit passed.
+    """WRITE + AUDIT one model into its candidate. 0 if the audit passed.
 
     The tests run against ``<name>__audit``: the table consumers would get after the promote. For
     a microbatch window the candidate holds only the batches, so the view is the published table
-    with that window replaced — table-level rules (row counts, uniqueness) judge the whole table.
+    with that window replaced, and table-level rules (row counts, uniqueness) judge the whole table.
     """
     flags = window.flags() if window else []
     run = dbt(repo_root, domain, "run", "--select", model.name, *_wap_vars(model), *flags)
@@ -278,7 +278,7 @@ def plan_window(
         return batch_window(model, now or datetime.now(UTC), start, end)
     if start or end:
         why = "no published table to merge into yet" if model.microbatch else "not microbatch"
-        log.info("%s: %s — the backfill window does not apply, rebuilt in full", model.name, why)
+        log.info("%s: %s, so the backfill window does not apply, rebuilt in full", model.name, why)
     return None
 
 
@@ -303,7 +303,7 @@ def audit_and_promote(
         return True
     _op(repo_root, domain, "wap_drop_candidate", {"model": model.name})
     log.warning(
-        "QUARANTINED %s.%s: audit failed — consumers keep the last good version", domain, model.name
+        "QUARANTINED %s.%s: audit failed, consumers keep the last good version", domain, model.name
     )
     return False
 
@@ -316,7 +316,7 @@ def publish_domain(
     end: datetime | None = None,
     full_refresh: bool = False,
 ) -> bool:
-    """Build and publish a whole domain (the CLI path; Airflow runs the same parts as tasks)."""
+    """Build and publish a whole domain (the CLI path. Airflow runs the same parts as tasks)."""
     if dbt(repo_root, domain, "deps") or dbt(repo_root, domain, "parse"):
         raise RuntimeError(f"{domain}: dbt deps/parse failed")
     manifest = load_manifest(repo_root, domain)

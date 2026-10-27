@@ -1,7 +1,7 @@
 [project]
 name = "dgp-platform-catalog"
 version = "0.1.0"
-description = "Publishes the mesh's governance into DataHub from the definitions in git — domains, data products, the business glossary, governed tags, landing datasets and every contract-gate result."
+description = "Publishes the mesh's governance into DataHub from the definitions in git: domains, data products, the business glossary, governed tags, landing datasets and every contract-gate result."
 requires-python = ">=3.11"
 dependencies = [
     "psycopg[binary]>=3.2",
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# The DataHub SDK the publishers emit with. Optional, so reading GMS (gms.py) needs none of it; the
+# The DataHub SDK the publishers emit with. Optional, so reading GMS (gms.py) needs none of it, and the
 # Airflow image already has it, through the DataHub Airflow plugin.
 publish = ["acryl-datahub>=1.7"]
 

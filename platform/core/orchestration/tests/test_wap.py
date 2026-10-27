@@ -70,11 +70,11 @@ def test_daily_and_yearly_batches_and_empty_window():
 
 
 def test_wap_models_run_upstream_first_and_descendants_skip_quarantined():
-    # brz -> orders (wap) -> perf (wap) -> dash;  orders -> report
+    # brz -> orders (wap) -> perf (wap) -> dash, and orders -> report
     m = _manifest({"brz": ["orders"], "orders": ["perf", "report"], "perf": ["dash"]})
     names = ["perf", "orders"]
     assert [x.name for x in wap.wap_models(m, "sales", names)] == ["orders", "perf"]
-    # WAP models are never in the plain set; dash and report follow their promotes.
+    # WAP models are never in the plain set. dash and report follow their promotes.
     assert wap.plain_descendants(m, "sales", names, quarantined=[]) == ["dash", "report"]
     # perf quarantined: dash keeps reading perf's last good version, report still rebuilds.
     assert wap.plain_descendants(m, "sales", names, quarantined=["perf"]) == ["report"]

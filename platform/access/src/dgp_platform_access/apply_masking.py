@@ -1,7 +1,7 @@
 """Apply role-based dynamic PII masking as warehouse objects (ADR-0013, proof P8).
 
-Governance is declared once in ODCS — a PII column carries a ``maskingPolicy`` (method +
-``unmask_roles``) — and enforced per platform. Locally (Postgres) the enforcement is a **role-aware
+Governance is declared once in ODCS (a PII column carries a ``maskingPolicy``: method +
+``unmask_roles``) and enforced per platform. Locally (Postgres) the enforcement is a **role-aware
 masking view**: for every output port whose contract has a masked column, this creates
 ``<domain>_masked.<port>`` where each masked column is rendered
 
@@ -73,12 +73,12 @@ def _ensure_roles(conn: psycopg.Connection) -> None:
 
     Roles are infrastructure: the init scripts create them (``make db-roles`` on a running
     warehouse). The admin plane runs as access_admin, which deliberately cannot create roles (X5).
-    compliance is LOGIN locally only — in production it is a NOLOGIN group GRANTed to the users
+    compliance is LOGIN locally only. In production it is a NOLOGIN group GRANTed to the users
     allowed to unmask.
     """
     for role in ("analytics_reader", "compliance"):
         if not conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone():
-            raise SystemExit(f"role {role} is missing — run `make db-roles`.")
+            raise SystemExit(f"role {role} is missing. Run `make db-roles`.")
 
 
 def main() -> int:
@@ -105,7 +105,7 @@ def main() -> int:
                 )
             )
             # The unmask role reads through the view (its CASE reveals the raw value). End
-            # consumers are granted the view by apply_grants; nobody is granted the base table.
+            # consumers are granted the view by apply_grants, and nobody is granted the base table.
             conn.execute(sql.SQL("GRANT USAGE ON SCHEMA {} TO compliance").format(masked))
             conn.execute(
                 sql.SQL("GRANT SELECT ON {} TO compliance").format(

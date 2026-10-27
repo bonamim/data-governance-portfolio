@@ -1,5 +1,5 @@
 # ODCS contract for the customer_experience.reviews OUTPUT PORT (a published table).
-# Free-text comments are not exposed; only the score, timing and a has_comment flag.
+# Free-text comments are not exposed, only the score, timing and a has_comment flag.
 version: 1.0.0
 kind: DataContract
 apiVersion: v3.2.0

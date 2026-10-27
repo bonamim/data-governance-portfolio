@@ -12,5 +12,5 @@ consumers:
 output_ports:
   - kind: table
     contract: domains/sales/contracts/seller_performance.odcs.yaml
-# Built from the sales domain's own order items; reuses the marketplace domain's seller id meaning.
+# Built from the sales domain's own order items, and reuses the marketplace domain's seller id meaning.
 inputs: []

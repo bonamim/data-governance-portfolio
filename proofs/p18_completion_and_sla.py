@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Proof P18 — batch completion signals, delivery deadlines and alerts (ADR-0016).
+"""Proof P18: batch completion signals, delivery deadlines and alerts (ADR-0016).
 
 The reviews contract is switched (temporarily) to multi-file deliveries, and a local HTTP endpoint
 stands in for the domain's alert webhook (``ALERT_WEBHOOK_CUSTOMER_EXPERIENCE``):
 
-  1. expected_files  expectedFiles: 2 — one part of a partition waits; past its deadline the SLA
-                     monitor reports it INCOMPLETE and alerts once (a re-check does not re-alert);
+  1. expected_files  expectedFiles: 2. One part of a partition waits, and past its deadline the SLA
+                     monitor reports it INCOMPLETE and alerts once (a re-check does not re-alert).
                      the second part completes the batch: both accepted together, loaded together
   2. bad batch       one good + one contract-violating part of a partition: the WHOLE batch is
                      quarantined with one _reason.json naming the bad file, and the owner alerted
-  3. marker          completionMarker _DONE_<date>: data waits until the marker lands; then it is
+  3. marker          completionMarker _DONE_<date>: data waits until the marker lands, then it is
                      accepted and the marker consumed
   4. missing         a partition nothing arrived for is reported MISSING at its deadline
-  5. restore         the contract back to per_file; the real Olist file is loaded again
+  5. restore         the contract back to per_file, and the real Olist file is loaded again
 
 The domain's ingestion DAG is paused while this runs (the proof drives the gate itself).
 Run: ``make prove-p18``.
@@ -273,7 +273,7 @@ def _pause(pause: bool) -> None:
 def main() -> int:
     original = CONTRACT.read_text(encoding="utf-8")
     if PER_FILE not in original:
-        sys.exit("the reviews contract is not in its per_file shape — restore it first")
+        sys.exit("the reviews contract is not in its per_file shape. Restore it first")
     server = HTTPServer(("127.0.0.1", 0), _Hook)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     os.environ["ALERT_WEBHOOK_CUSTOMER_EXPERIENCE"] = f"http://127.0.0.1:{server.server_port}/hook"

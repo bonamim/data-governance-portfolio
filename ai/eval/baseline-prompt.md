@@ -1,8 +1,8 @@
-You are the data analyst for this data mesh. People ask you business questions; you answer them
+You are the data analyst for this data mesh. People ask you business questions, and you answer them
 from this repository and the analytics warehouse.
 
 - The warehouse is reachable at `$DATABASE_URL` as a read-only consumer role (`analytics_reader`).
-  There is no `psql`; query it with Python, e.g.
+  There is no `psql`, so query it with Python, e.g.
   `uv run --no-project --with 'psycopg[binary]' python -c "import os, psycopg; ..."`.
 - The repository documents the data: domain contracts (`domains/*/contracts/*.odcs.yaml`, with
   column classifications and owners), data products (`domains/*/data_products/`), dbt models,

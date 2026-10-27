@@ -1,4 +1,4 @@
-"""The Apache Ossie reader — the one place a semantic model becomes SQL (ADR-0010).
+"""The Apache Ossie reader: the one place a semantic model becomes SQL (ADR-0010).
 
 Everything that consumes the semantic layer reads Ossie through this module: the Superset publisher
 (``publish_superset.py``), the governed semantic agents (``dgp_ai``), the bundle build
@@ -7,7 +7,7 @@ governed definition per metric" holds in code, not just by convention: a metric 
 same SQL whoever asks.
 
 A semantic model stays a plain mapping, exactly as Ossie defines it, so it can be validated against
-Ossie's schema and written back out unchanged; the functions below are the accessors.
+Ossie's schema and written back out unchanged. The functions below are the accessors.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ _COLUMN_REF = re.compile(r"\b\w+\.(\w+)\b")
 
 
 def models(domain: str | None = None) -> list[Path]:
-    """Every domain's semantic model, sorted — or only ``domain``'s when given."""
+    """Every domain's semantic model, sorted, or only ``domain``'s when given."""
     return sorted(root().glob(f"domains/{domain or '*'}/semantics/*.semantic_model.yaml"))
 
 
@@ -57,8 +57,8 @@ def compile_model(spec: dict) -> dict:
     field that is a contract column gets the column's description and synonyms from its output
     port's resolved contract (inherited from its data element).
 
-    The author writes a column's meaning once, in the data element; every consumer — this
-    platform's readers, a bundle deployed to Snowflake, any other Ossie tool — finds it where
+    The author writes a column's meaning once, in the data element. Every consumer (this
+    platform's readers, a bundle deployed to Snowflake, any other Ossie tool) finds it where
     Ossie expects it (``description``, ``ai_context.synonyms``). Derived fields and metrics keep
     their own."""
     out = copy.deepcopy(spec)
@@ -106,7 +106,7 @@ def _schema(name: str) -> dict:
 
 
 def validate(doc: dict, schema: str = ONTOLOGY_SCHEMA) -> list[str]:
-    """Ossie's diagnostics for a parsed document — empty when it is valid. Ontologies by default;
+    """Ossie's diagnostics for a parsed document, empty when it is valid. Ontologies by default,
     pass ``MODEL_SCHEMA`` for a semantic model or ``MAPPING_SCHEMA`` for a mapping."""
     return _validator().validate_document(doc, _schema(schema))
 
@@ -135,7 +135,7 @@ def field_by_name(dataset: dict, name: str) -> dict | None:
 
 
 def source_table(dataset: dict) -> str:
-    """The table a dataset reads (the last part of its ``source``) — the output port's name."""
+    """The table a dataset reads (the last part of its ``source``): the output port's name."""
     return str(dataset.get("source", "")).split(".")[-1]
 
 
@@ -162,7 +162,7 @@ def _dialect_expr(node: dict | None) -> str:
 
 
 def ansi_metric_expr(metric: dict) -> str:
-    """The metric's ANSI expression, verbatim — e.g. ``SUM(sales_performance.total_revenue)``."""
+    """The metric's ANSI expression, verbatim, e.g. ``SUM(sales_performance.total_revenue)``."""
     return _dialect_expr(metric)
 
 
@@ -178,7 +178,7 @@ def metric_sql(
     """Governed ANSI SQL for the requested metrics, optionally grouped by dimensions.
 
     The source table is aliased ``AS <dataset>``, so the metric expressions (``SUM(<dataset>.col)``)
-    resolve verbatim — the same strings the governance check and the Superset projection read.
+    resolve verbatim: the same strings the governance check and the Superset projection read.
     This is the one translation both the BI and the AI consumers go through.
     """
     name = dataset["name"]

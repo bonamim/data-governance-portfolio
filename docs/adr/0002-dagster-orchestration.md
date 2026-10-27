@@ -13,15 +13,15 @@ Use **Dagster**.
 ## Rationale
 - **Asset-based model:** Dagster schedules *datasets* (assets), not tasks, which maps
   directly to data products and to catalog lineage.
-- **Data mesh fit:** one *code location* per domain — each domain deploys its assets
+- **Data mesh fit:** one *code location* per domain. Each domain deploys its assets
   independently, the platform runs them all.
 - **First-class dbt integration** (`dagster-dbt`): every dbt model becomes an asset.
-- **Asset checks:** contract quality checks can block downstream assets — this is how
+- **Asset checks:** contract quality checks can block downstream assets, which is how
   the landing-zone quality gate is enforced.
 - DataHub has a Dagster integration that emits run lineage.
 
 ## Consequences
-- Airflow is more widespread in job descriptions; the asset and quality-gate patterns
+- Airflow is more widespread in job descriptions, but the asset and quality-gate patterns
   used here transfer to Airflow 3 (assets) and OpenLineage.
-- Dagster OSS has no built-in UI authentication; production must put it behind SSO
+- Dagster OSS has no built-in UI authentication, so production must put it behind SSO
   (see production-readiness.md).

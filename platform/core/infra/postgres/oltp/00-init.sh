@@ -7,7 +7,7 @@ set -euo pipefail
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-SQL
 	CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-	-- Application roles (never use the superuser from an application — X5).
+	-- Application roles (never use the superuser from an application, X5).
 	CREATE ROLE oltp_loader LOGIN PASSWORD '${OLTP_LOADER_PASSWORD}';
 	CREATE ROLE oltp_reader LOGIN PASSWORD '${OLTP_READER_PASSWORD}';
 

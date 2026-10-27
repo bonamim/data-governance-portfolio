@@ -13,7 +13,7 @@ def test_export_is_a_valid_ossie_document_with_every_value_types_description():
 
 
 def test_the_mapping_is_generated_from_the_contracts_links():
-    """orders (one row per Order) maps Order by its id and customer key; nothing hand-written."""
+    """orders (one row per Order) maps Order by its id and customer key. Nothing hand-written."""
     mappings = build_ossie.mappings()  # validated against Ossie's mapping schema, or raises
 
     (order,) = mappings["orders"]["concept_mappings"]
@@ -27,8 +27,8 @@ def test_the_mapping_is_generated_from_the_contracts_links():
 
 
 def test_a_compiled_semantic_model_carries_the_contracts_descriptions():
-    """The source omits a contract column's description; the compiled model — what consumers and
-    Snowflake read — has it, in the standard Ossie place."""
+    """The source omits a contract column's description. The compiled model (what consumers and
+    Snowflake read) has it, in the standard Ossie place."""
     (ds,) = build_ossie.semantic_models()["sales_performance"]["datasets"]
     fields = {f["name"]: f for f in ds["fields"]}
 

@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: sales_raw
-    description: "Sales data as loaded from shop_oltp (text columns; internal)."
+    description: "Sales data as loaded from shop_oltp (text columns, internal)."
     schema: sales_raw
     tables:
       - name: orders

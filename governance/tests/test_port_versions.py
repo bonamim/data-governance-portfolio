@@ -68,8 +68,7 @@ def test_after_the_sunset_ci_fails_and_names_who_must_migrate(tmp_repo):
     _consumer(tmp_repo, "customer.customers")
     errs, _ = pv.violations(TODAY)
     assert errs == [
-        "customers: sunset 2026-10-01 has passed — retire it after migrating "
-        "sales.sales_performance"
+        "customers: sunset 2026-10-01 has passed, retire it after migrating sales.sales_performance"
     ]
 
 
@@ -80,7 +79,7 @@ def test_versions_are_named_numbered_and_linked(tmp_repo):
     _port(tmp_repo, "orders_v2", major=2)  # forgot version_of
     errs, _ = pv.violations(TODAY)
     assert any("must carry major 2" in e for e in errs)
-    assert any("declare `version_of: orders`" in e for e in errs)
+    assert any("Declare `version_of: orders`" in e for e in errs)
 
 
 def test_deprecated_needs_a_sunset_and_a_successor(tmp_repo):

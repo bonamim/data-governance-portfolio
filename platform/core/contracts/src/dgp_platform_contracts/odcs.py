@@ -1,4 +1,4 @@
-"""Read an ODCS contract with its linked definitions inlined — the one way the platform reads one.
+"""Read an ODCS contract with its linked definitions inlined: the one way the platform reads one.
 
 A property can take its meaning from a shared definition instead of repeating it::
 
@@ -8,7 +8,7 @@ A property can take its meaning from a shared definition instead of repeating it
           url: ../../sales/contracts/definitions/customer_key.odcs.yaml
 
 The definition fills every element the property leaves unset (description, businessName,
-logicalType, classification, tags, examples, …); anything the contract sets itself wins. So a
+logicalType, classification, tags, examples, …), and anything the contract sets itself wins. So a
 column inherits its meaning, and its classification, from one place, and every reader (masking,
 grants, catalog, dbt sync, the semantic layer, the policy checks) sees the same resolved contract.
 
@@ -16,17 +16,17 @@ The rules follow datacontract-cli's resolver (its ``lint``/``test``/``export`` i
 way), and a conformance test pins them to it:
 
 * resolvable link types, highest first: ``semantics``, ``semantic``, ``definition``,
-  ``businessDefinition``; only the highest one on a property is followed;
+  ``businessDefinition``. Only the highest one on a property is followed.
 * a link is a file in the repository, relative to the file holding it: either a definition file
   (``*.yaml``/``*.yml``/``*.json`` holding the property's elements) or one property of another
-  contract (``<contract>#schema/<object>/properties/<property>``, matched on ``id`` then ``name``);
-* a definition may link further (property -> shared definition -> concept); cycles are refused;
-* ``id``, ``name``, ``authoritativeDefinitions``, ``properties`` and ``items`` are never inherited;
+  contract (``<contract>#schema/<object>/properties/<property>``, matched on ``id`` then ``name``).
+* a definition may link further (property -> shared definition -> concept), and cycles are refused.
+* ``id``, ``name``, ``authoritativeDefinitions``, ``properties`` and ``items`` are never inherited.
 * nested ``properties`` and array ``items`` resolve too.
 
 Unlike the CLI, a link to a URL is refused rather than fetched: definitions live in git, like
 every other governed artefact (ADR-0018), so a contract resolves offline and the same everywhere.
-A link that does not resolve rejects the contract — a reader never runs on half its meaning.
+A link that does not resolve rejects the contract, so a reader never runs on half its meaning.
 
 Pure pyyaml, so the lightweight runtimes (catalog generator, semantic MCP) can import it too.
 """
@@ -91,7 +91,7 @@ def linked_files(path: Path, *, read: Reader | None = None) -> set[Path]:
 
 
 def resolve(doc: dict, location: Path, *, read: Reader | None = None) -> dict:
-    """A copy of contract ``doc`` with its links inlined; ``location`` is where it lives, so its
+    """A copy of contract ``doc`` with its links inlined. ``location`` is where it lives, so its
     relative links resolve (``read`` lets a caller resolve it as of another git revision)."""
     return _Resolver(read or _read_file).contract(doc, Path(location).resolve(), frozenset())
 
@@ -128,7 +128,7 @@ class _Resolver:
             hash_ or Path(path_part).suffix.lower() in DEFINITION_SUFFIXES
         ):
             raise ResolutionError(
-                f"{location}: link '{url}' is not a file in the repository; definitions live in "
+                f"{location}: link '{url}' is not a file in the repository. Definitions live in "
                 "git (a definition file, or <contract>#schema/<object>/properties/<property>)"
             )
         if not path_part or (hash_ and not fragment):
@@ -155,7 +155,7 @@ class _Resolver:
         doc = self._parse(target, url, visited)
         if "apiVersion" in doc and "schema" in doc:
             raise ResolutionError(
-                f"link '{url}': '{target}' is a data contract, not a single property; add "
+                f"link '{url}': '{target}' is a data contract, not a single property. Add "
                 "'#schema/<object>/properties/<property>' to say which property is meant"
             )
         self._property(doc, target, visited | {target})

@@ -1,4 +1,4 @@
-# Data Governance Portfolio — developer entrypoints.
+# Data Governance Portfolio: developer entrypoints.
 # Every command loads .env and targets the platform compose file.
 
 SHELL := /bin/bash
@@ -27,15 +27,15 @@ help: ## Show available commands
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 $(ENV_FILE):
-	@test -f $(ENV_FILE) || { cp .env.example $(ENV_FILE); echo "created .env from .env.example — review before running in shared settings"; }
+	@test -f $(ENV_FILE) || { cp .env.example $(ENV_FILE); echo "created .env from .env.example. Review it before running in shared settings"; }
 
 .PHONY: certs
-certs: ## Generate the local CA + Postgres server certificate (X3; idempotent, gitignored)
+certs: ## Generate the local CA + Postgres server certificate (X3, idempotent, gitignored)
 	@bash platform/core/infra/tls/gen-certs.sh
 
 .PHONY: up
 up: $(ENV_FILE) certs ## Start the platform (MinIO + 2 Postgres)
-	@python3 platform/core/infra/preflight.py   # X2: warns locally; DGP_ENV=prod refuses default credentials
+	@python3 platform/core/infra/preflight.py   # X2: warns locally, DGP_ENV=prod refuses default credentials
 	$(COMPOSE) up -d --wait minio postgres-oltp postgres-analytics
 	$(COMPOSE) run --rm minio-init   # create/verify buckets, then return
 	$(COMPOSE) up -d s3-browser      # object-storage UI on :9001
@@ -43,7 +43,7 @@ up: $(ENV_FILE) certs ## Start the platform (MinIO + 2 Postgres)
 .PHONY: pgadmin
 pgadmin: $(ENV_FILE) certs ## Start pgAdmin (database UI) wired to shop_oltp, analytics and the Airflow DB
 	$(COMPOSE) up -d pgadmin
-	@echo "pgAdmin: http://localhost:$${PGADMIN_PORT:-5050}  (dev: no login; servers preloaded under governance-platform)"
+	@echo "pgAdmin: http://localhost:$${PGADMIN_PORT:-5050}  (dev: no login, servers preloaded under governance-platform)"
 
 .PHONY: down
 down: ## Stop the platform (keep volumes)
@@ -70,7 +70,7 @@ psql-analytics: ## Open psql on the analytics warehouse
 	$(COMPOSE) exec postgres-analytics psql -U $(ANALYTICS_SUPERUSER) -d $(ANALYTICS_DB)
 
 .PHONY: preflight
-preflight: ## List default/weak credentials (X2); DGP_ENV=prod make preflight fails on any
+preflight: ## List default/weak credentials (X2). DGP_ENV=prod make preflight fails on any
 	@PREFLIGHT_VERBOSE=1 python3 platform/core/infra/preflight.py
 
 .PHONY: db-roles
@@ -82,7 +82,7 @@ db-roles: ## Ensure least-privilege roles + the DR heartbeat on a RUNNING platfo
 	$(COMPOSE) exec -T postgres-oltp bash /docker-entrypoint-initdb.d/20-dr-heartbeat.sh
 
 .PHONY: encrypt-at-rest
-encrypt-at-rest: ## One-time: rewrite objects stored before bucket encryption with SSE (X7; idempotent)
+encrypt-at-rest: ## One-time: rewrite objects stored before bucket encryption with SSE (X7, idempotent)
 	uv run python platform/core/infra/encrypt_existing.py
 
 .PHONY: verify-infra
@@ -108,7 +108,7 @@ mask: ## Apply role-based PII masking views from the ODCS masking policies (ADR-
 	uv run python -m dgp_platform_access.apply_masking
 
 .PHONY: grants
-grants: ## Apply consumer grants from data product definitions (output ports only; masked views for PII)
+grants: ## Apply consumer grants from data product definitions (output ports only, masked views for PII)
 	uv run python -m dgp_platform_access.apply_grants
 
 .PHONY: publish
@@ -128,11 +128,11 @@ backfill: ## Reprocess a window of microbatch models: make backfill DOMAIN=sales
 .PHONY: endpoints
 endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "UIs"
-	@echo "  S3 browser      http://localhost:$(MINIO_CONSOLE_PORT)   (no login; browses MinIO via the S3 API)"
+	@echo "  S3 browser      http://localhost:$(MINIO_CONSOLE_PORT)   (no login, browses MinIO via the S3 API)"
 	@echo "  Airflow         http://localhost:$(AIRFLOW_API_PORT)       (dev: no login)"
 	@echo "  DataHub         http://localhost:9002                      user: datahub   pass: datahub"
 	@echo "  Superset        http://localhost:$(SUPERSET_PORT)                      user: $(SUPERSET_ADMIN)   pass: $(SUPERSET_ADMIN_PASSWORD)"
-	@echo "  pgAdmin         http://localhost:$(PGADMIN_PORT)                      (dev: no login; make pgadmin)"
+	@echo "  pgAdmin         http://localhost:$(PGADMIN_PORT)                      (dev: no login, make pgadmin)"
 	@echo "Databases / APIs"
 	@echo "  MinIO S3 API    http://localhost:$(MINIO_API_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
 	@echo "  Postgres OLTP   localhost:$(OLTP_PORT)   db: $(OLTP_DB)   user: $(OLTP_SUPERUSER)   pass: $(OLTP_SUPERUSER_PASSWORD)"
@@ -144,7 +144,7 @@ airflow-build: ## Build the Airflow image (installs ingestion + orchestration)
 	$(COMPOSE_ALL) build
 
 .PHONY: dbt-manifests
-dbt-manifests: $(ENV_FILE) ## Parse every dbt project into target/manifest.json (Cosmos renders the transform DAGs from it; dbt-loom reads it)
+dbt-manifests: $(ENV_FILE) ## Parse every dbt project into target/manifest.json (Cosmos renders the transform DAGs from it, and dbt-loom reads it)
 	@# Dependency order: sales reads its upstream domains' manifests through dbt-loom.
 	@for d in customer customer_experience sales; do \
 		( cd domains/$$d/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/core/transform >/dev/null \
@@ -195,7 +195,7 @@ check-boundaries: ## Enforce ADR-0008 module boundaries (governance policy)
 	@uv run python governance/policies/check_boundaries.py
 
 .PHONY: landing-access
-landing-access: ## Regenerate landing-zone access policies from sources.yml (ADR-0024; applied by `make up`)
+landing-access: ## Regenerate landing-zone access policies from sources.yml (ADR-0024, applied by `make up`)
 	uv run python -m dgp_platform_access.generate_landing_access
 
 .PHONY: check-landing-access
@@ -211,7 +211,7 @@ check-data-products: ## Enforce the data product standard on every definition
 	@uv run python governance/policies/check_data_products.py
 
 .PHONY: check-port-versions
-check-port-versions: ## Versioned output ports: successor -> deprecated + sunset; fail after the sunset (ADR-0019)
+check-port-versions: ## Versioned output ports: successor -> deprecated + sunset, fail after the sunset (ADR-0019)
 	@uv run python governance/policies/check_port_versions.py
 
 .PHONY: check-output-ports
@@ -243,7 +243,7 @@ bi-check-drift: $(ENV_FILE) ## Fail if Superset's metrics drifted from the Ossie
 	uv run python platform/context/semantics/publish_superset.py --check
 
 # ---------------------------------------------------------- disaster recovery (M8) ---
-# Backups of every store that can't be regenerated go to s3://$(BACKUP_BUCKET); the restore drill
+# Backups of every store that can't be regenerated go to s3://$(BACKUP_BUCKET), and the restore drill
 # proves them in an isolated dgp-drill sandbox (docs/disaster-recovery.md, proof P9).
 RECOVERY := uv run python
 
@@ -261,9 +261,9 @@ restore-drill: $(ENV_FILE) certs ## Restore the latest backup into a sandbox, re
 
 # -------------------------------------------------------------- governed AI (M7) ---
 # The governed semantic MCP server. Any MCP client (Claude, ChatGPT, Copilot, Cortex) connects to
-# it; only each client's wiring differs (ai/README.md). stdio = local clients; http = remote clients.
+# it, and only each client's wiring differs (ai/README.md). stdio = local clients, http = remote clients.
 AI_MCP := uv run python -m dgp_ai.semantic_server
-# The platform-wide view uses analytics_reader; each domain agent its own agent_<domain> role (M8).
+# The platform-wide view uses analytics_reader, and each domain agent its own agent_<domain> role (M8).
 AI_MCP_ENV = export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
 	for d in SALES CUSTOMER MARKETPLACE CUSTOMER_EXPERIENCE REFERENCE; do \
 		pw=AGENT_$${d}_PASSWORD; role=agent_$$(echo $$d | tr '[:upper:]' '[:lower:]'); \
@@ -284,9 +284,9 @@ ai-mcp-http: $(ENV_FILE) ## Run it as a remote MCP server over streamable-HTTP (
 CLAUDE ?= claude
 
 # Governed analyst session: Claude Code whose only data path is the MCP servers. env -i drops every
-# .env secret (Make exports them all); the session gets just the consumer-role URI, which the semantic
-# server needs. ai/analyst.settings.json denies the shell, edits, and reads of secrets and raw data;
-# ai/analyst-prompt.md tells the model to route refusals to the owner, not around the controls.
+# .env secret (Make exports them all), and the session gets just the consumer-role URI, which the semantic
+# server needs. ai/analyst.settings.json denies the shell, edits, and reads of secrets and raw data,
+# and ai/analyst-prompt.md tells the model to route refusals to the owner, not around the controls.
 # The owners' alert webhooks go to the semantic server only, which notifies on request_semantic_model.
 .PHONY: ai-chat
 ai-chat: $(ENV_FILE) ## Ask the governed data in Claude Code: MCP tools only, no shell, no secrets
@@ -326,7 +326,7 @@ ai-orchestrator: $(ENV_FILE) ## Run the orchestrator MCP gateway (routes each qu
 	uv run python -m dgp_ai.orchestrator_server
 
 # ---------------------------------------------------------------- catalog (M4) ---
-# DataHub runs as the dgp-catalog capability (own compose project, shared VM — ADR-0017),
+# DataHub runs as the dgp-catalog capability (own compose project, shared VM, ADR-0017),
 # pinned by digest. Ingestion needs the DataHub CLI on PATH:
 # `uv tool install 'acryl-datahub[postgres,dbt]'`. GMS is on $(DATAHUB_MAPPED_GMS_PORT).
 CATALOG := docker compose --env-file $(ENV_FILE) -p dgp-catalog --profile quickstart -f platform/context/catalog/docker-compose.datahub.yml
@@ -385,88 +385,88 @@ check-breaking: ## Breaking-change gate (P5): fail if a changed output-port cont
 	uv run --group dbt python governance/policies/check_breaking_changes.py
 
 .PHONY: prove-p2
-prove-p2: ## Proof P2 — a landing file that violates its contract is rejected by the quality gate
+prove-p2: ## Proof P2: a landing file that violates its contract is rejected by the quality gate
 	uv run python proofs/p2_landing_gate.py
 
 .PHONY: prove-p6
-prove-p6: $(ENV_FILE) ## Proof P6 — a backfill rewrites exactly its window; reruns are idempotent (M9, live)
+prove-p6: $(ENV_FILE) ## Proof P6: a backfill rewrites exactly its window, reruns are idempotent (M9, live)
 	uv run --group dbt python proofs/p6_backfill.py
 
 .PHONY: prove-p15
-prove-p15: $(ENV_FILE) ## Proof P15 — per-model write-audit-publish: in-place promote, quarantine, Airflow (M9, live)
+prove-p15: $(ENV_FILE) ## Proof P15: per-model write-audit-publish: in-place promote, quarantine, Airflow (M9, live)
 	uv run --group dbt python proofs/p15_per_model_wap.py
 
 .PHONY: prove-p16
-prove-p16: $(ENV_FILE) ## Proof P16 — dbt state + Slim CI: a change builds only what it touched (M9, live)
+prove-p16: $(ENV_FILE) ## Proof P16: dbt state + Slim CI: a change builds only what it touched (M9, live)
 	uv run --group dbt python proofs/p16_slim_ci.py
 
 .PHONY: prove-p17
-prove-p17: $(ENV_FILE) ## Proof P17 — an upload alone runs ingestion; a burst is one run (M10, live + Airflow)
+prove-p17: $(ENV_FILE) ## Proof P17: an upload alone runs ingestion, a burst is one run (M10, live + Airflow)
 	uv run python proofs/p17_event_driven.py
 
 .PHONY: prove-p18
-prove-p18: $(ENV_FILE) ## Proof P18 — batch completion signals, delivery deadlines, alerts to the owner (M10, live)
+prove-p18: $(ENV_FILE) ## Proof P18: batch completion signals, delivery deadlines, alerts to the owner (M10, live)
 	uv run python proofs/p18_completion_and_sla.py
 
 .PHONY: prove-p1
-prove-p1: $(ENV_FILE) ## Proof P1 — a domain's broken code or model fails only that domain (live + Airflow)
+prove-p1: $(ENV_FILE) ## Proof P1: a domain's broken code or model fails only that domain (live + Airflow)
 	uv run python proofs/p1_domain_isolation.py
 
 .PHONY: prove-p4
-prove-p4: $(ENV_FILE) ## Proof P4 — a producer's new port version rebuilds its consumers via assets, nothing else (live + Airflow)
+prove-p4: $(ENV_FILE) ## Proof P4: a producer's new port version rebuilds its consumers via assets, nothing else (live + Airflow)
 	uv run python proofs/p4_cross_domain.py
 
 .PHONY: prove-p19
-prove-p19: $(ENV_FILE) ## Proof P19 — a versioned port: v2 beside v1, sunset, migrate, retire with sign-off (live)
+prove-p19: $(ENV_FILE) ## Proof P19: a versioned port: v2 beside v1, sunset, migrate, retire with sign-off (live)
 	uv run --group dbt python proofs/p19_versioned_port.py
 
 .PHONY: prove-p14
-prove-p14: ## Proof P14 — landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)
+prove-p14: ## Proof P14: landing lifecycle end to end: inbox -> accepted/quarantine -> DataHub (live)
 	uv run python proofs/p14_landing_lifecycle.py
 
 .PHONY: prove-p5
-prove-p5: $(ENV_FILE) ## Proof P5 — breaking change blocked, then passes with a version bump + approval
+prove-p5: $(ENV_FILE) ## Proof P5: breaking change blocked, then passes with a version bump + approval
 	./proofs/p5_breaking_change.sh
 
 .PHONY: prove-p12
-prove-p12: ## Proof P12 — an output port can't be published undocumented (table, columns, semantic fields)
+prove-p12: ## Proof P12: an output port can't be published undocumented (table, columns, semantic fields)
 	./proofs/p12_port_completeness.sh
 
 .PHONY: prove-p8
-prove-p8: $(ENV_FILE) ## Proof P8 — consumers see PII masked and are denied raw/staging; compliance sees raw (M8)
+prove-p8: $(ENV_FILE) ## Proof P8: consumers see PII masked and are denied raw/staging, compliance sees raw (M8)
 	uv run python proofs/p8_access_control.py
 
 .PHONY: prove-p9
-prove-p9: $(ENV_FILE) certs ## Proof P9 — back up, restore into a sandbox, rebuild, re-check, measure RTO (M8)
+prove-p9: $(ENV_FILE) certs ## Proof P9: back up, restore into a sandbox, rebuild, re-check, measure RTO (M8)
 	./proofs/p9_restore_drill.sh
 
 .PHONY: prove-p13
-prove-p13: $(ENV_FILE) certs ## Proof P13 — TLS-only, least privilege, audit logging, encryption at rest, gates (M8)
+prove-p13: $(ENV_FILE) certs ## Proof P13: TLS-only, least privilege, audit logging, encryption at rest, gates (M8)
 	$(RECOVERY) proofs/p13_hardening.py
 
 .PHONY: prove-p10
-prove-p10: $(ENV_FILE) ## Proof P10 — BI and AI compute the same number from the one Ossie definition (M7)
+prove-p10: $(ENV_FILE) ## Proof P10: BI and AI compute the same number from the one Ossie definition (M7)
 	set -a; . ./$(ENV_FILE); set +a; \
 	export SUPERSET_URL=http://localhost:$${SUPERSET_PORT:-8088}; \
 	export SEMANTIC_WAREHOUSE_URI="postgresql://analytics_reader:$${ANALYTICS_READER_PASSWORD}@localhost:$${ANALYTICS_PORT}/$${ANALYTICS_DB}"; \
 	uv run python proofs/p10_ai_bi_agreement.py
 
 .PHONY: prove-p11
-prove-p11: $(ENV_FILE) ## Proof P11 — federated domain agents: isolation, deterministic routing, same number (M7)
+prove-p11: $(ENV_FILE) ## Proof P11: federated domain agents: isolation, deterministic routing, same number (M7)
 	set -a; . ./$(ENV_FILE); set +a; \
 	$(AI_MCP_ENV); \
 	uv run python proofs/p11_federated_routing.py
 
 .PHONY: prove-p21
-prove-p21: $(ENV_FILE) ## Proof P21 — the analyst Claude session reaches data only via the governed MCP tools (P21_LIVE=1 adds a real session)
+prove-p21: $(ENV_FILE) ## Proof P21: the analyst Claude session reaches data only via the governed MCP tools (P21_LIVE=1 adds a real session)
 	uv run python proofs/p21_analyst_session.py
 
 .PHONY: prove-all
-prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proofs (P2, P5, P12, P21); P3/P6/P7/P10/P11 need the live platform
+prove-all: prove-p2 prove-p5 prove-p12 prove-p21 ## Run the self-contained proofs (P2, P5, P12, P21). P3/P6/P7/P10/P11 need the live platform
 	@echo "Self-contained proofs passed. P3/P6/P7/P10/P11 run against the live platform (see docs/proofs.md)."
 
 .PHONY: ossie-build
-ossie-build: ## Build the Ossie bundle: ontology, compiled semantic models, mappings — validated (build/ossie/, ADR-0027)
+ossie-build: ## Build the Ossie bundle: ontology, compiled semantic models, mappings, all validated (build/ossie/, ADR-0027)
 	uv run python platform/context/semantics/build_ossie.py
 
 OSSIE_UI := docker compose -f platform/context/semantics/visualizer/docker-compose.visualizer.yml
@@ -481,7 +481,7 @@ ossie-ui-down: ## Stop the Ossie Visualizer
 	$(OSSIE_UI) down
 
 .PHONY: check-ontology
-check-ontology: ## Ontology (Apache Ossie) + concepts valid; contract columns link concepts, one definition each (ADR-0027)
+check-ontology: ## Ontology (Apache Ossie) + concepts valid, contract columns link concepts, one definition each (ADR-0027)
 	@uv run python governance/policies/check_ontology.py
 	@uv run python platform/context/semantics/build_ossie.py --check
 

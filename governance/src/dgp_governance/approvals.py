@@ -2,7 +2,7 @@
 
 An approval is a file in git: ``governance/approvals/<port>-v<major>.yaml`` for a new major
 version, ``<port>-retire.yaml`` for retiring a port version. The approval workflow appends a team
-when it approves the pull request, and it can be committed by hand. The file is the authority;
+when it approves the pull request, and it can be committed by hand. The file is the authority, and
 GitHub is only the automation. The breaking-change gate reads it to unblock the change.
 """
 
@@ -37,7 +37,7 @@ def approved_teams(port: str, version: Version, base: Path | None = None) -> set
 def record(
     port: str, version: Version, team: str, user: str = "", pr: str = "", base: Path | None = None
 ) -> Path | None:
-    """Add ``team``'s approval; returns the approval file, or None if the team was already in it."""
+    """Add ``team``'s approval. Returns the approval file, or None if the team was already in it."""
     file = path(port, version, base)
     header = {"port": port, **({"change": RETIRE} if version == RETIRE else {"version": version})}
     doc = (load_yaml(file) if file.exists() else None) or header

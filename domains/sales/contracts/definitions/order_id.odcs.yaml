@@ -1,5 +1,5 @@
 businessName: Order id
-description: Identifies one order on the marketplace; the same value in every domain.
+description: Identifies one order on the marketplace, with the same value in every domain.
 logicalType: string
 classification: internal
 authoritativeDefinitions:

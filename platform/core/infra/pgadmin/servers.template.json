@@ -1,7 +1,7 @@
 {
   "Servers": {
     "1": {
-      "Name": "OLTP — shop_oltp (superuser)",
+      "Name": "OLTP: shop_oltp (superuser)",
       "Group": "governance-platform",
       "Host": "postgres-oltp",
       "Port": 5432,
@@ -12,7 +12,7 @@
       "SSLRootCert": "/pgtls/ca.crt"
     },
     "2": {
-      "Name": "Warehouse — analytics (superuser)",
+      "Name": "Warehouse: analytics (superuser)",
       "Group": "governance-platform",
       "Host": "postgres-analytics",
       "Port": 5432,
@@ -23,7 +23,7 @@
       "SSLRootCert": "/pgtls/ca.crt"
     },
     "3": {
-      "Name": "Warehouse — analytics (as analytics_reader: what consumers see)",
+      "Name": "Warehouse: analytics (as analytics_reader, what consumers see)",
       "Group": "governance-platform",
       "Host": "postgres-analytics",
       "Port": 5432,
@@ -34,7 +34,7 @@
       "SSLRootCert": "/pgtls/ca.crt"
     },
     "4": {
-      "Name": "Airflow metadata — airflow",
+      "Name": "Airflow metadata: airflow",
       "Group": "governance-platform",
       "Host": "postgres-airflow",
       "Port": 5432,

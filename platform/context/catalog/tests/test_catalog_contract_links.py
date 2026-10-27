@@ -1,6 +1,6 @@
 """The catalog generator classifies a column by its resolved contract, inherited classification too.
 
-The DataHub SDK is an optional extra (``dgp-platform-catalog[publish]``); only the generator's
+The DataHub SDK is an optional extra (``dgp-platform-catalog[publish]``). Only the generator's
 contract reading is under test here, so the SDK is stubbed when it is not installed.
 """
 

@@ -27,11 +27,11 @@ The factory reads the domain's `sources.yml` and builds the right task graph:
 `landing/<domain>` is fired by an event trigger on the arrival queue (ADR-0016): the object
 store notifies it on every upload into the domain's inbox prefixes, and one burst is one run.
 The PoC source simulators (`seed`, partner `deliver`) live in the platform DAG
-`platform_source_simulator`, not in the domain DAGs; `platform_landing_sla` checks delivery
+`platform_source_simulator`, not in the domain DAGs. `platform_landing_sla` checks delivery
 deadlines every 15 minutes and alerts the owning domain.
 
 `contract_gate` checks every inbox file against its contract and files it to `accepted/` or
-`quarantine/`; it loads nothing. `load_raw` loads only accepted files no load has picked up yet, so
+`quarantine/`, and it loads nothing. `load_raw` loads only accepted files no load has picked up yet, so
 it can be retried without re-checking (ADR-0025).
 
 ## Transform DAGs (ADR-0015)
@@ -45,7 +45,7 @@ renders the dbt project from its manifest (`make dbt-manifests`, run by `make ai
 | `wap_<model>` | per opted-in port: `plan → stage → write → audit_view → audit → publish`, `quarantine` on failure |
 | `downstream` | models that read an opted-in port, after its publish |
 | `grant` | masking views + consumer grants (always) |
-| `save_state` | manifest → `platform-state`; emits `published/<domain>` only if everything published |
+| `save_state` | manifest → `platform-state`, and emits `published/<domain>` only if everything published |
 
 Backfill = trigger the DAG with params `event_time_start` / `event_time_end` (or `full_refresh`).
 The steps are the same ones `make publish` runs (`dgp_platform_orchestration.wap`).
@@ -54,8 +54,8 @@ The steps are the same ones `make publish` runs (`dgp_platform_orchestration.wap
 
 - `platform_acquire_olist` (platform bundle) downloads the Olist dataset and publishes the
   `olist-cache` asset.
-- Each domain DAG is `schedule=[olist-cache]`, so it runs when the producer updates — the
-  asset-driven cross-domain pattern behind proof P4 — and publishes its own `raw/<domain>`
+- Each domain DAG is `schedule=[olist-cache]`, so it runs when the producer updates (the
+  asset-driven cross-domain pattern behind proof P4), and publishes its own `raw/<domain>`
   asset for later transform DAGs.
 
 ## Why a separate capability package

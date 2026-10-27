@@ -1,9 +1,9 @@
-# Catalog capability — DataHub (M4)
+# Catalog capability: DataHub (M4)
 
 DataHub is the platform's catalog: datasets, end-to-end and cross-domain lineage, domains, data
 products, the business glossary, ownership, and quality results. It runs as the **`dgp-catalog`**
 compose project, pinned by digest, in the same Colima VM as the rest of the platform
-(ADR-0017, ADR-0018). The UI is at http://localhost:9002 (local login `datahub` / `datahub`); GMS,
+(ADR-0017, ADR-0018). The UI is at http://localhost:9002 (local login `datahub` / `datahub`). GMS,
 the metadata service, is on port 8081 so it doesn't collide with Airflow's 8080.
 
 ```
@@ -23,7 +23,7 @@ platform/context/catalog/
 uv tool install 'acryl-datahub[postgres,dbt]'   # the DataHub CLI and source plugins, for the recipes
 ```
 
-The publishers need the DataHub SDK too; `uv run --group catalog` provides it (the `publish` extra
+The publishers need the DataHub SDK too. `uv run --group catalog` provides it (the `publish` extra
 of this package), and the Make targets use it.
 
 ## Commands
@@ -42,15 +42,15 @@ of this package), and the Make targets use it.
 Ingestion runs on the host, where the dbt artifacts and the CLI are. It reads the sources and pushes
 metadata to GMS. Secrets come from the environment (sourced from `.env`), never from a recipe.
 
-- **`postgres_analytics.yml`** — the warehouse: tables, columns and views across every domain's
+- **`postgres_analytics.yml`**: the warehouse: tables, columns and views across every domain's
   `*_raw`, `*_bronze`, `*_silver` and `*_gold` schemas.
-- **`postgres_oltp.yml`** — the operational source, `shop_oltp`, where lineage starts for the
+- **`postgres_oltp.yml`**: the operational source, `shop_oltp`, where lineage starts for the
   tables loaded from it.
-- **`dbt.yml`** — one domain's dbt models, columns, tests and lineage. It runs once per domain, with
+- **`dbt.yml`**: one domain's dbt models, columns, tests and lineage. It runs once per domain, with
   `DBT_TARGET` pointing at that project's `target/`. `target_platform: postgres` links each dbt
   model to its warehouse dataset, so lineage joins across the two, including dbt-loom's
   cross-domain references (proof P7).
-- **`superset.yml`** — the BI datasets and charts, so lineage reaches the chart
+- **`superset.yml`**: the BI datasets and charts, so lineage reaches the chart
   (`make catalog-ingest-bi`, once Superset is up and published).
 
 No recipe profiles with sample values: the catalog never holds raw column values (proof P21 checks
@@ -62,18 +62,18 @@ The recipes bring in technical metadata. The *governance* on top of it is genera
 definitions that drive the grants and the contracts, and is never maintained by hand in the UI.
 `make catalog-govern` publishes, idempotently:
 
-- **Domains** — one per mesh domain; every warehouse and dbt dataset is filed under its domain.
-- **Data products** — one per `domains/*/data_products/*.yaml`: display name, purpose, owner, and
+- **Domains**: one per mesh domain. Every warehouse and dbt dataset is filed under its domain.
+- **Data products**: one per `domains/*/data_products/*.yaml`: display name, purpose, owner, and
   the output-port datasets (the Postgres table and its dbt sibling) as its assets.
-- **Meaning** (ADR-0027) — the business glossary (entity types, and the value types the ontology
+- **Meaning** (ADR-0027): the business glossary (entity types, and the value types the ontology
   gives a business definition, grouped by the domain responsible for each), and the data
   dictionary: on every output-port column, the data element it holds, its business term and its
   governed tags (sensitivity, privacy category).
-- **Deprecation** — a port version being retired carries its sunset date and its successor
+- **Deprecation**: a port version being retired carries its sunset date and its successor
   (ADR-0019).
-- **Where each dataset is built** — a link from every warehouse dataset to the Airflow DAG that
+- **Where each dataset is built**: a link from every warehouse dataset to the Airflow DAG that
   builds it, kept as node metadata rather than a lineage edge (ADR-0018).
-- **BI lineage** — each Superset dataset is linked to the output port it reads.
+- **BI lineage**: each Superset dataset is linked to the output port it reads.
 
 With a warehouse that has native tags (Snowflake, Databricks, BigQuery), the governed tags are set
 by the dbt build and ingested from the warehouse instead (`WAREHOUSE_PLATFORM`).

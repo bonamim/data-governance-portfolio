@@ -1,13 +1,13 @@
 # Standard: shipping a breaking change to an output port
 
 How a domain changes an output port in a way its consumers would notice, without breaking them.
-The policy and its reasons are in [ADR-0019](../../docs/adr/0019-breaking-change-management.md);
-this is the how-to. The gate it walks through is `make check-breaking` (CI runs it on every PR).
+The policy and its reasons are in [ADR-0019](../../docs/adr/0019-breaking-change-management.md).
+This is the how-to. The gate it walks through is `make check-breaking` (CI runs it on every PR).
 
 ## What counts as breaking
 
 `datacontract breaking` decides, comparing the port's contract with `main`. Removing, renaming or
-narrowing a column (a type, `required`, a range) is breaking; adding a column or loosening a rule is
+narrowing a column (a type, `required`, a range) is breaking, and adding a column or loosening a rule is
 not. A change to a linked data element counts as a change to every contract that links it. A
 non-breaking change needs nothing from this page: change the contract, bump the minor or patch
 version, and merge.
@@ -32,12 +32,12 @@ Lineage in DataHub and the `consumers:` / `inputs:` of the data product definiti
 port. A reader that is not declared anywhere (ad-hoc SQL) is the reason to prefer a versioned port
 when in doubt about a widely read port.
 
-## Path 1 — coordinated migration
+## Path 1: coordinated migration
 
 **Example.** The customer domain renames `customers.customer_state` to `state_code`. Its only
 reader is `sales.sales_performance`, a dbt model in this repo, so both change in one PR.
 
-**1. Change the contract and bump its major version** — `domains/customer/contracts/customers.odcs.yaml`:
+**1. Change the contract and bump its major version** in `domains/customer/contracts/customers.odcs.yaml`:
 
 ```yaml
 version: 2.0.0            # was 1.0.0: a breaking change is a new major
@@ -50,11 +50,11 @@ version: 2.0.0            # was 1.0.0: a breaking change is a new major
             url: ../../reference/contracts/definitions/state_code.odcs.yaml
 ```
 
-**2. Change the model and regenerate its dbt schema** — `domains/customer/dbt/models/silver/customers.sql`
+**2. Change the model and regenerate its dbt schema** in `domains/customer/dbt/models/silver/customers.sql`
 selects `customer_state as state_code`, then `make dbt-ports` rewrites `_ports.yml` from the
 contract.
 
-**3. Migrate every reader in the same PR** — `domains/sales/dbt/models/gold/sales_performance.sql`:
+**3. Migrate every reader in the same PR**, here `domains/sales/dbt/models/gold/sales_performance.sql`:
 
 ```sql
 select customer_id, customer_unique_id, state_code as customer_state
@@ -62,7 +62,7 @@ from {{ ref('dgp_customer', 'customers') }}
 ```
 
 Sales aliases the new name back, so its own port does not change and the break stops here. A
-reader that would pass the break on changes its own contract the same way — its own major, its
+reader that would pass the break on changes its own contract the same way, with its own major and its
 own consumers.
 
 **4. Get the readers' approval.** The gate now reports:
@@ -74,7 +74,7 @@ BREAKING CHANGE in output port 'customers' (vs origin/main):
   BLOCKED: v2 still needs approval from: sales. ...
 ```
 
-The sales team reviews the PR — the change to *their* model is in it — and approves. The approval
+The sales team reviews the PR (the change to *their* model is in it) and approves. The approval
 workflow records it as `governance/approvals/customers-v2.yaml` (or commit it by hand):
 
 ```yaml
@@ -88,14 +88,14 @@ approved_by:
 ```
 
 **5. Build it, then merge.** The gate passes (`APPROVED: v2 breaking change signed off by all
-affected consumers`). CI's Slim CI plan lists the models the change rebuilds — the port and its
-readers; `make slim-ci` builds them for real, which proves every reader works on the new shape.
-The deploy rebuilds `customers` and `sales_performance` together; masking, grants and the catalog
+affected consumers`). CI's Slim CI plan lists the models the change rebuilds: the port and its
+readers. `make slim-ci` builds them for real, which proves every reader works on the new shape.
+The deploy rebuilds `customers` and `sales_performance` together, and masking, grants and the catalog
 follow from the contract. Nobody ever sees a port and a reader that disagree.
 
 Try it: `make prove-p5` removes a column and walks the gate from *blocked* to *approved*, then reverts.
 
-## Path 2 — versioned port
+## Path 2: versioned port
 
 **Example.** The customer domain drops `customers.customer_zip_code_prefix`. A Superset dashboard
 maps customers by zip code, and its owners need a few weeks to move it. The old shape has to stay
@@ -107,9 +107,9 @@ definition. `customers` (v1) keeps its contract, model and table untouched. dbt'
 resolves to the latest version, so releasing v2 would silently move every unpinned reader onto
 the breaking shape (ADR-0019, *Amendment*).
 
-### Release — one PR, no approval needed
+### Release: one PR, no approval needed
 
-**1. Add the v2 contract** — `domains/customer/contracts/customers_v2.odcs.yaml`, a copy of v1
+**1. Add the v2 contract**: `domains/customer/contracts/customers_v2.odcs.yaml`, a copy of v1
 with the change:
 
 ```yaml
@@ -122,7 +122,7 @@ schema:
     # ... v1's properties, without customer_zip_code_prefix
 ```
 
-**2. Deprecate v1 with a sunset date** — `domains/customer/contracts/customers.odcs.yaml`:
+**2. Deprecate v1 with a sunset date** in `domains/customer/contracts/customers.odcs.yaml`:
 
 ```yaml
 version: 1.0.0                       # unchanged: v1's interface does not change
@@ -132,7 +132,7 @@ customProperties:
     value: "2026-12-31"              # the end of the migration window
 ```
 
-**3. Add the v2 data product definition** — `domains/customer/data_products/customers_v2.yaml`,
+**3. Add the v2 data product definition**: `domains/customer/data_products/customers_v2.yaml`,
 a copy of v1's with:
 
 ```yaml
@@ -144,11 +144,11 @@ output_ports:
     contract: domains/customer/contracts/customers_v2.odcs.yaml
 ```
 
-**4. Add the v2 model** — `domains/customer/dbt/models/silver/customers_v2.sql`, v1's model
-without the column — then `make dbt-ports`.
+**4. Add the v2 model**: `domains/customer/dbt/models/silver/customers_v2.sql`, v1's model
+without the column. Then run `make dbt-ports`.
 
 The gate passes **without any approval**: no contract a consumer reads has changed
-(`customers_v2: new output-port contract (no prior version) — OK`). `make check-port-versions`
+(`customers_v2: new output-port contract (no prior version): OK`). `make check-port-versions`
 notes who still reads v1, under its result line:
 
 ```
@@ -158,19 +158,19 @@ notes who still reads v1, under its result line:
 
 ### The migration window
 
-Both versions are built, masked and granted; readers move one at a time, each in its own PR.
+Both versions are built, masked and granted, and readers move one at a time, each in its own PR.
 
 - **dbt readers** change `ref('dgp_customer', 'customers')` to `'customers_v2'` and
   `customer.customers` to `customer.customers_v2` in their `inputs:`. Until then every CI run
-  prints the notice above, naming them. (v1's sunset is also its dbt `deprecation_date`; dbt's
+  prints the notice above, naming them. (v1's sunset is also its dbt `deprecation_date`, but dbt's
   own warning does not reliably surface through dbt-loom's cross-project refs.)
 - **Everyone else** sees it in DataHub: v1 carries a *Deprecated* banner naming `customers_v2`
   and the date. The dashboard owners repoint their dataset at `customer_masked.customers_v2`.
 - **After the sunset**, CI fails until v1 is retired, naming who has not moved:
-  `customers: sunset 2026-12-31 has passed — retire it after migrating sales.sales_performance`.
+  `customers: sunset 2026-12-31 has passed, retire it after migrating sales.sales_performance`.
   The window is a deadline, not a suggestion.
 
-### Retire v1 — one PR, the consumers sign off
+### Retire v1: one PR, the consumers sign off
 
 Delete v1's contract, data product definition and model (`customers.odcs.yaml`,
 `data_products/customers.yaml`, `models/silver/customers.sql`). The gate blocks the deletion
@@ -187,17 +187,17 @@ approved_by:
 
 `customers_v2` stays `customers_v2`: renaming it back would be another breaking change.
 
-Try it: `make prove-p19` runs this whole lifecycle on the live platform — release, both versions
-served, sunset, a blocked early retirement, migration, approved retirement — and reverts.
+Try it: `make prove-p19` runs this whole lifecycle on the live platform (release, both versions
+served, sunset, a blocked early retirement, migration, approved retirement) and reverts.
 
 ## Quick reference
 
 | | Coordinated migration | Versioned port |
 |---|---|---|
 | When | every reader can change in the same PR | any reader can't (BI, ad-hoc SQL, external) |
-| Contract | edited in place, major bumped | new `<port>_v<N>` contract; the old one `deprecated` + `sunsetDate` |
-| Model, definition | edited in place | new ones, `version_of: <port>`; the old ones untouched |
+| Contract | edited in place, major bumped | new `<port>_v<N>` contract, with the old one `deprecated` + `sunsetDate` |
+| Model, definition | edited in place | new ones, `version_of: <port>`, with the old ones untouched |
 | Readers | changed in the same PR | each moves before the sunset, in its own PR |
-| Approval | `approvals/<port>-v<N>.yaml`, before merge | none to release; `approvals/<port>-retire.yaml` to retire |
+| Approval | `approvals/<port>-v<N>.yaml`, before merge | none to release, `approvals/<port>-retire.yaml` to retire |
 | Checks | `check-breaking` | `check-breaking`, `check-port-versions` |
 | Proof | P5 | P19 |

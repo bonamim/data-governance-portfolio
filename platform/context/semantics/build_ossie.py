@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build the Ossie bundle — the business semantics as complete Apache Ossie documents (ADR-0027).
+"""Build the Ossie bundle: the business semantics as complete Apache Ossie documents (ADR-0027).
 
 Source → compile → validate → deploy, as for dbt. The sources are written once and never repeat a
 fact: the ontology's structure (``governance/ontology/*.ontology.yaml``), each value type's data
 element (``domains/<d>/contracts/definitions/``), the semantic models (``domains/<d>/semantics/``)
-and the contracts that link them. Ossie tools — Snowflake's
-``SYSTEM$CREATE_SEMANTIC_VIEW_FROM_OSSIE_YAML``, an Ossie viewer, any converter — read a document as
+and the contracts that link them. Ossie tools (Snowflake's
+``SYSTEM$CREATE_SEMANTIC_VIEW_FROM_OSSIE_YAML``, an Ossie viewer, any converter) read a document as
 it is, so the bundle compiles each source into a complete one, validates it with Ossie's own
 validator, and is what gets deployed:
 
@@ -17,7 +17,7 @@ validator, and is what gets deployed:
                                              contracts' ontology and data-element links
 
 The documents reference each other by relative path, so the bundle deploys as a unit. Nothing in it
-is edited by hand; the platform's own readers compile the same way (``ossie.load_compiled``).
+is edited by hand, and the platform's own readers compile the same way (``ossie.load_compiled``).
 
 Run: ``make ossie-build`` (writes ``build/ossie/``) · ``--check`` builds and validates only.
 """
@@ -51,7 +51,7 @@ def export() -> dict:
 
 
 def _concept_mapping(dataset: str, entity: dict, held: dict[str, str]) -> dict | None:
-    """How one dataset maps an entity type, given which column holds each value type — or None
+    """How one dataset maps an entity type, given which column holds each value type, or None
     when the entity's identifier is not all in the dataset."""
     relationships = {r["name"]: r for r in entity.get("relationships") or []}
     identify_by = entity.get("identify_by") or []

@@ -1,25 +1,25 @@
 # Governed tag `sensitivity` (ADR-0027): how sensitive a column's data is, the standard levels of the
-# Snowflake-provided tag SNOWFLAKE.TAGS.SENSITIVITY. One file per governed tag, named for the tag;
+# Snowflake-provided tag SNOWFLAKE.TAGS.SENSITIVITY. One file per governed tag, named for the tag,
 # maintained by the governance guild (CODEOWNERS /governance/).
 #
 # A column's value is its ODCS `classification` (set on the column, or inherited from its data
-# element). It is applied by the build — the dbt post-hook `dgp_dbt.apply_governance_tags` sets it on
+# element). It is applied by the build (the dbt post-hook `dgp_dbt.apply_governance_tags` sets it on
 # every output-port column, and on the table with its most sensitive column's level, before the
-# pipeline grants anyone access — and published to the catalog (DataHub tag).
+# pipeline grants anyone access) and published to the catalog (DataHub tag).
 tag: sensitivity
 warehouse_tag: SNOWFLAKE.TAGS.SENSITIVITY
 odcs: {field: classification}
-description: How sensitive the data is — who it may be shared with.
+description: How sensitive the data is, i.e. who it may be shared with.
 values:  # most sensitive first
   - value: restricted
     warehouse_value: RESTRICTED
-    description: "Personal or regulated data; access-controlled and masked per policy (ADR-0013)."
+    description: "Personal or regulated data, access-controlled and masked per policy (ADR-0013)."
   - value: confidential
     warehouse_value: CONFIDENTIAL
-    description: "Business-sensitive; shared only with the teams that need it."
+    description: "Business-sensitive, shared only with the teams that need it."
   - value: internal
     warehouse_value: INTERNAL
-    description: "Internal-only; not shared outside the organisation."
+    description: "Internal-only, not shared outside the organisation."
   - value: public
     warehouse_value: PUBLIC
     description: "Shareable with any consumer."

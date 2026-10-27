@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Back up every store that cannot be regenerated (docs/disaster-recovery.md §2–3, proof P9).
+"""Back up every store that cannot be regenerated (docs/disaster-recovery.md §2 and §3, proof P9).
 
-The DR design rule: anything regenerable from git or the sources is REBUILT, not restored — so the
+The DR design rule: anything regenerable from git or the sources is REBUILT, not restored. So the
 ``analytics`` warehouse is not dumped (the drill rebuilds it), only its ingestion ledger is. What is
 backed up, each into ``s3://$BACKUP_BUCKET/backups/<UTC timestamp>/``:
 
-  shop_oltp         PHYSICAL base backup (pg_basebackup, tar) of the operational source (tier 1);
-                    with the continuous WAL archive it gives point-in-time recovery (RPO 5 min)
-  ingestion_ledger  pg_dump -Fc of ``platform_meta`` in analytics (tier 2 — pipeline state)
-  airflow           pg_dump -Fc of the Airflow metadata DB (tier 2 — run history, data intervals)
-  datahub           mysqldump of the DataHub metadata store (tier 2 — manual edits not in git)
-  superset          online SQLite backup of the Superset metadata DB (tier 3; dashboards in git)
+  shop_oltp         PHYSICAL base backup (pg_basebackup, tar) of the operational source (tier 1).
+                    With the continuous WAL archive it gives point-in-time recovery (RPO 5 min)
+  ingestion_ledger  pg_dump -Fc of ``platform_meta`` in analytics (tier 2, pipeline state)
+  airflow           pg_dump -Fc of the Airflow metadata DB (tier 2, run history, data intervals)
+  datahub           mysqldump of the DataHub metadata store (tier 2, manual edits not in git)
+  superset          online SQLite backup of the Superset metadata DB (tier 3, dashboards in git)
 
 plus ``manifest.json``: per file its sha256 and the row counts of key tables taken just BEFORE the
-dump (so a restore must hold at least those rows), and the row count of every output port — the
+dump (so a restore must hold at least those rows), and the row count of every output port: the
 baseline the drill's rebuilt warehouse must reproduce. A store whose service is not running is
 recorded as skipped, never silently dropped.
 
@@ -22,7 +22,7 @@ After a successful base backup the WAL archive is pruned to what that base needs
 
 Local stand-in: ``pg_basebackup`` + an archive volume, logical dumps for the metadata stores.
 Production uses pgBackRest (full + diff + continuous WAL archiving,
-``repo1-cipher-type=aes-256-cbc``) into an object-locked, replicated bucket; the drill and the
+``repo1-cipher-type=aes-256-cbc``) into an object-locked, replicated bucket. The drill and the
 manifest contract stay the same.
 
 Run: ``make backup``.
@@ -89,7 +89,7 @@ def _stores() -> list[dict]:
             "svc": (PLATFORM, "postgres-oltp"),
             "file": "shop_oltp.base.tar.gz",
             "compress": True,
-            # Physical base backup to stdout (tar); WAL needed for consistency fetched into it.
+            # Physical base backup to stdout (tar), with the WAL needed for consistency inside.
             "dump": 'pg_basebackup -U "$POSTGRES_USER" -D - -Ft -X fetch -c fast',
             "count_sql": "SELECT string_agg(schemaname||'.'||relname, ',') "
             "FROM pg_stat_user_tables "
@@ -155,7 +155,7 @@ def main() -> int:
     try:
         client.head_bucket(Bucket=BACKUP_BUCKET)
     except client.exceptions.ClientError:
-        print(f"bucket {BACKUP_BUCKET} missing — run `make up` (minio-init creates it)")
+        print(f"bucket {BACKUP_BUCKET} missing. Run `make up` (minio-init creates it)")
         return 2
 
     manifest: dict = {"created_at": stamp, "bucket": BACKUP_BUCKET, "artifacts": {}, "skipped": {}}

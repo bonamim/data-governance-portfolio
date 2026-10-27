@@ -1,7 +1,7 @@
-# DataHub — the dgp-catalog capability (ADR-0017). Vendored from the DataHub quickstart
+# DataHub: the dgp-catalog capability (ADR-0017). Vendored from the DataHub quickstart
 # compose at v1.7.0.1 and pinned by digest (ADR-0007). GMS is published on
 # DATAHUB_MAPPED_GMS_PORT (8081) so it does not collide with Airflow's apiserver on 8080.
-# Local dev only; production deploys DataHub via its Helm chart on Kubernetes
+# Local dev only. Production deploys DataHub via its Helm chart on Kubernetes
 # (docs/production-readiness.md). Refresh: re-run `datahub docker quickstart` for a new
 # version, then re-pin the image digests here.
 name: dgp-catalog

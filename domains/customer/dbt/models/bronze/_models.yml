@@ -5,7 +5,7 @@ version: 2
 # _ports.yml from the ODCS contract and never mixed in here.
 models:
   - name: brz_customers
-    description: "Standardized customers (typed/cased from raw). Internal Bronze; holds raw PII."
+    description: "Standardized customers (typed/cased from raw). Internal Bronze, holds raw PII."
     columns:
       - name: customer_id
         description: "Per-order customer key."

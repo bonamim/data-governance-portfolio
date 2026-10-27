@@ -9,14 +9,14 @@ prove that restores work.
 
 | Tier | Component | RPO (max data loss) | RTO (max downtime) |
 |---|---|---|---|
-| **1 — Critical** | Landing zone (MinIO) — raw files are the source of truth for files-based domains | 0 (replicated, versioned, immutable) | 4 h |
-| **1 — Critical** | `shop_oltp` (stands in for an operational system) | 5 min | 1 h |
-| **2 — Important** | `analytics` warehouse | 24 h *(rebuildable from sources)* | 8 h |
-| **2 — Important** | DataHub metadata (manual edits: docs, ownership changes, comments) | 24 h | 8 h |
-| **2 — Important** | Airflow metadata DB (run state, data intervals), ingestion ledger, `platform-state` bucket (dbt artifacts) | 24 h | 4 h |
-| **3 — Rebuildable** | Superset metadata, Elasticsearch indices, Kafka | 24 h | 24 h |
+| **1: Critical** | Landing zone (MinIO): raw files are the source of truth for files-based domains | 0 (replicated, versioned, immutable) | 4 h |
+| **1: Critical** | `shop_oltp` (stands in for an operational system) | 5 min | 1 h |
+| **2: Important** | `analytics` warehouse | 24 h *(rebuildable from sources)* | 8 h |
+| **2: Important** | DataHub metadata (manual edits: docs, ownership changes, comments) | 24 h | 8 h |
+| **2: Important** | Airflow metadata DB (run state, data intervals), ingestion ledger, `platform-state` bucket (dbt artifacts) | 24 h | 4 h |
+| **3: Rebuildable** | Superset metadata, Elasticsearch indices, Kafka | 24 h | 24 h |
 
-Targets are a starting point; adjust them to the business before go-live.
+Targets are a starting point. Adjust them to the business before go-live.
 
 ---
 
@@ -27,17 +27,17 @@ regenerated, not restored.** This keeps backups small and restores simple.
 
 | Asset | Recovery method |
 |---|---|
-| Contracts, dbt projects, governance, dashboards, ingestion recipes | **Git** — redeploy |
-| Raw files in the landing zone | **Backup + replication** — cannot be regenerated |
-| `shop_oltp` | **Backup** (PITR) — cannot be regenerated |
-| `analytics` warehouse | **Rebuild** — reload raw from sources + `dbt build`; backup kept to shorten RTO |
-| DataHub metadata store (MySQL/Postgres) | **Backup** — holds manual edits not in git |
+| Contracts, dbt projects, governance, dashboards, ingestion recipes | **Git**: redeploy |
+| Raw files in the landing zone | **Backup + replication**: cannot be regenerated |
+| `shop_oltp` | **Backup** (PITR): cannot be regenerated |
+| `analytics` warehouse | **Rebuild**: reload raw from sources + `dbt build`. A backup is kept to shorten RTO |
+| DataHub metadata store (MySQL/Postgres) | **Backup**: holds manual edits not in git |
 | DataHub search indices (Elasticsearch) | **Rebuild** from the metadata store with DataHub's restore-indices job |
-| DataHub Kafka | **Not backed up** — transient event log |
-| Airflow metadata DB | **Backup** — run history and data intervals ([ADR-0006](adr/0006-pipeline-state.md)) |
-| Ingestion ledger (`platform_meta` in `analytics`) | **Backup** with `analytics`; rebuilt if the warehouse is rebuilt from scratch |
+| DataHub Kafka | **Not backed up**: transient event log |
+| Airflow metadata DB | **Backup**: run history and data intervals ([ADR-0006](adr/0006-pipeline-state.md)) |
+| Ingestion ledger (`platform_meta` in `analytics`) | **Backup** with `analytics`, rebuilt if the warehouse is rebuilt from scratch |
 | `platform-state` bucket (dbt manifests) | **Versioning + replication**, like the landing zone |
-| Superset metadata DB | **Backup** (small); dashboards also in git |
+| Superset metadata DB | **Backup** (small). Dashboards are also in git |
 | Secrets | Held in the secrets manager, which has its own backup/replication |
 
 ---
@@ -45,19 +45,19 @@ regenerated, not restored.** This keeps backups small and restores simple.
 ## 3. Backup configuration
 
 ### MinIO
-- **Versioning** on all buckets — protects against overwrite and accidental delete.
+- **Versioning** on all buckets, which protects against overwrite and accidental delete.
 - **Object lock** on `landing-archive` (enabled at creation, no bucket default): every accepted file is
-  locked for its contract's retention class (GOVERNANCE locally, COMPLIANCE in production) —
-  protects against ransomware and malicious delete; quarantine stays unlocked and expires (ADR-0024).
+  locked for its contract's retention class (GOVERNANCE locally, COMPLIANCE in production).
+  This protects against ransomware and malicious delete. Quarantine stays unlocked and expires (ADR-0024).
 - **Replication** to a second MinIO site or a cloud bucket in another region.
 
 ### PostgreSQL (`shop_oltp`, `analytics`, DataHub, Airflow, Superset metadata)
-- **pgBackRest** with its repository in a dedicated, versioned, object-locked bucket —
-  a different location from the landing zone.
+- **pgBackRest** with its repository in a dedicated, versioned, object-locked bucket,
+  in a different location from the landing zone.
 - Weekly full backup, daily differential, **continuous WAL archiving** (enables
   point-in-time recovery, giving the 5-minute RPO on `shop_oltp`).
 - Backups encrypted (`repo1-cipher-type=aes-256-cbc`) with the key held in the secrets manager.
-- Retention: 4 weekly fulls; WAL kept for the same window.
+- Retention: 4 weekly fulls, with WAL kept for the same window.
 
 ### Local implementation (ADR-0022)
 - **`shop_oltp`: point-in-time recovery.** Continuous WAL archiving (`archive_mode=on`,
@@ -82,12 +82,12 @@ regenerated, not restored.** This keeps backups small and restores simple.
 | Scenario | Response |
 |---|---|
 | A landing file is overwritten or deleted | Restore the previous object version in MinIO |
-| A bad load or bad dbt run corrupts the warehouse | Fix the cause; clear and re-run the affected Airflow tasks for the bad intervals (idempotent loads + `dbt build`) |
-| A table is dropped in `shop_oltp` | Point-in-time restore to a new instance before the drop; copy the table back |
-| `analytics` server is lost | Provision a new instance; restore latest backup *or* rebuild from sources; run `dbt build` |
-| DataHub is lost | Restore metadata DB; run restore-indices; re-apply metadata as code from git |
-| Ransomware / malicious delete | Object-locked backups and landing files cannot be deleted inside retention; restore from them |
-| Full site loss | Redeploy platform from git in the second location; restore from replicated backups in tier order |
+| A bad load or bad dbt run corrupts the warehouse | Fix the cause, then clear and re-run the affected Airflow tasks for the bad intervals (idempotent loads + `dbt build`) |
+| A table is dropped in `shop_oltp` | Point-in-time restore to a new instance before the drop, then copy the table back |
+| `analytics` server is lost | Provision a new instance, restore the latest backup *or* rebuild from sources, then run `dbt build` |
+| DataHub is lost | Restore the metadata DB, run restore-indices, then re-apply metadata as code from git |
+| Ransomware / malicious delete | Object-locked backups and landing files cannot be deleted inside retention. Restore from them |
+| Full site loss | Redeploy platform from git in the second location, then restore from replicated backups in tier order |
 
 The recovery steps for the stores in scope are automated and rehearsed: `make prove-p9` runs them
 end to end (`platform/core/recovery/restore_drill.py`, §5). Written runbooks for the scenarios above

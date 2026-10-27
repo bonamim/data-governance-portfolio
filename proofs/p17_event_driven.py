@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Proof P17 — event-driven ingestion: an upload runs ingestion, a burst runs it once (ADR-0016).
+"""Proof P17: event-driven ingestion. An upload runs ingestion, and a burst runs it once (ADR-0016).
 
-Nobody triggers a DAG here. A partner uploads into the landing inbox; the object store notifies the
-arrival queue; Airflow's event trigger fires ``landing/customer_experience``; the domain's ingestion
-DAG gates and loads.
+Nobody triggers a DAG here. A partner uploads into the landing inbox, the object store notifies the
+arrival queue, Airflow's event trigger fires ``landing/customer_experience``, and the domain's
+ingestion DAG gates and loads.
 
   1. burst      the partner uploads 5 files within a second: one good file sent with its own
                 ``x-amz-checksum-sha256``, and 4 misnamed ones
   2. fan-in     all 5 are decided by ONE arrival-triggered run (windowed: no DAG run per file)
-  3. outcome    the good file is accepted (its checksum verified) and loaded; the 4 are
-                quarantined, each alerting the owning domain; the inbox is drained and the
+  3. outcome    the good file is accepted (its checksum verified) and loaded. The 4 are
+                quarantined, each alerting the owning domain, and the inbox is drained and the
                 queue rows acked
   4. freshness  DataHub shows the delivery as an ARRIVAL operation at the time it landed
   5. restore    the real Olist file, delivered the same way, is loaded back
   6. deadlines  the platform_landing_sla DAG runs and reports every dataset
 
-Needs the platform and Airflow up (``make airflow-up``); DataHub optional. Run: ``make prove-p17``.
+Needs the platform and Airflow up (``make airflow-up``), DataHub optional. Run: ``make prove-p17``.
 """
 
 from __future__ import annotations
@@ -156,7 +156,7 @@ def step_fan_in(good: str, junk: list[str], since: datetime) -> str:
 
 
 def step_outcome(run_id: str, good: str, junk: list[str], since: datetime) -> None:
-    print("3. Outcome: accepted + verified + loaded; misnamed quarantined and alerted; acked")
+    print("3. Outcome: accepted + verified + loaded, misnamed quarantined and alerted, acked")
     state = wait_run(run_id)
     check(state == "success", "the ingestion run succeeded", state)
     rows = {r[0]: r for r in gated([good, *junk], since, 10)}
@@ -208,7 +208,7 @@ def step_freshness(good: str, put_at: datetime) -> None:
     try:
         ops = Gms().graphql(q, {"urn": urn})["dataset"]["operations"]
     except OSError:
-        print("  (DataHub not running — skipped)")
+        print("  (DataHub not running, skipped)")
         return
     mine = [
         o
@@ -254,7 +254,7 @@ def step_deadlines() -> None:
 
 def main() -> int:
     if subprocess.run(["docker", "inspect", SCHED], capture_output=True).returncode:
-        sys.exit("Airflow is not running — `make airflow-up` first")
+        sys.exit("Airflow is not running. Run `make airflow-up` first")
     for dag in (DAG, "platform_landing_sla"):  # new DAGs start paused
         airflow("dags", "unpause", dag)
     good, junk, since, put_at = step_burst()
@@ -265,8 +265,8 @@ def main() -> int:
     step_restore(since)
     step_deadlines()
     return check.verdict(
-        "a partner's upload alone runs the pipeline — one run per burst, every file "
-        "gated, verified, alerted on and acked — and DataHub dates it from its arrival."
+        "a partner's upload alone runs the pipeline (one run per burst, every file "
+        "gated, verified, alerted on and acked), and DataHub dates it from its arrival."
     )
 
 

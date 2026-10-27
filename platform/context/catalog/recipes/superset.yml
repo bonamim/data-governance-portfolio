@@ -1,6 +1,6 @@
-# DataHub ingestion — Superset (BI): dashboards, charts and datasets, with lineage from a chart to
-# the warehouse table it reads. This finishes the lineage's last hop — output port -> BI chart
-# (proof P7). Ingestion runs on the host; secrets come from the environment (sourced from .env).
+# DataHub ingestion: Superset (BI): dashboards, charts and datasets, with lineage from a chart to
+# the warehouse table it reads. This finishes the lineage's last hop, output port -> BI chart
+# (proof P7). Ingestion runs on the host, and secrets come from the environment (sourced from .env).
 source:
   type: superset
   config:

@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Automated restore drill — proof P9 (docs/disaster-recovery.md §5).
+"""Automated restore drill: proof P9 (docs/disaster-recovery.md §5).
 
 A backup is only trusted once it has been restored. Against the latest backup in
-``s3://$BACKUP_BUCKET/backups/``, into a fresh, isolated sandbox (``dgp-drill`` compose project —
+``s3://$BACKUP_BUCKET/backups/``, into a fresh, isolated sandbox (``dgp-drill`` compose project,
 own network, own volumes, nothing shared with the live platform):
 
   0. RPO: commit a heartbeat row on the LIVE shop_oltp (after the backup was taken) and measure how
-     long until its WAL segment is archived — the real data-loss window, checked against the RPO;
-  1. download every backup file and verify its sha256 against the manifest;
+     long until its WAL segment is archived: the real data-loss window, checked against the RPO.
+  1. download every backup file and verify its sha256 against the manifest.
   2. RESTORE the stores that cannot be regenerated and check each holds at least the rows counted at
-     backup time. shop_oltp is POINT-IN-TIME recovered — base backup + replay of the WAL archive —
-     and must contain the heartbeat committed AFTER the base backup (roll-forward proven); DataHub,
-     Airflow, the ingestion ledger and Superset metadata are restored from their dumps;
+     backup time. shop_oltp is POINT-IN-TIME recovered (base backup + replay of the WAL archive)
+     and must contain the heartbeat committed AFTER the base backup (roll-forward proven). DataHub,
+     Airflow, the ingestion ledger and Superset metadata are restored from their dumps.
   3. REBUILD the analytics warehouse instead of restoring it (DR rule: regenerate, don't restore):
      roles/schemas from the git init script, raw loaded from the landing zone + the RESTORED
      shop_oltp through the real ingestion gate, then every domain published with write-audit-publish
-     — so every contract quality check runs against the recovered data;
+     so every contract quality check runs against the recovered data.
   4. verify the rebuilt output ports match the pre-disaster row counts and that access control
-     survived (proof P8 re-run against the sandbox: raw denied, PII masked, compliance unmasks);
+     survived (proof P8 re-run against the sandbox: raw denied, PII masked, compliance unmasks).
   5. measure each store's recovery time against its RTO and write the report to
      ``s3://$BACKUP_BUCKET/drills/<timestamp>.json``.
 
@@ -87,7 +87,7 @@ class Drill:
 
     def check(self, name: str, ok: bool, detail: str = "") -> bool:
         self.checks.append((name, ok, detail))
-        print(f"  {'ok  ' if ok else 'FAIL'} {name}{' — ' + detail if detail else ''}")
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}{': ' + detail if detail else ''}")
         return ok
 
     def recovered(self, store: str) -> None:
@@ -162,10 +162,10 @@ def _drill_env() -> dict[str, str]:
 
 
 def _heartbeat() -> tuple[int, float]:
-    """Commit a heartbeat on the live shop_oltp; return (id, seconds until its WAL was archived)."""
+    """Commit a heartbeat on the live shop_oltp. Returns (id, seconds until its WAL archived)."""
     cid = container("governance-platform", "postgres-oltp")
     if not cid:
-        raise SystemExit("live postgres-oltp is not running — the RPO check needs it")
+        raise SystemExit("live postgres-oltp is not running, and the RPO check needs it")
 
     def psql(*sql: str) -> list[str]:
         args = [a for q in sql for a in ("-c", q)]
@@ -202,11 +202,11 @@ def _heartbeat() -> tuple[int, float]:
 
 
 def _latest_partition(client: BaseClient) -> str:
-    """Newest ``dt=YYYY-MM-DD`` partition of accepted landing files — the date the rebuild replays
+    """Newest ``dt=YYYY-MM-DD`` partition of accepted landing files: the date the rebuild replays
     as of (each dataset then loads its newest accepted file on or before it).
 
     Only ``accepted/`` counts: those files passed the contract gate and are object-locked
-    evidence (ADR-0024); quarantine and the inbox are never a rebuild source.
+    evidence (ADR-0024). Quarantine and the inbox are never a rebuild source.
     """
     bucket = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
     dates: set[str] = set()
@@ -219,7 +219,7 @@ def _latest_partition(client: BaseClient) -> str:
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     dates = {d for d in dates if d <= today}
     if not dates:
-        raise SystemExit(f"{bucket}/accepted/ has no partitions — nothing to rebuild from")
+        raise SystemExit(f"{bucket}/accepted/ has no partitions, nothing to rebuild from")
     return max(dates)
 
 
@@ -305,8 +305,8 @@ def _run(cmd: list[str], env: dict[str, str]) -> subprocess.CompletedProcess:
 
 
 def _rebuild_analytics(d: Drill, client: BaseClient, ports: dict[str, int]) -> None:
-    """Rebuild the warehouse from git, the gated landing files and the restored shop_oltp — it is
-    regenerated, never restored — then check its ports and its access controls."""
+    """Rebuild the warehouse from git, the gated landing files and the restored shop_oltp (it is
+    regenerated, never restored), then check its ports and its access controls."""
     env = _drill_env()
     partition = _latest_partition(client)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -327,7 +327,7 @@ def _rebuild_analytics(d: Drill, client: BaseClient, ports: dict[str, int]) -> N
     passed = re.findall(r"Done\. PASS=(\d+) WARN=(\d+) ERROR=(\d+)", pub.stdout)
     summary = ", ".join(f"PASS={p} WARN={w} ERROR={e}" for p, w, e in passed)
     d.check(
-        "analytics: every domain published — all contract + engineering DQ passed",
+        "analytics: every domain published, all contract + engineering DQ passed",
         pub.returncode == 0,
         summary,
     )
@@ -375,7 +375,7 @@ def run(keep: bool) -> int:
     )
     d.t0 = time.monotonic()  # recovery time is measured from here, not from the RPO wait
     arts = manifest["artifacts"]
-    print(f"Restore drill — backup s3://{BACKUP_BUCKET}/{prefix} (taken {manifest['created_at']})")
+    print(f"Restore drill: backup s3://{BACKUP_BUCKET}/{prefix} (taken {manifest['created_at']})")
     for name, why in manifest.get("skipped", {}).items():
         print(f"  note {name} was not in this backup ({why})")
 
@@ -424,7 +424,7 @@ def run(keep: bool) -> int:
         ContentType="application/json",
     )
     print(
-        f"\nP9 {'OK' if passed else 'FAILED'} — drill took {total:.0f}s; report "
+        f"\nP9 {'OK' if passed else 'FAILED'}: drill took {total:.0f}s, report "
         f"s3://{BACKUP_BUCKET}/{key}"
     )
     return 0 if passed else 1

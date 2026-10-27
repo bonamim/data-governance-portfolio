@@ -91,7 +91,7 @@ customProperties:
   - property: retentionDays
     value: 365
   # Landing operations (ADR-0024): how the platform files a delivery it did not produce.
-  # The partner names each daily file with its business date; we read the partition from it.
+  # The partner names each daily file with its business date, and we read the partition from it.
   - property: partitionSource
     value: filename
   - property: filenamePattern

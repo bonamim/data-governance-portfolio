@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""DR freshness check — the alert conditions for backups and drills (production-readiness X10).
+"""DR freshness check: the alert conditions for backups and drills (production-readiness X10).
 
 Fails (exit 1) when:
   * the newest backup is older than ``BACKUP_MAX_AGE_HOURS`` (default 26: daily + slack), or
   * there is no PASSING restore drill newer than ``DRILL_MAX_AGE_DAYS`` (default 7: weekly drills).
 
-A monitor runs this on a schedule and pages on failure — "backups silently stopped" and "nobody has
+A monitor runs this on a schedule and pages on failure: "backups silently stopped" and "nobody has
 proven a restore lately" are the two DR failures that otherwise go unnoticed.
 Run: ``make dr-status``.
 """
@@ -75,7 +75,7 @@ def main() -> int:
             problems.append(f"latest passing drill is {age} old (max {DRILL_MAX_AGE})")
 
     if problems:
-        print("DR status FAILED — alert:")
+        print("DR status FAILED. Alert:")
         for p in problems:
             print(f"  - {p}")
         return 1

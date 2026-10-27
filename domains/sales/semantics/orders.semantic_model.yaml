@@ -7,7 +7,7 @@ name: orders
 datasets:
   - name: orders
     source: analytics.sales_silver.orders
-    description: "Order Book — one row per customer order, with its status and lifecycle timestamps."
+    description: "Order Book: one row per customer order, with its status and lifecycle timestamps."
     primary_key: [order_id]
     fields:
       - name: order_purchase_month
@@ -28,7 +28,7 @@ metrics:
         - dialect: ANSI_SQL
           expression: "COUNT(DISTINCT orders.order_id)"
   - name: valid_order_count
-    description: "Orders placed, excluding those canceled or unavailable — the orders that could turn into revenue."
+    description: "Orders placed, excluding those canceled or unavailable, i.e. the orders that could turn into revenue."
     datatype: Integer
     expression:
       dialects:

@@ -1,4 +1,4 @@
-# Access — who may read what (`dgp_platform_access`)
+# Access: who may read what (`dgp_platform_access`)
 
 Access is declared in the governed definitions and enforced by the platform, never granted by hand:
 

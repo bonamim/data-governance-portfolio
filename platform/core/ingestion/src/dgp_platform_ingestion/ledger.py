@@ -1,11 +1,11 @@
-"""The ingestion ledger — the platform's data-state record (ADR-0006).
+"""The ingestion ledger: the platform's data-state record (ADR-0006).
 
 Answers "which files and which source tables have been loaded?", records every landing-gate
 outcome with its per-rule results (published to DataHub, ADR-0024), and makes file loads
 idempotent: a delivery whose content equals the dataset's latest gated file is skipped (P6).
 
 It is also the hand-off between the two landing steps (ADR-0025): the contract gate writes an
-``accepted`` row; the raw load writes a ``loaded`` (or ``superseded``) row whose ``gate_id`` points
+``accepted`` row. The raw load writes a ``loaded`` (or ``superseded``) row whose ``gate_id`` points
 back at it. An ``accepted`` row nothing points at is waiting to be loaded.
 """
 
@@ -22,7 +22,7 @@ ALERTS = "platform_meta.alerts"
 
 STATUSES = ("accepted", "loaded", "quarantined", "skipped", "superseded")
 
-# Columns added by ADR-0024 and ADR-0025. Fresh volumes get them from 00-init.sh; this keeps
+# Columns added by ADR-0024 and ADR-0025. Fresh volumes get them from 00-init.sh, and this keeps
 # existing ones in step (platform_loader owns the table, so the loader can migrate it idempotently).
 _MIGRATIONS = [
     f"ALTER TABLE {LEDGER} ADD COLUMN IF NOT EXISTS dataset text",
@@ -31,7 +31,7 @@ _MIGRATIONS = [
     f"ALTER TABLE {LEDGER} ADD COLUMN IF NOT EXISTS archive_key text",
     f"ALTER TABLE {LEDGER} ADD COLUMN IF NOT EXISTS checks jsonb",
     # Idempotency is now "same checksum as the latest load of this dataset" (a partner may resend
-    # an older file after a newer one; that must load again), so the per-key unique index goes.
+    # an older file after a newer one, and that must load again), so the per-key unique index goes.
     "DROP INDEX IF EXISTS platform_meta.ingestion_ledger_file_once",
     f"CREATE INDEX IF NOT EXISTS ingestion_ledger_dataset ON {LEDGER} (dataset, loaded_at DESC)",
     # ADR-0025: the gate and the load are separate steps, joined by gate_id.
@@ -77,7 +77,7 @@ def ensure_schema(conn: psycopg.Connection) -> None:
 
 def unchanged(conn: psycopg.Connection, dataset: str, sha256: str, etag: str) -> bool:
     """Is this delivery the same content as the dataset's newest good file (the one in raw, or
-    the one about to be)? Compared by SHA-256; rows written before it was recorded fall back to
+    the one about to be)? Compared by SHA-256. Rows written before it was recorded fall back to
     the ETag."""
     row = conn.execute(
         f"SELECT content_sha256, object_etag FROM {LEDGER} "

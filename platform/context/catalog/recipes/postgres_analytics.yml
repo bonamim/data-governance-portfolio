@@ -1,7 +1,7 @@
-# DataHub ingestion — analytics warehouse (tables/columns/views).
+# DataHub ingestion: analytics warehouse (tables/columns/views).
 # Ingestion runs on the host (where the dbt artifacts and the DataHub CLI live) and reaches
-# the warehouse on its host-published port; metadata is pushed to GMS. Secrets come from the
-# environment (sourced from .env by `make catalog-ingest`) — never hard-coded here.
+# the warehouse on its host-published port, and metadata is pushed to GMS. Secrets come from the
+# environment (sourced from .env by `make catalog-ingest`), never hard-coded here.
 source:
   type: postgres
   config:
@@ -9,7 +9,7 @@ source:
     database: "${ANALYTICS_DB}"
     username: catalog_reader  # read-only metadata role (X5), not the superuser
     password: "${CATALOG_READER_PASSWORD}"
-    # Only the per-domain medallion schemas — skip system and Airflow/meta schemas.
+    # Only the per-domain medallion schemas. Skip system and Airflow/meta schemas.
     schema_pattern:
       allow:
         - ".*_raw"
@@ -25,7 +25,7 @@ source:
     include_view_lineage: false
     include_view_column_lineage: false
     profiling:
-      enabled: false # keep the PoC light; turn on for stats/null-counts later
+      enabled: false # keep the PoC light, turn on for stats/null-counts later
 sink:
   type: datahub-rest
   config:

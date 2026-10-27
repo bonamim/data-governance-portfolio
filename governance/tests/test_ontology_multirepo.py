@@ -1,7 +1,7 @@
 """Definitions work the same when each domain has its own repository (ADR-0027).
 
 Every repository keeps the monorepo's paths (``domains/<domain>/…``), and a domain
-vendors the definitions it reuses from other domains, read-only, at their owner's path — as it
+vendors the definitions it reuses from other domains, read-only, at their owner's path, as it
 vendors their dbt manifests for dbt-loom. Then a contract's relative links resolve unchanged.
 """
 

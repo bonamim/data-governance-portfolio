@@ -1,6 +1,6 @@
 """The catalog: DataHub as the read model of the mesh's governance (ADR-0018).
 
-Technical metadata — datasets, lineage, dbt tests — comes from DataHub's own ingestion recipes
+Technical metadata (datasets, lineage, dbt tests) comes from DataHub's own ingestion recipes
 (``recipes/``). The governance on top of it is generated here from the definitions in git, never
 typed into the UI:
 

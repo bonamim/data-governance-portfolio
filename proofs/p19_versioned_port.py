@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Proof P19 — a versioned output port: release v2 beside v1, migrate, retire (ADR-0019 §3).
+"""Proof P19: a versioned output port. Release v2 beside v1, migrate, retire (ADR-0019 §3).
 
 ``customer.customers`` needs a breaking change (drop ``customer_zip_code_prefix``) but a consumer
 can't cut over atomically. Worked end to end on the live platform, then reverted:
 
   1. release   ``customers_v2`` (contract 2.0.0, ``version_of: customers``) is added and v1 is
                deprecated with a sunset date. Nothing breaks, so the breaking-change gate passes
-               WITHOUT approvals; every governance check passes; v1 is still read by sales (notice)
-  2. both      v1 and v2 are built side by side; v2 is masked and granted like any port; sales
+               WITHOUT approvals, every governance check passes, v1 is still read by sales (notice)
+  2. both      v1 and v2 are built side by side. v2 is masked and granted like any port, and sales
                still builds on v1, which dbt now flags as a deprecated reference
   3. sunset    after the sunset date CI fails and names sales as the consumer still on v1
   4. too early retiring v1 while sales reads it is BLOCKED by the gate
-  5. migrate   sales moves to v2 (ref + input) and rebuilds with the same numbers; retiring v1 then
-               needs only the declared consumers' sign-off — with it, the gate passes
+  5. migrate   sales moves to v2 (ref + input) and rebuilds with the same numbers. Retiring v1 then
+               needs only the declared consumers' sign-off, and with it the gate passes
 
 Run: ``make prove-p19`` (needs the platform: ``make up``).
 """
@@ -97,7 +97,7 @@ def step_release() -> None:
     v2["schema"][0]["properties"] = [
         p for p in v2["schema"][0]["properties"] if p["name"] != DROPPED
     ]
-    dump(V2_CONTRACT, v2, "# customer.customers v2 (ADR-0019 §3) — P19 worked example.\n")
+    dump(V2_CONTRACT, v2, "# customer.customers v2 (ADR-0019 §3), P19 worked example.\n")
     v1["status"] = "deprecated"
     v1.setdefault("customProperties", []).append(
         {"property": "sunsetDate", "value": SUNSET.isoformat()}
@@ -144,7 +144,7 @@ def step_release() -> None:
 
 
 def step_both() -> None:
-    print("2. Both versions served: v2 built, masked and granted; sales still on v1")
+    print("2. Both versions served: v2 built, masked and granted, sales still on v1")
     rc, out = py("platform/core/transform/publish.py", "--domain", "customer", "--no-state")
     check(rc == 0, "customer published (v1 and v2)")
     cols = [
@@ -177,7 +177,7 @@ def step_both() -> None:
     warned = "deprecat" in out.lower()
     print(
         f"  {'OK  ' if warned else 'note'} dbt flags the deprecated reference"
-        + ("" if warned else " — not surfaced through dbt-loom here")
+        + ("" if warned else ": not surfaced through dbt-loom here")
     )
 
 
@@ -296,7 +296,7 @@ def main() -> int:
     finally:
         restore(saved, before)
     return check.verdict(
-        "a breaking change ships as a new port version beside the old one — nobody breaks "
+        "a breaking change ships as a new port version beside the old one. Nobody breaks "
         "on release, the old version is retired only after its sunset is honoured, its "
         "readers have migrated and its consumers have signed off."
     )

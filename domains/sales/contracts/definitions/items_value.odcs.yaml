@@ -1,6 +1,6 @@
 businessName: Items value
 description: >-
-  Amount in BRL, two decimals, summed from the items' prices (price) — freight excluded.
+  Amount in BRL, two decimals, summed from the items' prices (price), freight excluded.
 logicalType: number
 classification: public
 authoritativeDefinitions:

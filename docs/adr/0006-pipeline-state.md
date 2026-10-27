@@ -17,12 +17,12 @@ answer, reliably and after a failure or a disaster:
 
 | State | Owner | Mechanism |
 |---|---|---|
-| **Run state** | Airflow | DAG runs and task instances in the Airflow metadata DB; every run has a data interval |
-| **Data state — files** | Ingestion ledger | `platform_meta.ingestion_ledger` in `analytics`: object key, ETag/checksum, contract version, status (`loaded`, `quarantined`), run id. A file is loaded once; a changed file (new ETag) is detected |
-| **Data state — intervals** | Airflow + dbt | Airflow passes its data interval to dbt; incremental models use the `microbatch` strategy (or `delete+insert` on the interval), so reruns and backfills are idempotent |
-| **Deployment state** | Git + dbt artifacts | Each production deploy stores `manifest.json` in a versioned MinIO bucket (`platform-state`); CI compares against it (`state:modified`) to build and test only what changed. *Designed here; the bucket is provisioned but the manifest/`state:modified` wiring lands in the [ADR-0015](0015-scaling-the-transform-layer.md) build-out.* |
-| **Interface changes** | Contract gate | Breaking changes detected on contracts (output ports) in CI — see the contract gate |
-| **Publish state** | Write-audit-publish | A table port builds to a `<name>__candidate` relation, the contract DQ runs on it, then an atomic swap publishes it; a failed check leaves consumers on the last good version. (Opt-in and materialization-aware per [ADR-0014](0014-flexible-write-audit-publish.md); reshaped to a per-model portable promote in [ADR-0015](0015-scaling-the-transform-layer.md).) |
+| **Run state** | Airflow | DAG runs and task instances in the Airflow metadata DB. Every run has a data interval |
+| **Data state: files** | Ingestion ledger | `platform_meta.ingestion_ledger` in `analytics`: object key, ETag/checksum, contract version, status (`loaded`, `quarantined`), run id. A file is loaded once, and a changed file (new ETag) is detected |
+| **Data state: intervals** | Airflow + dbt | Airflow passes its data interval to dbt, and incremental models use the `microbatch` strategy (or `delete+insert` on the interval), so reruns and backfills are idempotent |
+| **Deployment state** | Git + dbt artifacts | Each production deploy stores `manifest.json` in a versioned MinIO bucket (`platform-state`), and CI compares against it (`state:modified`) to build and test only what changed. *Designed here. The bucket is provisioned but the manifest/`state:modified` wiring lands in the [ADR-0015](0015-scaling-the-transform-layer.md) build-out.* |
+| **Interface changes** | Contract gate | Breaking changes detected on contracts (output ports) in CI (see the contract gate) |
+| **Publish state** | Write-audit-publish | A table port builds to a `<name>__candidate` relation, the contract DQ runs on it, then an atomic swap publishes it, and a failed check leaves consumers on the last good version. (Opt-in and materialization-aware per [ADR-0014](0014-flexible-write-audit-publish.md), reshaped to a per-model portable promote in [ADR-0015](0015-scaling-the-transform-layer.md).) |
 
 ## Comparison with SQLMesh
 
@@ -43,8 +43,8 @@ answer, reliably and after a failure or a disaster:
 
 A materialized (table) output port is never overwritten in place. The transform builds it to
 a `__candidate`, runs the contract's data quality against that candidate, and only an atomic
-swap promotes it. A failed audit drops the candidate and leaves the published port — and its
-consumers — on the last good version.
+swap promotes it. A failed audit drops the candidate and leaves the published port, and its
+consumers, on the last good version.
 
 ```mermaid
 flowchart TD
@@ -58,5 +58,5 @@ flowchart TD
 ```
 
 Implemented by `platform/core/transform/publish.py` (`make publish`) and the
-`generate_alias_name` macro, per model since ADR-0015 (M9); run per domain by the Airflow
+`generate_alias_name` macro, per model since ADR-0015 (M9), and run per domain by the Airflow
 transform DAGs. View ports carry no materialized data to protect and are published in place.

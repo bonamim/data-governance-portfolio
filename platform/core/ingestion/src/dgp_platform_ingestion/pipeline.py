@@ -12,7 +12,7 @@ Flow for the M1 production slice:
   gate      Drain each landing inbox through the contract gate: every delivery is filed to
             accepted/ or quarantine/ and recorded in the ledger (ADR-0024). Loads nothing.
   load-raw  Load every dataset into <domain>_raw in analytics, recording the ingestion
-            ledger. OLTP sources are read from shop_oltp; landing datasets load the accepted/
+            ledger. OLTP sources are read from shop_oltp, and landing datasets load the accepted/
             file the gate filed and no load has picked up yet (ADR-0025).
   replay    Rebuild raw from the sources of record: shop_oltp + the archive's accepted/
             files for a partition (restore drill, backfill). Never touches the inbox.
@@ -63,7 +63,7 @@ def _landing_datasets(datasets: list[Dataset]) -> list[Dataset]:
 
 # --------------------------------------------------------------------- acquire
 def acquire(repo_root: Path, settings: Settings, data_dir: Path) -> Path:
-    """Download and unzip the Olist dataset; return the cache directory."""
+    """Download and unzip the Olist dataset, and return the cache directory."""
     cache = data_dir / "olist"
     cache.mkdir(parents=True, exist_ok=True)
     needed = olist_files(load_datasets(repo_root))
@@ -99,7 +99,7 @@ def seed_oltp(
         for d, table in datasets:
             csv_path = cache / d.olist_file
             if not csv_path.exists():
-                raise FileNotFoundError(f"{csv_path} missing — run acquire first")
+                raise FileNotFoundError(f"{csv_path} missing. Run acquire first")
             rows = db.load_csv_file(conn, "shop", table, csv_path)
             log.info("seeded shop.%s (%d rows)", table, rows)
         conn.commit()
@@ -117,14 +117,14 @@ def land_files(
 
     Acts *as the partner*: authenticates with the source's write-only credentials (it can put,
     not read, list or delete) and uses the partner's own file name for the business date. In
-    production partners push on their own; this function is not deployed (ADR-0016).
+    production partners push on their own, so this function is not deployed (ADR-0016).
     """
     cache = data_dir / "olist"
     business_date = datetime.strptime(partition_date or _today_utc(), "%Y-%m-%d")
     for d in _landing_datasets(load_datasets(repo_root, domain)):
         csv_path = cache / d.olist_file
         if not csv_path.exists():
-            raise FileNotFoundError(f"{csv_path} missing — run acquire first")
+            raise FileNotFoundError(f"{csv_path} missing. Run acquire first")
         access, secret = settings.objectstore.partner_credentials(d.source_system)
         partner = ObjectStore(settings.objectstore, access, secret)
         key = layout.inbox_prefix(d.source_system, d.name) + d.delivered_name(business_date)
@@ -176,7 +176,7 @@ def contract_gate(
                 files = [store.head(o.bucket, o.key) for o in b.files]
                 gate = _Gate(analytics, store, repo_root, d, contract, rules, Path(tmp), run_id)
                 outcomes[gate.decide(files, b.partition)] += len(files)
-                if b.marker is not None:  # the partner's marker closed this batch; consumed
+                if b.marker is not None:  # the partner's marker closed this batch, consumed
                     store.delete_version(store.head(b.marker.bucket, b.marker.key))
         _ack_arrivals(settings, store, datasets)
     log.info("gate outcomes: %s", outcomes)
@@ -212,7 +212,7 @@ class _Gate:
     """Decide one batch: inspect every file, then file them all to accepted/ or quarantine/.
 
     Crash-safe order: file to the archive -> ledger commit -> delete the inbox versions. A crash
-    before the commit leaves the files in the inbox and the next run redoes them; a crash after it
+    before the commit leaves the files in the inbox and the next run redoes them. A crash after it
     is caught by the content check (``skipped``) and the inbox is drained.
     """
 
@@ -424,7 +424,7 @@ class _Gate:
             self.repo_root,
             domain=d.domain,
             kind="landing.quarantine",
-            subject=f"{self.dataset_id}: {len(found)} file(s) quarantined — {why}"[:500],
+            subject=f"{self.dataset_id}: {len(found)} file(s) quarantined: {why}"[:500],
             dedup_key=f"landing.quarantine:{self.dataset_id}:{batch_id}",
             detail={
                 "files": [i.obj.key for i in found],
@@ -563,7 +563,7 @@ def replay(
 
     For each landing dataset the newest accepted file on or before ``partition_date`` is loaded (it
     passed the gate when it arrived): datasets deliver on their own cadence, so one date need not
-    have a file for every dataset. Used by the restore drill (P9) and backfills; it never reads or
+    have a file for every dataset. Used by the restore drill (P9) and backfills. It never reads or
     drains the inbox.
     """
     datasets = load_datasets(repo_root, domain)

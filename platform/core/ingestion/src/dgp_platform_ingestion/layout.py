@@ -33,7 +33,7 @@ PARTITION_SOURCES = ("filename", "arrival")
 #   marker          a partition once the partner's completion marker for it is in the inbox
 COMPLETION_SIGNALS = ("per_file", "settle", "expected_files", "marker")
 BATCH_SIGNALS = ("expected_files", "marker")
-# Accepted-file retention classes; each has exactly one archive lifecycle rule (minio-init).
+# Accepted-file retention classes. Each has exactly one archive lifecycle rule (minio-init).
 RETENTION_CLASSES = (90, 365, 2555)
 
 ACCEPTED = "accepted"
@@ -151,7 +151,7 @@ class LandingRules:
         """The partition that must be in by now, and its deadline (None: no deadline declared).
 
         A daily dataset with timeOfAvailability 04:00 and a one-day latency owes dt=D-1 by 04:00
-        on day D; before that deadline, the previous day's partition is the one checked.
+        on day D. Before that deadline, the previous day's partition is the one checked.
         """
         if self.time_of_availability is None:
             return None
@@ -185,7 +185,7 @@ class LandingRules:
 
     def in_future(self, partition: str, now: datetime) -> bool:
         """Does a file-name partition start after tomorrow (UTC)? A business date from the future
-        is a partner error; filed as delivered it would pose as the newest data."""
+        is a partner error. Filed as delivered it would pose as the newest data."""
         m = re.match(r"dt=(\d{4})-(\d{2})(?:-(\d{2}))?", partition)
         if self.partition_source != "filename" or not m:
             return False
@@ -309,5 +309,5 @@ def catalog_name(archive_bucket: str, source: str, dataset: str) -> str:
 
 
 def _safe(run_id: str) -> str:
-    # Airflow run ids contain ':' and '+'; keep keys portable across object stores and shells.
+    # Airflow run ids contain ':' and '+'. Keep keys portable across object stores and shells.
     return re.sub(r"[^A-Za-z0-9._=-]", "_", run_id)

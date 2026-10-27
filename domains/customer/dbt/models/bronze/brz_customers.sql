@@ -1,4 +1,4 @@
--- Bronze: standardized customers (typed/cased). Internal; still holds raw PII.
+-- Bronze: standardized customers (typed/cased). Internal, still holds raw PII.
 select
     customer_id,
     customer_unique_id,
