@@ -36,7 +36,9 @@ an exported value type has no description.
 `OrderId` means what schema.org calls an order number. Nothing is fetched at run time. It is a
 global identifier other ontologies and tools can match on (two documents that both use
 `schema:Order` talk about the same thing), and it is optional. Set it only when the vocabulary's
-definition really is ours: a wrong `iri` is a false equivalence, which is worse than none.
+definition really is ours: a wrong `iri` is a false equivalence, which is worse than none. For
+example `PaymentAmount` has none, because schema.org's `totalPaymentDue` is the amount *due* on an
+invoice, not the amount paid, and `ZipCodePrefix` has none, because `postalCode` is a full code.
 
 ## 2. How a term reaches each asset: the links
 
@@ -144,10 +146,11 @@ viewer planned (no issue or roadmap item). This is a community tool: read it, do
   sensitivity), written once and linked from every column that holds it. Nobody retypes a column
   description. Most data elements are not business terms (`StateCode`, `OrderId`), and some carry one
   (`PaymentAmount`).
-- **One name per thing, from one place.** A glossary term is named by its ontology concept
-  (`PaymentAmount`), because Ossie has no label field. The readable label ("Amount paid") is the
-  data element's ODCS `businessName`. The concept's `description` defines it and does not repeat
-  the label.
+- **One name per thing, from one place.** The concept's PascalCase name (`PaymentAmount`) is the
+  only name stored, because Ossie has no label field. Business users see its readable form,
+  derived by splitting at each capital ("Payment Amount"), on the glossary term and on the column's
+  *Data element*. No file writes a second label: `businessName` is refused on definitions and
+  linked columns. The concept's `description` defines it and does not repeat the name.
 - **Both meet on the column**: a column has exactly one data element, and, when the business has a
   rule about it, the business term too. One column name meaning two things (`total_revenue`) is
   visible because the two columns link different data elements.

@@ -38,9 +38,10 @@ def _columns(contract: dict) -> dict[str, dict]:
 def test_a_domain_repository_resolves_its_contracts_with_vendored_definitions(tmp_path):
     contract = _columns(odcs.load(_customer_repo(tmp_path, REUSED)))
 
-    assert contract["customer_id"]["businessName"] == "Customer key (per order)"  # sales' meaning
+    sales_meaning = contract["customer_id"]["description"]
+    assert sales_meaning.startswith("32-character hexadecimal key")  # sales' meaning
     assert contract["customer_unique_id"]["classification"] == "restricted"  # the domain's own
-    assert contract["customer_state"]["businessName"] == "State"  # reference's
+    assert contract["customer_state"]["classification"] == "public"  # reference's
 
 
 def test_a_missing_vendored_definition_is_a_clear_error_not_a_silent_gap(tmp_path):
@@ -62,4 +63,4 @@ def test_datacontract_cli_resolves_the_domain_repository_too(tmp_path):
     )
 
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "Customer key (per order)" in r.stdout
+    assert "32-character hexadecimal key" in r.stdout

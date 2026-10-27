@@ -1,4 +1,3 @@
-businessName: Survey answered at
 description: When the customer answered the satisfaction survey, empty if not answered yet.
 logicalType: date
 classification: public

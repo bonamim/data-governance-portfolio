@@ -21,16 +21,18 @@ reference domain), and every contract column that means it links there and inher
        whose folder defines it, an entity type to the domain that defines its identifying value
        types. That domain is registered, and it also defines every value type the entity type
        declares first.
-    5. A definition is a valid ODCS property carrying meaning only (description, business name, a
-       taxonomy classification, and a logicalType that agrees with what its value type extends),
-       and nothing table-specific (physical type, keys, required, quality…).
+    5. A definition is a valid ODCS property carrying meaning only (a description, a taxonomy
+       classification, and a logicalType that agrees with what its value type extends), and
+       nothing table-specific (physical type, keys, required, quality…). It sets no
+       ``businessName``: the readable name is derived from the concept's name, the one source.
     6. Every definition is used by a contract column.
 
   Contracts (output ports and landing)
     7. A column takes its meaning only from a definition: any link datacontract-cli resolves
        (``businessDefinition``, the ODCS type, or ``semantics``/``definition``) points at a
        definition file, and resolves.
-    8. One place per fact: a linked column does not restate what its definition says, or blank it.
+    8. One place per fact: a linked column does not restate what its definition says, or blank it,
+       and sets no ``businessName`` (the readable name is its concept's).
     9. A linked column's logicalType does not contradict its definition's.
     10. A column name used in two or more contracts links a definition in every one of them. Two
        definitions under one name is a homonym, and it is explicit: each column links its own.
@@ -90,7 +92,6 @@ TABLE_SPECIFIC = {
 }
 NOT_RESTATED = [
     "description",
-    "businessName",
     "classification",
     "logicalTypeOptions",
     "synonyms",
@@ -259,9 +260,13 @@ def _definition_content_violations(
             f"definition '{name}': {sorted(specific)} are table-specific. Keep them on the "
             "contract column"
         )
-    for key in ("description", "businessName"):
-        if not str(prop.get(key) or "").strip():
-            out.append(f"definition '{name}': needs a {key}")
+    if not str(prop.get("description") or "").strip():
+        out.append(f"definition '{name}': needs a description")
+    if "businessName" in prop:
+        out.append(
+            f"definition '{name}': remove businessName. The readable name is derived from the "
+            "concept's name, the one source"
+        )
     if prop.get("classification") not in classifications:
         out.append(f"definition '{name}': classification must be one of {sorted(classifications)}")
     values = {n for n, c in defined.items() if c.get("type") == "ValueType"}
@@ -322,6 +327,11 @@ def _column_violations(prop: dict, meaning: dict, concept: str, where: str) -> l
     logicalType."""
     col = prop.get("name", "?")
     out = []
+    if "businessName" in prop:
+        out.append(
+            f"{where}: column '{col}' sets businessName. Remove it: the readable name is "
+            f"{concept}'s, derived from the concept"
+        )
     for key in NOT_RESTATED:
         if key not in prop:
             continue

@@ -42,7 +42,7 @@ what is true of the idea everywhere. Every file and field follows an existing st
 | Path | Holds | Maintained by | Standard |
 |---|---|---|---|
 | `governance/ontology/commerce.ontology.yaml` | The **business terms**: entity types and the value types the business has a rule about, each with a business definition (meaning, rule, use), plus relationships, identifiers and IRIs | the governance guild (one representative per domain + platform, CODEOWNERS), a federated artefact | **Apache Ossie** 0.2.0.dev0, checked with **Ossie's own validator** |
-| `domains/<d>/contracts/definitions/<value_type>.odcs.yaml` | The **data elements**, i.e. the data dictionary: what a column holding each value type the domain owns contains (description, business name, classification, logical type + options, synonyms, examples) | **the owning domain** (its folder, its CODEOWNERS) | an **ODCS property**, in datacontract-cli's layout of definitions next to the contracts that use them |
+| `domains/<d>/contracts/definitions/<value_type>.odcs.yaml` | The **data elements**, i.e. the data dictionary: what a column holding each value type the domain owns contains (description, classification, logical type + options, synonyms, examples) | **the owning domain** (its folder, its CODEOWNERS) | an **ODCS property**, in datacontract-cli's layout of definitions next to the contracts that use them |
 | `domains/reference/contracts/definitions/` | Shared place data elements (zip-code prefix, city, state). Other domains *link* them to reuse the meaning. *Reading* the reference domain's data needs its output port, like any domain's (none yet) | the reference domain, a domain like the others with its own team | same |
 | `governance/tags/sensitivity.yaml`, `privacy_category.yaml` | The governed tags, one file per tag: **sensitivity** (restricted, confidential, internal, public, from ODCS `classification`) and **privacy category** (identifier, quasi_identifier, sensitive, from the custom property `privacyCategory`) | the governance guild | the **Snowflake-provided** tags `SNOWFLAKE.TAGS.SENSITIVITY` and `SNOWFLAKE.CORE.PRIVACY_CATEGORY`, and DataHub tags |
 | `dgp_platform_semantics/vendor/ossie/` | Ossie's validator and schemas, copied unchanged at a pinned commit | platform | Apache Ossie |
@@ -77,7 +77,7 @@ Lifecycle approval is the pull request: a definition merged to `main` is approve
 ```
 
 The type says *what* the link means, not *which fields* come over: datacontract-cli inlines every
-element the definition sets (description, business name, **classification**, logical type,
+element the definition sets (description, **classification**, logical type,
 synonyms, examples) wherever the column leaves it unset, and **what the contract sets itself
 wins**. The platform reads every contract the same way through `dgp_platform_contracts.odcs` (its
 rules pinned to the CLI's by a conformance test), so masking, grants, the catalog, dbt sync, the
@@ -88,7 +88,7 @@ declares them.
 ### What goes where
 | In the definition (meaning) | On the contract column (this table) |
 |---|---|
-| description, businessName, classification, logicalType (+ options such as a 1 to 5 range), synonyms, examples | name, physicalType, required, unique, primaryKey, quality rules, masking policy (`customProperties`) |
+| description, classification, logicalType (+ options such as a 1 to 5 range), synonyms, examples | name, physicalType, required, unique, primaryKey, quality rules, masking policy (`customProperties`) |
 | | an override where context changes the meaning: a customer's zip prefix is `internal` (with city and state it narrows a person down) though the definition says `public` |
 
 A column writes nothing it would only copy: most columns are a name, a link and their physical
@@ -134,12 +134,15 @@ declares the entity one row is with an ODCS `ontology` link on its schema object
 (`sales_performance`, one row per state) declares none. How each kind of asset gets its meaning
 (column, table, metric, data product, chart) is in the standard.
 
-**Each name has one source.** A glossary term is named by its ontology concept (`CustomerKey`,
-`PaymentAmount`), the only name Ossie has: an Ossie concept has no label field, and its schema
-allows no extra one. The readable label is the data element's ODCS `businessName` ("Customer key
-(per order)", "Amount paid"), shown with the column's *Data element*. A concept's `description` is
-its definition and does not repeat that label. A friendlier glossary label, if one is ever needed,
-comes from the concept's `iri` (the shared vocabulary it points to), not from a second field here.
+**Each name has one source: the concept's name.** An Ossie concept has no label field, and its
+schema allows no extra one, so the PascalCase name (`CustomerKey`, rule 1) is the only name stored.
+Its readable form is derived, never written: split at each capital, `CustomerKey` → "Customer Key"
+(`dgp_governance.registry.display_name`). A catalog shows the readable form (the DataHub glossary
+term and the column's *Data element*, as Snowflake Horizon names a node "Gross Margin"), with the
+concept kept as a property. A technical tool (the Ossie bundle, the Visualizer, the AI tools) shows
+the concept itself. No file holds a second label: the ODCS `businessName` is optional, and the
+check refuses it on a definition or a linked column (rules 4 and 7), so a label cannot drift from
+the concept. A concept's `description` is its definition and does not repeat the name.
 
 ### Governed tags: sensitivity and privacy, applied by the build
 Business terms say what a column *means*. Governed tags say how it must be *protected*, and are
@@ -188,17 +191,19 @@ the semantic model. Three changes keep each fact in one place:
   pull request.
 
 ### Rules: `governance/policies/check_ontology.py` (`make check`, CI)
-1. One ontology document, passed by Ossie's own validator (schema, unique names, references).
+1. One ontology document, passed by Ossie's own validator (schema, unique names, references), with
+   concept names in PascalCase and relationship names in snake_case.
 2. Value types and definition files match one to one, and none is defined twice.
 3. An entity type's identifying value types are defined by one registered domain, its owner, which
    also defines every value type the entity type declares first.
 4. A definition is a valid ODCS property carrying meaning only (no physical type, keys,
    `required` or quality), and its `logicalType` agrees with the built-in its value type extends.
+   It sets no `businessName`: the readable name is derived from the concept.
 5. Every definition is used by a contract column.
 6. A column takes its meaning only from a definition: any link datacontract-cli resolves points at a
    `contracts/definitions/` file, and resolves.
 7. One place per fact: a linked column does not restate or blank its definition's description,
-   business name, classification, options, synonyms or examples.
+   classification, options, synonyms or examples, and sets no `businessName`.
 8. A linked column's `logicalType` does not contradict its definition's.
 9. A column name used in two or more contracts is linked in all of them (a homonym links two
    definitions).

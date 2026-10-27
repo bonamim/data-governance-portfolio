@@ -9,6 +9,7 @@ concept. Those copies used to drift apart.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from dgp_platform_contracts import odcs
@@ -96,6 +97,13 @@ def definition_files(base: Path | None = None) -> dict[str | None, list[Path]]:
     for path in sorted((base or root()).glob("domains/*/contracts/definitions/*.odcs.yaml")):
         out.setdefault(ontology_link(load_yaml(path)), []).append(path)
     return out
+
+
+def display_name(concept: str) -> str:
+    """The readable name of an ontology concept, derived from its PascalCase name (``CustomerKey``
+    -> ``Customer Key``). Ossie has no label field, so the name is the one source: a catalog shows
+    this, a technical tool the concept itself, and nothing stores a second label (ADR-0027)."""
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", concept)
 
 
 def concepts() -> dict[str, dict]:

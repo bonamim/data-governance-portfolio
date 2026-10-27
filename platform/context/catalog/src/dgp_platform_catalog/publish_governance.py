@@ -124,9 +124,9 @@ def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
     """The business glossary and the data dictionary (ADR-0027).
 
     * Business glossary (glossary terms, grouped by the responsible domain, which owns each term):
-      every entity type, and every value type the ontology gives a business definition. A term is
-      named by its ontology concept. The ODCS ``businessName`` labels the data element, not the
-      term.
+      every entity type, and every value type the ontology gives a business definition. A term
+      shows the readable name of its concept (``CustomerKey`` -> "Customer Key"), and keeps the
+      concept itself as a property.
     * Data dictionary (the ``Data element`` structured property): its allowed values are the data
       elements, each with its definition. Every linked column carries the one it is. A data element
       is not a business term, so it is not a glossary term.
@@ -182,12 +182,18 @@ def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
 
     for name, e in entities.items():
         related = [v for v, owner in entity_of.items() if owner == name and v in business_values]
-        term(name, name, " ".join(e["description"].split()), e["owner"], related)
+        term(
+            name,
+            registry.display_name(name),
+            " ".join(e["description"].split()),
+            e["owner"],
+            related,
+        )
     for value in sorted(business_values):
         definition = " ".join(str(defined[value]["description"]).split())
         term(
             value,
-            value,
+            registry.display_name(value),
             definition,
             value_owner[value],
             [entity_of[value]] if value in entity_of else [],
@@ -208,7 +214,7 @@ def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
                 allowedValues=[
                     PropertyValueClass(
                         value=name,
-                        description=f"{element.get('businessName', name)} ({value_owner[name]}): "
+                        description=f"{registry.display_name(name)} ({value_owner[name]}): "
                         + " ".join(str(element.get("description", "")).split()),
                     )
                     for name, element in sorted(meaning.items())

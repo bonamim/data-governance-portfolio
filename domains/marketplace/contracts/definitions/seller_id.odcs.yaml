@@ -1,4 +1,3 @@
-businessName: Seller id
 description: Identifies one seller on the marketplace.
 logicalType: string
 classification: internal

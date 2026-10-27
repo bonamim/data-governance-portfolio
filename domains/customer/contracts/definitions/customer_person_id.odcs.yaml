@@ -1,4 +1,3 @@
-businessName: Customer person id
 description: >-
   Identifies a person across all their orders. Personal data: count people with it, read it
   pseudonymised.

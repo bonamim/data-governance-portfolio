@@ -165,7 +165,6 @@ ontology:
   - concept: PaymentAmount
     type: ValueType
     extends: [Decimal]
-    iri: schema:totalPaymentDue
     description: >-
       Revenue as received. Rule: everything customers paid for orders, all payments
       summed, including freight and instalment interest. Used for: revenue reporting by region
@@ -207,7 +206,6 @@ ontology:
   - concept: ZipCodePrefix
     type: ValueType
     extends: [String]
-    iri: schema:postalCode
 
   - concept: CityName
     type: ValueType

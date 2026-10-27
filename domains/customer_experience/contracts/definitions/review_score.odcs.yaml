@@ -1,4 +1,3 @@
-businessName: Review score
 description: >-
   Whole number from 1 (worst) to 5 (best), the customer's survey answer.
 logicalType: integer

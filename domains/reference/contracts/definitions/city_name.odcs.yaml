@@ -1,4 +1,3 @@
-businessName: City
 description: Name of a Brazilian city as entered in the source (lower case, not normalised).
 logicalType: string
 classification: public

@@ -1,4 +1,3 @@
-businessName: State
 description: Two-letter code of a Brazilian state (e.g. SP, RJ).
 logicalType: string
 classification: public

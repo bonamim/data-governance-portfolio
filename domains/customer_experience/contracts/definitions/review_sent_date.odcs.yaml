@@ -1,4 +1,3 @@
-businessName: Survey sent date
 description: Date the satisfaction survey was sent to the customer.
 logicalType: date
 classification: public

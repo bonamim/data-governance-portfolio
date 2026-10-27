@@ -1,4 +1,3 @@
-businessName: Review id
 description: >-
   Identifies one satisfaction-survey answer. Not unique on its own: the same review id can appear
   on several orders.

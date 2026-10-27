@@ -7,6 +7,7 @@ from pathlib import Path
 import check_ontology
 import pytest
 import yaml
+from dgp_governance import registry
 
 DOMAINS = {"customer", "sales"}
 CLASSES = {"restricted", "confidential", "internal", "public"}
@@ -32,7 +33,6 @@ ONTOLOGY = {
     ],
 }
 ORDER_ID = {
-    "businessName": "Order id",
     "description": "Identifies one order.",
     "logicalType": "string",
     "classification": "internal",
@@ -116,7 +116,7 @@ def test_an_entity_types_value_types_are_defined_by_its_owner(tmp_path):
     onto = copy.deepcopy(ONTOLOGY)
     onto["ontology"][0]["relationships"].append(_relationship("has_status", "OrderStatus"))
     onto["ontology"].append({"concept": "OrderStatus", "type": "ValueType", "extends": ["String"]})
-    status = {**ORDER_ID, "businessName": "Order status", "description": "Lifecycle status."}
+    status = {**ORDER_ID, "description": "Lifecycle status."}
     definitions = {
         "OrderId": [_define(tmp_path, "sales", "order_id", ORDER_ID)],
         "OrderStatus": [_define(tmp_path, "customer", "order_status", status)],
@@ -246,7 +246,7 @@ def test_a_homonym_is_explicit_two_definitions_under_one_name(tmp_path):
     for i, (term, value_type) in enumerate(
         (("order_status", "OrderStatus"), ("payment_status", "PaymentStatus")), start=1
     ):
-        meaning = {**ORDER_ID, "businessName": term, "description": f"The {term}."}
+        meaning = {**ORDER_ID, "description": f"The {term}."}
         definitions[value_type] = [_define(tmp_path, "sales", term, meaning)]
         _contract(tmp_path, i, {"name": "status", "authoritativeDefinitions": _link(term)})
 
@@ -301,3 +301,14 @@ def test_a_relationship_is_named_in_snake_case(tmp_path):
     found = _violations(tmp_path, onto=onto)
 
     assert any("relationship 'hasOrderId': name it in snake_case" in v for v in found)
+
+
+def test_the_readable_name_is_derived_from_the_concept_never_stored(tmp_path):
+    labelled = {**ORDER_ID, "businessName": "Order id"}
+    definitions = {"OrderId": [_define(tmp_path, "sales", "order_id", labelled)]}
+
+    found = _violations(tmp_path, definitions=definitions)
+
+    assert any("definition 'OrderId': remove businessName" in v for v in found)
+    assert registry.display_name("CustomerKey") == "Customer Key"
+    assert registry.display_name("OrderId") == "Order Id"

@@ -1,4 +1,3 @@
-businessName: Zip-code prefix
 description: >-
   First five digits of a Brazilian zip code (CEP), as text so leading zeros are kept. Locates a
   place to roughly a neighbourhood.
