@@ -8,7 +8,10 @@ reference domain), and every contract column that means it links there and inher
 
   Ontology
     1. There is one ontology document, and Ossie's own validator passes it (vendored, unchanged:
-       ``dgp_platform_semantics/vendor/ossie/``): schema, unique names, references.
+       ``dgp_platform_semantics/vendor/ossie/``): schema, unique names, references. Concept
+       names are PascalCase (``CustomerKey``, ``OrderId``) and relationship names snake_case
+       (``placed_by``), as Ossie's examples write them: a name is an identifier, referenced from
+       ``verbalizes``, the mappings, ODCS links and catalog URNs, so it never holds a space.
     2. Value types and data element files match one to one: each file names the value type it holds
        with an ODCS ``ontology`` link (``<…>.ontology.yaml#<ValueType>``) that resolves. No value
        type is defined twice. Governed-tag values (``privacyCategory``) are allowed values.
@@ -41,6 +44,7 @@ customer's zip-code prefix is internal, the definition's public), and the contra
 
 from __future__ import annotations
 
+import re
 import sys
 from collections import defaultdict
 from collections.abc import Iterator
@@ -155,6 +159,27 @@ def _definition_file_violations(definitions: dict[str | None, list[Path]], base:
     return out
 
 
+PASCAL_CASE = re.compile(r"[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)*")
+SNAKE_CASE = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*")
+
+
+def _naming_violations(defined: dict[str, dict]) -> list[str]:
+    """Rule 1: concept names are PascalCase and relationship names snake_case."""
+    out = [
+        f"concept '{name}': name it in PascalCase, e.g. CustomerKey or OrderId (no spaces, "
+        "underscores or all-caps acronyms)"
+        for name in sorted(n for n in defined if n and not PASCAL_CASE.fullmatch(n))
+    ]
+    for name, concept in sorted(defined.items(), key=lambda item: str(item[0])):
+        out += [
+            f"concept '{name}': relationship '{r.get('name')}': name it in snake_case, "
+            "e.g. placed_by"
+            for r in concept.get("relationships") or []
+            if not SNAKE_CASE.fullmatch(str(r.get("name") or ""))
+        ]
+    return out
+
+
 def _term_violations(
     defined: dict[str, dict], definitions: dict[str, list[Path]], base: Path
 ) -> list[str]:
@@ -262,6 +287,7 @@ def ontology_violations(
     defined = {c.get("concept"): c for c in onto.get("ontology") or []}
     named = {n: p for n, p in definitions.items() if n}
     out = [f"ontology: {e}" for e in ossie.validate(onto)]
+    out += _naming_violations(defined)
     out += _definition_file_violations(definitions, base)
     out += _term_violations(defined, named, base)
     out += _ownership_violations(defined, named, domains, base)

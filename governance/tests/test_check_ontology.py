@@ -282,3 +282,22 @@ def test_a_table_names_the_entity_type_it_represents(tmp_path, url, message):
     f.write_text(yaml.safe_dump(doc), encoding="utf-8")
 
     assert any(message in v for v in _contract_violations(tmp_path, definitions))
+
+
+@pytest.mark.parametrize("name", ["Payment Amount", "payment_amount", "OrderID", "paymentAmount"])
+def test_a_concept_is_named_in_pascal_case(tmp_path, name):
+    onto = copy.deepcopy(ONTOLOGY)
+    onto["ontology"][0]["concept"] = name
+
+    found = _violations(tmp_path, onto=onto)
+
+    assert any(f"concept '{name}': name it in PascalCase" in v for v in found)
+
+
+def test_a_relationship_is_named_in_snake_case(tmp_path):
+    onto = copy.deepcopy(ONTOLOGY)
+    onto["ontology"][0]["relationships"][0]["name"] = "hasOrderId"
+
+    found = _violations(tmp_path, onto=onto)
+
+    assert any("relationship 'hasOrderId': name it in snake_case" in v for v in found)

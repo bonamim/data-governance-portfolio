@@ -57,7 +57,7 @@ Lifecycle approval is the pull request: a definition merged to `main` is approve
 | Item | Convention | Source |
 |---|---|---|
 | Ontology file | `<name>.ontology.yaml`, one document | Ossie (`examples/flights.ontology.yaml`). Its validator requires every referenced concept in the same document |
-| Concept names | PascalCase (`CustomerKey`), relationships snake_case (`placed_by`), value types written in block style | Ossie examples |
+| Concept names | PascalCase (`CustomerKey`), relationships snake_case (`placed_by`), value types written in block style. Checked by rule 1: a name is an identifier, never a label | Ossie examples |
 | Identifiers / attributes | `identify_by`, with `OneToOne` for an identifier and `ManyToOne` for an attribute. Compound identifiers are allowed | Ossie spec (a Review is identified by review id *and* order, as Ossie's Runway is by designator and airport) |
 | Value-type base | `extends: [String \| Integer \| Date …]` | Ossie built-in concepts |
 | Global identifiers | `iri` with `prefixes` (`schema:Order`) | Ossie spec |
