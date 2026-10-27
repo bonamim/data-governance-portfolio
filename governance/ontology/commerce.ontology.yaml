@@ -153,8 +153,8 @@ ontology:
     type: ValueType
     extends: [String]
     description: >-
-      Customer key (per order). Rule: the marketplace issues a new customer key with every order,
-      so the key identifies the customer record of one order, not the person. Used for: joining an
+      The key of the customer record of one order. Rule: the marketplace issues a new customer key
+      with every order, so the key identifies the customer record of one order, not the person. Used for: joining an
       order to its customer record. Never used to count customers. That is CustomerPersonId.
 
   - concept: OrderId
@@ -167,7 +167,7 @@ ontology:
     extends: [Decimal]
     iri: schema:totalPaymentDue
     description: >-
-      Amount paid: revenue as received. Rule: everything customers paid for orders, all payments
+      Revenue as received. Rule: everything customers paid for orders, all payments
       summed, including freight and instalment interest. Used for: revenue reporting by region
       (sales_performance.total_revenue). Not for seller performance or payouts: use ItemsValue.
 
@@ -175,7 +175,7 @@ ontology:
     type: ValueType
     extends: [Decimal]
     description: >-
-      Items value: merchandise revenue. Rule: the items sold at their price, excluding freight and
+      Merchandise revenue. Rule: the items sold at their price, excluding freight and
       payment costs. Used for: seller performance (seller_performance.total_revenue). It is lower
       than PaymentAmount by the freight and the instalment interest customers pay.
 
@@ -188,7 +188,7 @@ ontology:
     extends: [Integer]
     iri: schema:reviewRating
     description: >-
-      Customer satisfaction score. Rule: the customer's answer to the post-order survey, from 1
+      How satisfied the customer was with an order. Rule: the customer's answer to the post-order survey, from 1
       (worst) to 5 (best); an unanswered survey has no score. Used for: satisfaction by region
       (sales_performance.avg_review_score).
 

@@ -147,6 +147,7 @@
                      ~ "'::timestamp and " ~ et ~ " < '" ~ window_end ~ "'::timestamp") -%}
     {%- do run_query("insert into " ~ r.port_name ~ " (" ~ cols ~ ") select " ~ cols
                      ~ " from " ~ r.cand_name) -%}
+    {%- do dgp_dbt._wap_copy_docs(r.port_name, r.cand_name) -%}
     {%- do run_query("drop table " ~ r.cand_name) -%}
     {{ log("  published " ~ r.port_name ~ " (audit passed, merged batches " ~ window_start
            ~ " .. " ~ window_end ~ ")", info=True) }}
@@ -158,18 +159,7 @@
     {%- do run_query("truncate " ~ r.port_name) -%}
     {%- do run_query("insert into " ~ r.port_name ~ " (" ~ cols ~ ") select " ~ cols
                      ~ " from " ~ r.cand_name) -%}
-    {%- set copy_docs -%}
-      do $$ declare c record; begin
-        execute format('comment on table %s is %L', '{{ r.port_name }}',
-                       obj_description(to_regclass('{{ r.cand_name }}'), 'pg_class'));
-        for c in select attname, col_description(attrelid, attnum) as doc from pg_attribute
-                 where attrelid = to_regclass('{{ r.cand_name }}') and attnum > 0
-                   and not attisdropped loop
-          execute format('comment on column %s.%I is %L', '{{ r.port_name }}', c.attname, c.doc);
-        end loop;
-      end $$
-    {%- endset -%}
-    {%- do run_query(copy_docs) -%}
+    {%- do dgp_dbt._wap_copy_docs(r.port_name, r.cand_name) -%}
     {%- do run_query("drop table " ~ r.cand_name) -%}
     {{ log("  published " ~ r.port_name ~ " (audit passed, replaced in place)", info=True) }}
 
@@ -200,4 +190,21 @@
   {%- do run_query("drop table if exists " ~ r.cand_name) -%}
   {{ log("  QUARANTINED " ~ r.port_name ~ ": audit failed, candidate dropped, last good kept",
          info=True) }}
+{% endmacro %}
+
+{#- The docs dbt persisted on the candidate (table and column comments) carried over to the port,
+    so a changed description reaches the warehouse however the rows were published. -#}
+{% macro _wap_copy_docs(port_name, cand_name) %}
+  {%- set copy_docs -%}
+    do $$ declare c record; begin
+      execute format('comment on table %s is %L', '{{ port_name }}',
+                     obj_description(to_regclass('{{ cand_name }}'), 'pg_class'));
+      for c in select attname, col_description(attrelid, attnum) as doc from pg_attribute
+               where attrelid = to_regclass('{{ cand_name }}') and attnum > 0
+                 and not attisdropped loop
+        execute format('comment on column %s.%I is %L', '{{ port_name }}', c.attname, c.doc);
+      end loop;
+    end $$
+  {%- endset -%}
+  {%- do run_query(copy_docs) -%}
 {% endmacro %}

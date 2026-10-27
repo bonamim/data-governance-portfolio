@@ -13,7 +13,7 @@ responsible, and what it is used for.
 
 | Layer | Answers | Example | Defined in | Maintained by |
 |---|---|---|---|---|
-| **Business term** | What does the business mean, by what rule, for what use? | *Customer* (a person, counted by person id, never by key), *Amount paid* vs *Items value* | the ontology, `governance/ontology/commerce.ontology.yaml` (Apache Ossie): an entity type, or a value type with a business `description` | the domain responsible for it (owner of the entity type), and the ontology's structure by the governance guild |
+| **Business term** | What does the business mean, by what rule, for what use? | `Customer` (a person, counted by person id, never by key), `PaymentAmount` vs `ItemsValue` | the ontology, `governance/ontology/commerce.ontology.yaml` (Apache Ossie): an entity type, or a value type with a business `description` | the domain responsible for it (owner of the entity type), and the ontology's structure by the governance guild |
 | **Metric**: a business term with a formula | How is it calculated? | `valid_order_count` (orders not canceled or unavailable). An LTV would live here | the domain's Ossie semantic model, `domains/<d>/semantics/*.semantic_model.yaml`, where the formula is executable SQL | the domain |
 | **Data element** | What does a column holding this value contain: format, type, sensitivity? | *StateCode* (two-letter state code), *OrderId* | `domains/<d>/contracts/definitions/<term>.odcs.yaml` (ODCS property) | the domain that owns the value |
 | **Reference data** | Which values exist / are allowed? | the Brazilian states and zip-code prefixes | a kind of data any domain can own, here the geolocation data of the **reference domain** | the owning domain |
@@ -102,7 +102,9 @@ data element's description, the compiled semantic models, the generated mappings
 Ossie tool. The
 open-source [Ossie Visualizer](https://github.com/blankmeadow/ossie-visualizer) (Apache-2.0, runs
 in the browser) reads them as they are: entity types and relationships as a graph, the
-definitions, search and one/two-hop focus. It is packaged ready to run:
+definitions, search and one/two-hop focus. It lists and draws entity types only: a value type
+(`CustomerKey`) appears as the type of an entity's attribute, and its definition is read in the
+**Source** tab or on its DataHub glossary term. It is packaged ready to run:
 
 ```bash
 make ossie-ui        # builds the bundle, starts the Visualizer on http://127.0.0.1:4178
@@ -121,12 +123,16 @@ viewer planned (no issue or roadmap item). This is a community tool: read it, do
 ## 7. Explaining it to business and data product teams
 
 - **Business teams own the business glossary.** A term says what the business means, the rule, and
-  what it is used for. *Amount paid* is everything customers paid, freight and interest included.
-  *Items value* is the merchandise only. Their domain is the term's owner in the catalog.
+  what it is used for. `PaymentAmount` is everything customers paid, freight and interest included.
+  `ItemsValue` is the merchandise only. Their domain is the term's owner in the catalog.
 - **Data product teams own data elements.** A data element says what a column holds (format, type,
   sensitivity), written once and linked from every column that holds it. Nobody retypes a column
   description. Most data elements are not business terms (`StateCode`, `OrderId`), and some carry one
   (`PaymentAmount`).
+- **One name per thing, from one place.** A glossary term is named by its ontology concept
+  (`PaymentAmount`), because Ossie has no label field. The readable label ("Amount paid") is the
+  data element's ODCS `businessName`. The concept's `description` defines it and does not repeat
+  the label.
 - **Both meet on the column**: a column has exactly one data element, and, when the business has a
   rule about it, the business term too. One column name meaning two things (`total_revenue`) is
   visible because the two columns link different data elements.

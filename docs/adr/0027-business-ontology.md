@@ -114,7 +114,7 @@ layers keep that apart (DAMA-DMBOK's glossary / data dictionary / reference data
 
 | Layer | Here | Example |
 |---|---|---|
-| Business term | the ontology: entity types, and value types with a business `description` | *Customer*, *Order*, *Amount paid* vs *Items value*, *Customer key (per order)* |
+| Business term | the ontology: entity types, and value types with a business `description` | `Customer`, `Order`, `PaymentAmount` vs `ItemsValue`, `CustomerKey` |
 | Metric (a business term with a formula) | the domain's Ossie semantic model, where the formula is executable | `valid_order_count` (an LTV would live here) |
 | Data element | `domains/<d>/contracts/definitions/`, linked from every column | `StateCode`, `OrderId` |
 | Reference data | the reference domain's data products | the Brazilian states and zip prefixes |
@@ -128,11 +128,18 @@ terms, grouped by the responsible domain, which owns each). A data element is no
 it is the *Data element* structured property on the column. Its allowed values are the data
 dictionary, each with its definition, and the column's description is the data element's,
 inherited. A column carries a business term when its data element is one (`review_score` →
-*Review score*) or identifies or refers to an entity (`order_id` → *Order*). A table, view or file
+`ReviewScore`) or identifies or refers to an entity (`order_id` → *Order*). A table, view or file
 declares the entity one row is with an ODCS `ontology` link on its schema object
 (`…commerce.ontology.yaml#Order`) and carries that entity's term. An aggregate of several entities
 (`sales_performance`, one row per state) declares none. How each kind of asset gets its meaning
 (column, table, metric, data product, chart) is in the standard.
+
+**Each name has one source.** A glossary term is named by its ontology concept (`CustomerKey`,
+`PaymentAmount`), the only name Ossie has: an Ossie concept has no label field, and its schema
+allows no extra one. The readable label is the data element's ODCS `businessName` ("Customer key
+(per order)", "Amount paid"), shown with the column's *Data element*. A concept's `description` is
+its definition and does not repeat that label. A friendlier glossary label, if one is ever needed,
+comes from the concept's `iri` (the shared vocabulary it points to), not from a second field here.
 
 ### Governed tags: sensitivity and privacy, applied by the build
 Business terms say what a column *means*. Governed tags say how it must be *protected*, and are

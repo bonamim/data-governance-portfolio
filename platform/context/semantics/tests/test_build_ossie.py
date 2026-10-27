@@ -7,7 +7,8 @@ def test_export_is_a_valid_ossie_document_with_every_value_types_description():
     doc = build_ossie.export()  # validates against Ossie's JSON Schema, or raises
 
     values = {c["concept"]: c for c in doc["ontology"] if c["type"] == "ValueType"}
-    assert values["CustomerKey"]["description"].startswith("Customer key (per order). Rule:")
+    definition = values["CustomerKey"]["description"]
+    assert definition.startswith("The key of the customer record of one order. Rule:")
     assert values["StateCode"]["description"].startswith("Two-letter code")  # a data element
     assert all(c.get("description") for c in values.values())
 
