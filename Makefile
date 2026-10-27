@@ -183,7 +183,7 @@ lint: ## Lint and format-check the Python code
 
 .PHONY: typecheck
 typecheck: ## Type-check the capability packages (basedpyright, standard mode)
-	@out=$$(uv run basedpyright 2>&1) || { echo "$$out"; exit 1; }
+	@out=$$(uv run --group catalog basedpyright 2>&1) || { echo "$$out"; exit 1; }
 	@printf '✓ %-18s %s\n' Types "basedpyright: no errors in the capability packages"
 
 .PHONY: test

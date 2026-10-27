@@ -21,7 +21,8 @@ jobs:
         with:
           enable-cache: true
       - name: Install workspace
-        run: uv sync --all-packages --group dbt
+        # catalog: the DataHub SDK, which the type check needs to resolve the catalog publishers.
+        run: uv sync --all-packages --group dbt --group catalog
       - name: Domain registry matches folders
         run: uv run python governance/policies/check_domains.py
       - name: Module boundaries (ADR-0008)
