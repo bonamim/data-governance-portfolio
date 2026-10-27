@@ -11,13 +11,17 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
+from dgp_governance import checks
 
-def report(violations: Sequence[str], *, failed: str, ok: str, see: str | None = None) -> int:
-    """Print the outcome of a check and return its exit code."""
+
+def report(
+    violations: Sequence[str], *, name: str, failed: str, ok: str, see: str | None = None
+) -> int:
+    """Print the outcome of a check (one aligned line when it passes) and return its exit code."""
     if not violations:
-        print(ok)
+        print(checks.passed(name, ok))
         return 0
-    print(f"{failed}:\n")
+    print(checks.failed(name, f"{failed}:") + "\n")
     for violation in violations:
         print(f"  - {violation}")
     print(f"\n{len(violations)} violation(s)." + (f" See {see}." if see else ""))

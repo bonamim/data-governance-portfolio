@@ -28,7 +28,7 @@ import sys
 from datetime import date
 
 from _checks import report
-from dgp_governance import products
+from dgp_governance import checks, products
 from dgp_governance.repo import relative
 
 VERSIONED = re.compile(r"^(?P<base>.+)_v(?P<major>\d+)$")
@@ -107,18 +107,20 @@ def violations(today: date | None = None) -> tuple[list[str], list[str]]:
 
 def main() -> int:
     errs, notes = violations()
-    for note in notes:
-        print(f"  notice: {note}")
     ports = products.output_ports()
     in_lifecycle = {p.name for p in products.data_products() if p.version_of}
     in_lifecycle |= {p.name for p in ports.values() if p.status == "deprecated"}
-    return report(
+    code = report(
         errs,
+        name="Port versions",
         failed="Port versioning violations (ADR-0019)",
-        ok=f"Port versions OK: {len(ports)} port(s), {len(in_lifecycle & set(ports))} in a "
-        "versioned lifecycle.",
+        ok=f"{checks.plural(len(ports), 'port')}, {len(in_lifecycle & set(ports))} in a "
+        "versioned lifecycle",
         see="governance/standards/breaking-changes.md",
     )
+    for notice in notes:
+        print(checks.note(f"notice: {notice}"))
+    return code
 
 
 if __name__ == "__main__":

@@ -177,8 +177,9 @@ install: ## Create the uv workspace venv and install all packages
 
 .PHONY: lint
 lint: ## Lint and format-check the Python code
-	uv run ruff check .
-	uv run ruff format --check .
+	@uv run ruff check . --quiet
+	@uv run ruff format --check . --quiet
+	@printf '✓ %-18s %s\n' Lint "ruff: no issues, every file formatted"  # aligned like the policy checks
 
 .PHONY: typecheck
 typecheck: ## Type-check the capability packages (basedpyright, standard mode)
@@ -186,11 +187,11 @@ typecheck: ## Type-check the capability packages (basedpyright, standard mode)
 
 .PHONY: test
 test: ## Run the Python test suite
-	uv run pytest -q
+	@uv run pytest -q
 
 .PHONY: check-boundaries
 check-boundaries: ## Enforce ADR-0008 module boundaries (governance policy)
-	uv run python governance/policies/check_boundaries.py
+	@uv run python governance/policies/check_boundaries.py
 
 .PHONY: landing-access
 landing-access: ## Regenerate landing-zone access policies from sources.yml (ADR-0024; applied by `make up`)
@@ -198,23 +199,23 @@ landing-access: ## Regenerate landing-zone access policies from sources.yml (ADR
 
 .PHONY: check-landing-access
 check-landing-access: ## Fail if the committed landing access policies drift from sources.yml
-	uv run python -m dgp_platform_access.generate_landing_access --check
+	@uv run python -m dgp_platform_access.generate_landing_access --check
 
 .PHONY: check-contracts
 check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
-	uv run python governance/policies/check_contracts.py
+	@uv run python governance/policies/check_contracts.py
 
 .PHONY: check-data-products
 check-data-products: ## Enforce the data product standard on every definition
-	uv run python governance/policies/check_data_products.py
+	@uv run python governance/policies/check_data_products.py
 
 .PHONY: check-port-versions
 check-port-versions: ## Versioned output ports: successor -> deprecated + sunset; fail after the sunset (ADR-0019)
-	uv run python governance/policies/check_port_versions.py
+	@uv run python governance/policies/check_port_versions.py
 
 .PHONY: check-output-ports
 check-output-ports: ## Publishing guardrail: output-port contract <-> model <-> definition
-	uv run python governance/policies/check_output_ports.py
+	@uv run python governance/policies/check_output_ports.py
 
 # ---------------------------------------------------------------- reporting (M6) ---
 BI := docker compose --env-file $(ENV_FILE) -p dgp-bi -f reporting/docker-compose.superset.yml
@@ -376,7 +377,7 @@ catalog-quality: $(ENV_FILE) ## Publish landing datasets + contract-gate results
 
 .PHONY: check-domains
 check-domains: ## Domain registry (governance/domains) matches the domain folders
-	uv run python governance/policies/check_domains.py
+	@uv run python governance/policies/check_domains.py
 
 .PHONY: check-breaking
 check-breaking: ## Breaking-change gate (P5): fail if a changed output-port contract breaks consumers
@@ -480,20 +481,20 @@ ossie-ui-down: ## Stop the Ossie Visualizer
 
 .PHONY: check-ontology
 check-ontology: ## Ontology (Apache Ossie) + concepts valid; contract columns link concepts, one definition each (ADR-0027)
-	uv run python governance/policies/check_ontology.py
-	uv run python platform/context/semantics/build_ossie.py --check
+	@uv run python governance/policies/check_ontology.py
+	@uv run python platform/context/semantics/build_ossie.py --check
 
 .PHONY: check-semantics
 check-semantics: ## Ossie semantic models build only on governed output-port columns (ADR-0010)
-	uv run python governance/policies/check_semantics.py
+	@uv run python governance/policies/check_semantics.py
 
 .PHONY: check-pinned-images
 check-pinned-images: ## Every compose image and Dockerfile base is pinned by digest (X8)
-	uv run python governance/policies/check_pinned_images.py
+	@uv run python governance/policies/check_pinned_images.py
 
 .PHONY: check-ai-agents
 check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, owned, no raw PII (ADR-0021)
-	uv run python governance/policies/check_ai_agents.py
+	@uv run python governance/policies/check_ai_agents.py
 
 .PHONY: check
 check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-ontology check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks

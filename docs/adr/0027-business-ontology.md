@@ -104,7 +104,7 @@ The real case is revenue. `sales.sales_performance.total_revenue` is what custom
 `sales.seller_performance.total_revenue` is the **value of the items sold** at their price, excluding
 freight, and links `ItemsValue`. On the Olist data they are 16,008,872.12 and 13,591,643.70 — freight
 alone is 2,251,909.54 — so a consumer who reads one for the other is off by 15%. The check prints
-`homonym: 'total_revenue' means ItemsValue or PaymentAmount`, the catalog shows each column's term,
+`homonym: total_revenue means ItemsValue or PaymentAmount, by contract`, the catalog shows each column's term,
 and the semantic MCP tells an agent which meaning a column has.
 
 ### Business term, metric, data element, reference data

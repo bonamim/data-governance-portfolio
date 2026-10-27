@@ -47,7 +47,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from _checks import report
-from dgp_governance import registry
+from dgp_governance import checks, registry
 from dgp_governance.repo import domain_of, load_yaml, relative, root
 from dgp_platform_contracts import odcs
 from dgp_platform_semantics import ossie
@@ -392,7 +392,7 @@ def main() -> int:
     documents = registry.ontology_files()
     if len(documents) != 1:
         found = f"expected one governance/ontology/*.ontology.yaml, found {len(documents)}"
-        return report([found], failed="Ontology violations", ok="")
+        return report([found], name="Ontology", failed="Ontology violations", ok="")
     definitions = registry.definition_files()
     violations = ontology_violations(
         registry.ontology(),
@@ -409,13 +409,14 @@ def main() -> int:
     )
     code = report(
         violations + contract_issues,
+        name="Ontology",
         failed="Ontology violations",
-        ok=f"Ontology OK: valid Ossie document, {len(registry.entity_types())} entity types, "
-        f"{len(definitions)} definitions owned by their domains, {linked} contract columns linked.",
+        ok=f"valid Ossie, {checks.plural(len(registry.entity_types()), 'entity type')}, "
+        f"{checks.plural(len(definitions), 'definition')}, {linked} contract columns linked",
     )
     if code == 0:
         for col, concepts in homonyms.items():
-            print(f"  homonym: '{col}' means {' or '.join(concepts)}, depending on the contract")
+            print(checks.note(f"homonym: {col} means {' or '.join(concepts)}, by contract"))
     return code
 
 

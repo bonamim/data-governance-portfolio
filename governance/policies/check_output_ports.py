@@ -20,7 +20,7 @@ from __future__ import annotations
 import sys
 
 from _checks import report
-from dgp_governance import products
+from dgp_governance import checks, products
 from dgp_governance.repo import relative
 
 
@@ -67,9 +67,10 @@ def violations() -> list[str]:
 def main() -> int:
     return report(
         violations(),
+        name="Output ports",
         failed="Output port (publishing guardrail) violations",
-        ok=f"Output ports OK: {len(products.output_ports())} published port(s), each contracted, "
-        "built, defined and fully documented.",
+        ok=f"{checks.plural(len(products.output_ports()), 'port')}, each contracted, built, "
+        "defined and documented",
         see="docs/adr/0012-medallion-and-output-ports.md and governance/standards/data-product.md "
         "(output-port completeness)",
     )

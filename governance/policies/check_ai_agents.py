@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 from _checks import report
-from dgp_governance import products, registry
+from dgp_governance import checks, products, registry
 from dgp_governance.repo import domain_of, relative
 from dgp_platform_semantics import ossie
 
@@ -91,8 +91,9 @@ def main() -> int:
     agents = sorted({domain_of(m) for m in models})
     return report(
         [v for m in models for v in model_violations(m, owners)],
+        name="AI agents",
         failed="AI-agent governance FAILED",
-        ok=f"AI-agent governance OK: {len(agents)} agent(s) ({', '.join(agents)}), all valid.",
+        ok=f"{checks.plural(len(agents), 'agent')} ({', '.join(agents)}), all valid",
     )
 
 

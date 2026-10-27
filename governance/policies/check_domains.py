@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 
 from _checks import report
-from dgp_governance import registry
+from dgp_governance import checks, registry
 from dgp_governance.repo import root
 
 
@@ -27,9 +27,9 @@ def violations() -> list[str]:
 def main() -> int:
     return report(
         violations(),
+        name="Domains",
         failed="Domain registry drift (governance/domains/ vs domains/)",
-        ok=f"Domain registry OK: {len(registry.domain_names())} domain(s), registry matches "
-        "folders.",
+        ok=f"{checks.plural(len(registry.domain_names()), 'domain')}, registry matches folders",
     )
 
 

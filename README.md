@@ -169,6 +169,9 @@ Before every commit, run all the governance and quality checks:
 make check    # every governance policy, then lint and the test suite
 ```
 
+`make typecheck` type-checks the capability packages (basedpyright); it runs on its own, outside
+`make check`.
+
 ### Orchestration with Airflow 3
 
 The same ingestion runs under Airflow as **one DAG bundle per domain** (ADR-0005). A platform

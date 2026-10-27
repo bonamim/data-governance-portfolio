@@ -9,6 +9,7 @@ domain, a tag or a path:
 - ``registry``  domains, governed tags, the ontology and its value types
 - ``products``  data products and the output ports they publish
 - ``approvals`` consumers' sign-off on a breaking change or a retirement
+- ``checks``    how a check reports its outcome, so ``make check`` reads as one aligned list
 """
 
 __all__ = ["__version__"]

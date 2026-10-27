@@ -20,8 +20,10 @@ The meaning of each value type is not here: it lives with the domain that owns i
 
 ## The checks
 
-Each policy is a script that prints one line per violation and exits non-zero when a rule breaks.
-`make check` runs them all, then the linter and the tests. The breaking-change gate needs a base
+Each policy is a script. When its rules hold it prints one aligned line (`✓ Ontology  …`), with any
+notice indented under it; when a rule breaks it prints `✗`, one line per violation, and exits
+non-zero. `make check` runs them all, then the linter and the tests, so its output reads as one
+list of policies. The breaking-change gate needs a base
 branch to compare with, so it runs on its own (`make check-breaking`); CI runs both.
 
 | Check | The rule | Make target |

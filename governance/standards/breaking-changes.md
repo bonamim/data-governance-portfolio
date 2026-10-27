@@ -149,10 +149,11 @@ without the column — then `make dbt-ports`.
 
 The gate passes **without any approval**: no contract a consumer reads has changed
 (`customers_v2: new output-port contract (no prior version) — OK`). `make check-port-versions`
-notes who still reads v1:
+notes who still reads v1, under its result line:
 
 ```
-notice: customers is deprecated, sunset 2026-12-31 (67 days): still read by sales.sales_performance; successor customers_v2
+✓ Port versions      7 ports, 2 in a versioned lifecycle
+    notice: customers is deprecated, sunset 2026-12-31 (67 days): still read by sales.sales_performance; successor customers_v2
 ```
 
 ### The migration window

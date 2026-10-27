@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 from _checks import report
+from dgp_governance import checks
 from dgp_governance.repo import relative, root
 
 SKIP_PARTS = {".venv", "node_modules", ".git", "target", "dbt_packages"}
@@ -83,9 +84,11 @@ def main() -> int:
     violations += [v for p in workflows for v in workflow_violations(p)]
     return report(
         violations,
+        name="Pinned images",
         failed="Unpinned images (X8)",
-        ok=f"All images pinned by digest ({len(composes)} compose files, {len(dockerfiles)} "
-        f"Dockerfiles); all actions pinned by SHA ({len(workflows)} workflows).",
+        ok=f"{checks.plural(len(composes), 'compose file')}, "
+        f"{checks.plural(len(dockerfiles), 'Dockerfile')}, "
+        f"{checks.plural(len(workflows), 'workflow')}, all pinned",
     )
 
 

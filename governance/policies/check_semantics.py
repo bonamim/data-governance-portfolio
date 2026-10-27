@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from _checks import report
-from dgp_governance import products
+from dgp_governance import checks, products
 from dgp_governance.repo import relative
 from dgp_platform_semantics import ossie
 
@@ -96,9 +96,9 @@ def main() -> int:
     models = ossie.models()
     return report(
         [v for m in models for v in model_violations(m)],
+        name="Semantic models",
         failed="Semantic governance FAILED",
-        ok=f"Semantic governance OK: {len(models)} semantic model(s), all on contract columns and "
-        "fully described.",
+        ok=f"{checks.plural(len(models), 'model')}, all on contract columns and described",
     )
 
 

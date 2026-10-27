@@ -12,7 +12,7 @@ import re
 import sys
 
 from _checks import lint_contract, report
-from dgp_governance import products, registry
+from dgp_governance import checks, products, registry
 from dgp_governance.repo import relative, root
 
 TYPES = {"source-aligned", "aggregate", "consumer-aligned"}
@@ -71,8 +71,9 @@ def main() -> int:
     all_products = products.data_products()
     return report(
         [v for p in all_products for v in product_violations(p, domains)],
+        name="Data products",
         failed="Data product governance violations",
-        ok=f"Data product governance OK: {len(all_products)} product(s), all valid.",
+        ok=f"{checks.plural(len(all_products), 'product')}, all valid",
         see="governance/standards/data-product.md",
     )
 

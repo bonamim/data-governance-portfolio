@@ -98,8 +98,9 @@ def violations() -> list[str]:
 def main() -> int:
     return report(
         violations(),
+        name="Module boundaries",
         failed="Module boundary violations (ADR-0008)",
-        ok="Module boundaries OK (ADR-0008): no forbidden cross-imports found.",
+        ok="no forbidden cross-imports (ADR-0008)",
         see="docs/adr/0008-monorepo-module-boundaries.md",
     )
 

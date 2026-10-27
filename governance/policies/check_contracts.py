@@ -17,6 +17,7 @@ import re
 import sys
 
 from _checks import lint_contract, report
+from dgp_governance import checks
 from dgp_governance.repo import relative, root
 from dgp_platform_ingestion.config import load_datasets
 from dgp_platform_ingestion.layout import LandingRules
@@ -50,9 +51,9 @@ def violations() -> list[str]:
 def main() -> int:
     return report(
         violations(),
+        name="Landing contracts",
         failed="Contract governance violations",
-        ok=f"Contract governance OK: {len(landing_datasets())} landing dataset(s), all with valid "
-        "ODCS.",
+        ok=f"{checks.plural(len(landing_datasets()), 'landing dataset')}, all valid ODCS",
         see="docs/data-mesh.md (governed boundaries)",
     )
 

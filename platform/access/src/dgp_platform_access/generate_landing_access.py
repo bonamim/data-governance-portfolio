@@ -39,6 +39,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from dgp_governance import checks
 from dgp_governance.repo import relative, root
 from dgp_platform_ingestion.config import load_datasets
 from dgp_platform_ingestion.layout import RETENTION_CLASSES
@@ -330,7 +331,7 @@ def main() -> int:
             for k in drift:
                 print(f"  - platform/access/landing/{k}")
             return 1
-        print(f"Landing access OK: {len(wanted)} files generated from sources.yml.")
+        print(checks.passed("Landing access", f"{len(wanted)} files match sources.yml"))
         return 0
 
     for stale in set(existing) - set(wanted):

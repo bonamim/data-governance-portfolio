@@ -29,7 +29,7 @@ import copy
 import sys
 
 import yaml
-from dgp_governance import products, registry
+from dgp_governance import checks, products, registry
 from dgp_governance.repo import relative, root
 from dgp_platform_semantics import ossie
 
@@ -156,7 +156,7 @@ def main() -> int:
     args = parser.parse_args()
     files = bundle()
     if args.check:
-        print(f"Ossie bundle OK: {len(files)} valid Ossie documents ({', '.join(sorted(files))}).")
+        print(checks.passed("Ossie bundle", f"{checks.plural(len(files), 'valid document')}"))
         return 0
     out = root() / "build" / "ossie"
     out.mkdir(parents=True, exist_ok=True)

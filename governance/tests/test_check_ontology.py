@@ -74,7 +74,7 @@ def _relationship(name: str, concept: str) -> dict:
 
 def test_the_repository_ontology_and_contracts_pass(capsys):
     assert check_ontology.main() == 0
-    assert "valid Ossie document" in capsys.readouterr().out
+    assert "✓ Ontology" in capsys.readouterr().out
 
 
 def test_a_well_formed_ontology_passes(tmp_path):
