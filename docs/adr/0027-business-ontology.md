@@ -60,7 +60,7 @@ Lifecycle approval is the pull request: a definition merged to `main` is approve
 | Concept names | PascalCase (`CustomerKey`), relationships snake_case (`placed_by`), value types written in block style. Checked by rule 1: a name is an identifier, never a label | Ossie examples |
 | Identifiers / attributes | `identify_by`, with `OneToOne` for an identifier and `ManyToOne` for an attribute. Compound identifiers are allowed | Ossie spec (a Review is identified by review id *and* order, as Ossie's Runway is by designator and airport) |
 | Value-type base | `extends: [String \| Integer \| Date …]` | Ossie built-in concepts |
-| Global identifiers | `iri` with `prefixes` (`schema:Order`) | Ossie spec |
+| Global identifiers | `iri` with `prefixes` (`schema:Order` = <https://schema.org/Order>): aligns a concept with a shared vocabulary, optional, never fetched | Ossie spec |
 | Definition file | `definitions/<snake_case of the value type>.odcs.yaml`, one file per term, named for the **concept**, not a column (`customer_key`, linked from columns called `customer_id`, and `zip_code_prefix`, linked from `seller_zip_code_prefix`) | datacontract-cli ("a glossary kept as one file per term") |
 | The link | `authoritativeDefinitions: [{type: businessDefinition, url: <relative path>}]` | ODCS recommended type `businessDefinition` (not the CLI-specific `semantics`), resolved by datacontract-cli |
 | Contract file | `<product>.odcs.yaml` | ODCS tooling |
@@ -258,7 +258,9 @@ the semantic model. Three changes keep each fact in one place:
 - **Classification as glossary terms** (as first built). Rejected: classification is a policy
   label that becomes a warehouse tag, and mixing it into the glossary blurs meaning and policy.
 - **Descriptions in the Ossie document** (as Ossie's examples do). That writes each meaning twice,
-  so the export puts the definition's description there instead.
+  so the export puts the definition's description there instead. A value type without a business
+  rule has no `description` in the source ontology, and the built one (`build/ossie/`) always has
+  it, from the data element.
 - **Our own Ossie validation.** Rejected once we found Ossie's: `validation/validate.py` is meant to
   be vendored. Its `ossie validate` CLI is not implemented yet and the Python package is not
   published.

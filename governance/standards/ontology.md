@@ -23,6 +23,21 @@ dbt docs, the warehouse comment, the catalog's column description), so it is kep
 the column, not the business. Its `logicalType`, `classification` and `privacyCategory` are inherited
 the same way. The business definition of a term is in the ontology only.
 
+**Which description goes where, written once.** An entity type, and a value type the business has
+a rule about, carry their business definition in the ontology. Any other value type (`OrderId`,
+`StateCode`) has **no** `description` in the ontology: its data element's description is its
+meaning, and `make ossie-build` copies it into the exported document, so every Ossie tool still
+sees one (`build/ossie/commerce.ontology.yaml`). Do not add it to the ontology by hand: the check
+would not catch the copy drifting from the data element. `test_build_ossie.py` fails the build if
+an exported value type has no description.
+
+**`iri` aligns a concept with a shared vocabulary.** `iri: schema:orderNumber` expands, through
+`prefixes` (`schema: https://schema.org/`), to <https://schema.org/orderNumber>: it says our
+`OrderId` means what schema.org calls an order number. Nothing is fetched at run time. It is a
+global identifier other ontologies and tools can match on (two documents that both use
+`schema:Order` talk about the same thing), and it is optional. Set it only when the vocabulary's
+definition really is ours: a wrong `iri` is a false equivalence, which is worse than none.
+
 ## 2. How a term reaches each asset: the links
 
 Every step is an explicit link in git. Nothing depends on a file or column name.
