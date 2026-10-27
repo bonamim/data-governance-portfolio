@@ -91,7 +91,7 @@ these commands exercise the mechanisms today (platform up — `make up`; catalog
 
 | Proof | What it checks | Run it today |
 |---|---|---|
-| all governance | boundaries, domain registry, contracts, data products, output ports, breaking-change gate, lint, tests | `make check` + `make check-breaking` |
+| all governance | boundaries, domain registry, contracts, data products, output ports, breaking-change gate, lint, type checks, tests | `make check` + `make check-breaking` |
 | **P2** — landing quality gate | a bad landing file is quarantined, never loaded | `make prove-p2` (engine), and end to end on the live platform with `make prove-p14` |
 | **P14** — landing lifecycle | inbox → accepted/quarantine → DataHub, least-privilege access | `make up` (buckets + principals), `make catalog-up`, then `make prove-p14`. By hand: drop a file in `landing-inbox/olist/reviews/` (S3 browser `:9001`), run `uv run dgp-ingest gate --domain customer_experience` (the check; loads nothing — with Airflow up the upload itself fires the domain DAG, P17), look in `landing-archive/quarantine/…/_reason.json` or `accepted/…`, then `make catalog-quality` (automatic when the run is the Airflow `<domain>_ingestion` DAG) and open the landing dataset's **Quality** tab in DataHub (`:9002`); `uv run dgp-ingest load-raw --domain customer_experience` then loads what was accepted |
 | **P3** — write-audit-publish | a failing DQ build never reaches consumers | packaged per model as `make prove-p15` (CLI + Airflow). By hand: raise a contract's `rowCount` floor above the real count, `make publish`; the port keeps its last-good rows, the candidate is dropped (`QUARANTINED`) |

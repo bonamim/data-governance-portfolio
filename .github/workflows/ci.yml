@@ -1,7 +1,7 @@
 name: CI
 
 # Federated computational governance, enforced on every change (ADR-0003, ADR-0008):
-# module boundaries, lint, tests, and the breaking-change contract gate (proof P5)
+# module boundaries, lint, type checks, tests, and the breaking-change contract gate (proof P5)
 # must pass before merge.
 
 on:
@@ -70,5 +70,7 @@ jobs:
         run: uv run ruff check .
       - name: Format check
         run: uv run ruff format --check .
+      - name: Type check (basedpyright over the capability packages)
+        run: uv run basedpyright
       - name: Tests
         run: uv run pytest

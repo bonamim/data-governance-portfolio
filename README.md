@@ -166,11 +166,8 @@ safe: a file whose content was already loaded is skipped, by its SHA-256 (proof 
 Before every commit, run all the governance and quality checks:
 
 ```bash
-make check    # every governance policy, then lint and the test suite
+make check    # every governance policy, then lint, type checks and the test suite
 ```
-
-`make typecheck` type-checks the capability packages (basedpyright); it runs on its own, outside
-`make check`.
 
 ### Orchestration with Airflow 3
 

@@ -183,7 +183,8 @@ lint: ## Lint and format-check the Python code
 
 .PHONY: typecheck
 typecheck: ## Type-check the capability packages (basedpyright, standard mode)
-	uv run basedpyright
+	@out=$$(uv run basedpyright 2>&1) || { echo "$$out"; exit 1; }
+	@printf '✓ %-18s %s\n' Types "basedpyright: no errors in the capability packages"
 
 .PHONY: test
 test: ## Run the Python test suite
@@ -497,4 +498,4 @@ check-ai-agents: ## AI agents obey the agent standard: domain-scoped, isolated, 
 	@uv run python governance/policies/check_ai_agents.py
 
 .PHONY: check
-check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-ontology check-semantics check-ai-agents check-pinned-images lint test ## Run all governance + quality checks
+check: check-domains check-boundaries check-contracts check-landing-access check-data-products check-output-ports check-port-versions check-ontology check-semantics check-ai-agents check-pinned-images lint typecheck test ## Run all governance + quality checks
