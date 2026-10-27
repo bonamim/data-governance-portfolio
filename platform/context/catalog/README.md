@@ -32,7 +32,7 @@ of this package), and the Make targets use it.
 |---|---|
 | `make catalog-up` | Start DataHub. |
 | `make catalog-down` | Stop DataHub (its volumes are kept). |
-| `make catalog-ingest` | Regenerate the dbt artifacts, then run the recipes: warehouse, OLTP and dbt metadata. Assertion results come from the last `dbt build` or `dbt test` (`make transform`), so run that first. |
+| `make catalog-ingest` | Regenerate the dbt artifacts, then run the recipes: warehouse, OLTP and dbt metadata. dbt tests become assertions here. Their results are published by the run that executed them (below). |
 | `make catalog-ingest-bi` | Run the Superset recipe: BI datasets and charts. |
 | `make catalog-govern` | Publish the governance layer from the definitions (below). |
 | `make catalog-quality` | Publish the landing datasets and the contract gate's results (below). |
@@ -55,6 +55,20 @@ metadata to GMS. Secrets come from the environment (sourced from `.env`), never 
 
 No recipe profiles with sample values: the catalog never holds raw column values (proof P21 checks
 this).
+
+## dbt test results (`publish_dbt_results`)
+
+`dbt.yml` registers each dbt test as an assertion but reads no results. `target/run_results.json`
+holds only the last dbt command, so a `docs generate` or `run-operation` after the build would
+leave the assertions without results. Instead, every dbt invocation that runs tests publishes its
+own results as assertion run events, right after it ran:
+
+- **Airflow**: a Cosmos callback on each transform task (`dgp_platform_orchestration.dbt_results`).
+  The write-audit-publish `audit` task marks its results `stage: audit`. They describe the
+  candidate, and a failure means the model was quarantined.
+- **CLI**: `make publish` after each build and audit, and `make transform` after each build.
+
+An unreachable DataHub is logged and never fails the dbt task: the catalog is a read model.
 
 ## The governance layer (`publish_governance`)
 

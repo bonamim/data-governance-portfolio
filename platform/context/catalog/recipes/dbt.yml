@@ -5,12 +5,8 @@
 source:
   type: dbt
   config:
-    # manifest and catalog come from `make catalog-docs` (target/docs). run_results comes from the
-    # last `dbt build` in target/: a docs generate run_results carries no test outcomes.
-    manifest_path: "${DBT_TARGET}/docs/manifest.json"
-    catalog_path: "${DBT_TARGET}/docs/catalog.json"
-    run_results_paths:
-      - "${DBT_TARGET}/run_results.json"
+    manifest_path: "${DBT_TARGET}/manifest.json"
+    catalog_path: "${DBT_TARGET}/catalog.json"
     target_platform: postgres
     # Keep URNs exactly as the warehouse names them, so the dbt node and the Postgres dataset
     # ingested by postgres_analytics.yml share one URN (set explicitly: DataHub warns otherwise).
@@ -21,9 +17,12 @@ source:
     node_name_pattern:
       allow:
         - "^[a-z_]+\\.${DBT_PROJECT}\\."
-    # dbt tests become DataHub assertions on the modelled datasets.
+    # dbt tests become DataHub assertions on the modelled datasets. Their results are not read
+    # here: each dbt invocation that runs tests publishes them as it finishes (publish_dbt_results),
+    # since target/run_results.json holds only the last dbt command, whatever it was.
     entities_enabled:
-      test_results: "YES"
+      test_definitions: "YES"
+      test_results: "NO"
 sink:
   type: datahub-rest
   config:

@@ -7,7 +7,8 @@ per-model write-audit-publish (ADR-0015).
 (``LoadMode.DBT_MANIFEST``: no ``dbt ls`` at parse time):
 
     models          every model except the opted-in ones and their descendants: one run + test
-                    task group per model (Cosmos), so a failure names the model and retries it alone
+                    task group per model (Cosmos), so a failure names the model and retries it
+                    alone. Each test task sends its results to DataHub as assertion runs
     wap_<model>     per opted-in model: plan -> stage -> write -> audit_view -> audit -> publish,
                     with quarantine on failure (consumers keep the last good version)
     downstream      models that read a WAP model, after its publish
@@ -38,12 +39,18 @@ from cosmos.operators.local import (
 )
 from dgp_governance import products
 
-from . import dbt_state, runtime, wap
+from . import dbt_results, dbt_state, runtime, wap
 from .assets import published_asset, raw_asset
 
 _START = pendulum.datetime(2026, 1, 1, tz="UTC")
 # No Airflow dataset lineage from dbt tasks (ADR-0018): dbt owns the lineage from raw to the ports.
-_OPERATOR_ARGS = {"install_deps": True, "append_env": True, "emit_datasets": False}
+# Every dbt task sends its test results to the catalog as it finishes, passed or failed.
+_OPERATOR_ARGS = {
+    "install_deps": True,
+    "append_env": True,
+    "emit_datasets": False,
+    "callback": dbt_results.cosmos_callback,
+}
 _PARAMS = {
     "event_time_start": Param(
         None, type=["null", "string"], description="Backfill window start (YYYY-MM-DD)"
@@ -169,13 +176,15 @@ def _wap_group(dbt: _Dbt, model: wap.WapModel):
         audit_view = dbt.operator(
             run_op, "audit_view", macro_name="wap_audit_view", args=planned("window")
         )
-        # A failed audit is a data verdict, not a flake: no retries.
+        # A failed audit is a data verdict, not a flake: no retries. Its results are on the
+        # candidate, so the catalog marks them as the audit's.
         audit = dbt.operator(
             DbtTestLocalOperator,
             "audit",
             select=model.name,
             retries=0,
             vars={**wap_vars, "wap_stage": "audit"},
+            callback_args={"stage": "audit"},
         )
         publish = dbt.operator(run_op, "publish", macro_name="wap_promote", args=planned("window"))
         quarantine = dbt.operator(

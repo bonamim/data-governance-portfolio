@@ -29,6 +29,8 @@ import psycopg
 import yaml
 from dgp_platform_ingestion.settings import PostgresSettings
 
+from . import dbt_results
+
 log = logging.getLogger("dgp.wap")
 
 # Dependency order: a domain is published after the domains whose ports it consumes.
@@ -260,7 +262,9 @@ def dbt_audit(repo_root: Path, domain: str, model: WapModel, window: Window | No
     view_args = {"model": model.name, **(window.args() if window else {})}
     if _op(repo_root, domain, "wap_audit_view", view_args):
         return 1
-    return dbt(repo_root, domain, "test", "--select", model.name, *_wap_vars(model, "audit"))
+    audit = dbt(repo_root, domain, "test", "--select", model.name, *_wap_vars(model, "audit"))
+    dbt_results.publish(project_dir(repo_root, domain) / "target" / "wap", stage="audit")
+    return audit
 
 
 def plan_window(
@@ -330,6 +334,8 @@ def publish_domain(
         core += ["--exclude", *[f"{n}+" for n in names]]
     if dbt(repo_root, domain, *core):
         ok = False
+    target = project_dir(repo_root, domain) / "target"
+    dbt_results.publish(target)
     published, quarantined = [], []
     for m in models:
         if set(ancestors(manifest, domain, m.name)) & set(quarantined):
@@ -343,6 +349,8 @@ def publish_domain(
             quarantined.append(m.name)
     ok = ok and not quarantined
     downstream = plain_descendants(manifest, domain, names, quarantined)
-    if downstream and dbt(repo_root, domain, "build", *refresh, "--select", *downstream):
-        ok = False
+    if downstream:
+        if dbt(repo_root, domain, "build", *refresh, "--select", *downstream):
+            ok = False
+        dbt_results.publish(target)
     return ok

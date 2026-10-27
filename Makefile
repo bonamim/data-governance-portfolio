@@ -93,14 +93,21 @@ verify-infra: ## Check buckets, schemas, roles and the ingestion ledger exist
 dbt-ports: ## Generate each layer's _ports.yml from the ODCS output-port contracts
 	uv run python platform/core/transform/generate_dbt_ports.py
 
+# Each dbt build sends its test results to DataHub as assertion runs (ADR-0018). A DataHub that is
+# down is logged, not an error.
+DBT_RESULTS := uv run --group catalog python -m dgp_platform_orchestration.dbt_results
+
 .PHONY: transform
 transform: ## Build all data products (dbt) in dependency order, applying consumer grants
 	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/core/transform
 	uv run --group dbt dbt build --project-dir domains/customer/dbt --profiles-dir platform/core/transform
+	$(DBT_RESULTS) domains/customer/dbt/target
 	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
 	uv run --group dbt dbt build --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
+	$(DBT_RESULTS) domains/customer_experience/dbt/target
 	$(MAKE) mask grants
 	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/core/transform && uv run --group dbt dbt build --profiles-dir ../../../platform/core/transform
+	$(DBT_RESULTS) domains/sales/dbt/target
 	$(MAKE) mask grants
 
 .PHONY: mask
@@ -113,7 +120,7 @@ grants: ## Apply consumer grants from data product definitions (output ports onl
 
 .PHONY: publish
 publish: ## Write-audit-publish per model: build to a candidate, audit (contract DQ), promote on pass
-	uv run --group dbt python platform/core/transform/publish.py
+	uv run --group dbt --group catalog python platform/core/transform/publish.py
 
 .PHONY: slim-ci
 slim-ci: ## Slim CI: build only the models a change touched (state:modified+) in <domain>_ci, deferring the rest to what is published
@@ -342,14 +349,12 @@ catalog-down: ## Stop DataHub (keeps its volumes)
 .PHONY: catalog-docs
 catalog-docs: $(ENV_FILE) ## Regenerate dbt manifest+catalog artifacts for ingestion
 	@# dbt_packages/ is gitignored: install the shared dgp_dbt package first, as `make transform` does.
-	@# target/docs, not target/: docs generate rewrites run_results.json, and DataHub skips a
-	@# generate run_results, so the test outcomes from the last `dbt build` would be lost.
 	uv run --group dbt dbt deps --project-dir domains/customer/dbt --profiles-dir platform/core/transform
-	uv run --group dbt dbt docs generate --target-path target/docs --project-dir domains/customer/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt docs generate --project-dir domains/customer/dbt --profiles-dir platform/core/transform
 	uv run --group dbt dbt deps --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
-	uv run --group dbt dbt docs generate --target-path target/docs --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
+	uv run --group dbt dbt docs generate --project-dir domains/customer_experience/dbt --profiles-dir platform/core/transform
 	cd domains/sales/dbt && uv run --group dbt dbt deps --profiles-dir ../../../platform/core/transform \
-		&& uv run --group dbt dbt docs generate --target-path target/docs --profiles-dir ../../../platform/core/transform
+		&& uv run --group dbt dbt docs generate --profiles-dir ../../../platform/core/transform
 
 .PHONY: catalog-ingest
 catalog-ingest: catalog-docs ## Ingest the warehouse + dbt metadata (models, lineage, tests) into DataHub
