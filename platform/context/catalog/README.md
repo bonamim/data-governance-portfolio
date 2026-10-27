@@ -32,7 +32,7 @@ of this package), and the Make targets use it.
 |---|---|
 | `make catalog-up` | Start DataHub. |
 | `make catalog-down` | Stop DataHub (its volumes are kept). |
-| `make catalog-ingest` | Regenerate the dbt artifacts, then run the recipes: warehouse, OLTP and dbt metadata. |
+| `make catalog-ingest` | Regenerate the dbt artifacts, then run the recipes: warehouse, OLTP and dbt metadata. Assertion results come from the last `dbt build` or `dbt test` (`make transform`), so run that first. |
 | `make catalog-ingest-bi` | Run the Superset recipe: BI datasets and charts. |
 | `make catalog-govern` | Publish the governance layer from the definitions (below). |
 | `make catalog-quality` | Publish the landing datasets and the contract gate's results (below). |

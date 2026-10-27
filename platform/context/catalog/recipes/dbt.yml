@@ -5,8 +5,10 @@
 source:
   type: dbt
   config:
-    manifest_path: "${DBT_TARGET}/manifest.json"
-    catalog_path: "${DBT_TARGET}/catalog.json"
+    # manifest and catalog come from `make catalog-docs` (target/docs). run_results comes from the
+    # last `dbt build` in target/: a docs generate run_results carries no test outcomes.
+    manifest_path: "${DBT_TARGET}/docs/manifest.json"
+    catalog_path: "${DBT_TARGET}/docs/catalog.json"
     run_results_paths:
       - "${DBT_TARGET}/run_results.json"
     target_platform: postgres
