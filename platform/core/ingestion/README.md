@@ -43,7 +43,8 @@ dbt *staging* layer's job (M3), which keeps this loader free of per-dataset sche
 
 **Every raw table is governed by the load that writes it** (`governance.py`, ADR-0027). As soon as
 the table exists (created, or emptied for a reload) and before its first row is written, the loader
-writes the dataset's resolved landing contract onto it: the table's and each column's description as a `COMMENT`, and on
+writes the dataset's resolved source contract onto it (a landing file's, `contracts/landing/`, or an
+operational table's, `contracts/oltp/`): the table's and each column's description as a `COMMENT`, and on
 a warehouse with object tags (`WAREHOUSE_PLATFORM=snowflake`) each column's sensitivity and privacy
 category and the table's sensitivity, the values the dbt build sets on a port. The platform's system
 columns (`_system_batch_id`, `_system_source_path`, `_system_partition`, `_system_loaded_at`,
@@ -60,7 +61,11 @@ since a recreated table loses both. On Postgres the catalog carries the tags.
   gate results (`checks`, published to DataHub by `make catalog-quality`). A delivery whose content
   equals the dataset's latest accepted file is skipped by the gate (ADR-0025). Either way the inbox
   version is deleted, so a file is processed once. OLTP raw loads are full-refresh (truncate +
-  reload).
+  reload), and an OLTP table whose columns no longer match its contract fails its load: a renamed
+  or dropped source column stops at the boundary, as a landing file that breaks its contract is
+  quarantined.
+- **Headers**: a CSV header's UTF-8 byte-order mark is not part of its first column's name (the
+  Olist translation file starts with one, and it used to name `shop_oltp` and raw columns).
 - **Completion signals** (ADR-0016): `per_file` / `settle` decide each file alone.
   `expected_files` (`expectedFiles: N`) and `marker` (`completionMarker`, a regex with the
   partition's date groups) decide a whole partition as one batch (all accepted, or all quarantined

@@ -1,0 +1,8 @@
+description: When the customer placed the order.
+logicalType: date
+classification: public
+synonyms:
+  - synonym: order_purchase_timestamp
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#OrderPurchasedAt

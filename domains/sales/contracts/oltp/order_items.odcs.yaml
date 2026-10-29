@@ -1,0 +1,59 @@
+# ODCS contract for the order_items table the platform copies from shop_oltp into sales_raw.
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: sales.order_items.oltp
+name: Sales - Order items (OLTP source)
+status: draft
+description:
+  purpose: The items of each order, copied daily as a full snapshot of shop_oltp.shop.order_items.
+domain: sales
+schema:
+  - name: order_items
+    description: "One row per item of an order, as the shop's database holds it: the product, the seller who sold it, its price and its share of the freight."
+    physicalType: table
+    properties:
+      - name: order_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_id.odcs.yaml
+        physicalType: text
+        required: true
+      - name: order_item_id
+        description: "The item's number within its order, from 1. With order_id it identifies the item."
+        logicalType: integer
+        physicalType: text
+        required: true
+        classification: public
+      - name: product_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../marketplace/contracts/definitions/product_id.odcs.yaml
+        physicalType: text
+        required: true
+      - name: seller_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../marketplace/contracts/definitions/seller_id.odcs.yaml
+        physicalType: text
+        required: true
+      - name: shipping_limit_date
+        description: "The latest time the seller may hand the item to the logistics carrier."
+        logicalType: date
+        physicalType: text
+        required: true
+        classification: public
+      - name: price
+        description: "The item's price in BRL, two decimals, freight excluded."
+        logicalType: number
+        physicalType: text
+        required: true
+        classification: public
+      - name: freight_value
+        description: "The item's freight in BRL, two decimals. An order's freight is split across its items."
+        logicalType: number
+        physicalType: text
+        required: true
+        classification: public
+team:
+  name: sales

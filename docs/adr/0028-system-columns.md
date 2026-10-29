@@ -65,6 +65,8 @@ views on it survive.
 ## Consequences
 - The catalog shows the system columns on every raw table, its dbt source too, with the platform's
   descriptions and tags (`internal`), and never on the landing file, which doesn't have them.
+- Every raw table has a contract of what its source holds, an OLTP table's too
+  (`contracts/oltp/`), so its business columns are governed like the system ones.
 - A new platform column is a pull request to `governance/system_columns.yaml` and the loader. A new
   product column needs no one's approval but its owner's.
 - The loader loads Postgres only. The Snowflake types and governance statements are rendered and

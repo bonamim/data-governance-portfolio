@@ -1,4 +1,4 @@
-version: 1.0.0
+version: 1.0.1
 kind: DataContract
 apiVersion: v3.2.0
 id: sales.orders
@@ -29,35 +29,35 @@ schema:
     physicalType: text
     required: true
   - name: order_status
-    description: Lifecycle status of the order.
-    logicalType: string
+    authoritativeDefinitions:
+    - type: businessDefinition
+      url: definitions/order_status.odcs.yaml
     physicalType: text
     required: true
-    classification: public
   - name: order_purchase_timestamp
-    description: When the order was placed.
-    logicalType: date
+    authoritativeDefinitions:
+    - type: businessDefinition
+      url: definitions/order_purchased_at.odcs.yaml
     physicalType: timestamp
     required: true
-    classification: public
   - name: order_approved_at
-    description: When the order was approved.
-    logicalType: date
+    authoritativeDefinitions:
+    - type: businessDefinition
+      url: definitions/order_approved_at.odcs.yaml
     physicalType: timestamp
     required: false
-    classification: public
   - name: order_delivered_customer_date
-    description: When the order was delivered to the customer.
-    logicalType: date
+    authoritativeDefinitions:
+    - type: businessDefinition
+      url: definitions/order_delivered_at.odcs.yaml
     physicalType: timestamp
     required: false
-    classification: public
   - name: order_estimated_delivery_date
-    description: Estimated delivery date given to the customer.
-    logicalType: date
+    authoritativeDefinitions:
+    - type: businessDefinition
+      url: definitions/order_estimated_delivery_at.odcs.yaml
     physicalType: timestamp
     required: false
-    classification: public
   quality:
   - type: library
     metric: rowCount

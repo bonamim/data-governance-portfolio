@@ -1,0 +1,63 @@
+# ODCS contract for the customers table the platform copies from the shop's operational database
+# (shop_oltp) into customer_raw (ADR-0028's companion to the landing contracts). Describes what the
+# source holds, so the raw table is governed from its first row: descriptions, tags, terms.
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: customer.customers.oltp
+name: Customer - Customers (OLTP source)
+status: draft
+description:
+  purpose: The shop's customer records, copied daily as a full snapshot of shop_oltp.shop.customers.
+domain: customer
+schema:
+  - name: customers
+    description: "One row per customer record, as the shop's database holds it: a new record (and customer_id) for every order, with the person identifier and the delivery location."
+    physicalType: table
+    authoritativeDefinitions:
+      - type: ontology
+        url: ../../../../governance/ontology/commerce.ontology.yaml#Customer
+    properties:
+      - name: customer_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../sales/contracts/definitions/customer_key.odcs.yaml
+        physicalType: text
+        required: true
+      - name: customer_unique_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/customer_person_id.odcs.yaml
+        physicalType: text
+        required: true
+      # With city and state the zip prefix narrows a person down, as on the customers port.
+      - name: customer_zip_code_prefix
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../reference/contracts/definitions/zip_code_prefix.odcs.yaml
+        physicalType: text
+        required: true
+        classification: internal
+        customProperties:
+          - property: privacyCategory
+            value: quasi_identifier
+      - name: customer_city
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../reference/contracts/definitions/city_name.odcs.yaml
+        physicalType: text
+        required: true
+        customProperties:
+          - property: privacyCategory
+            value: quasi_identifier
+      - name: customer_state
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../../../reference/contracts/definitions/state_code.odcs.yaml
+        physicalType: text
+        required: true
+        customProperties:
+          - property: privacyCategory
+            value: quasi_identifier
+team:
+  name: customer

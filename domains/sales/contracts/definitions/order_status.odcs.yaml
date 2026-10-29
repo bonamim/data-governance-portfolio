@@ -1,0 +1,8 @@
+description: >-
+  The order's lifecycle status, as the source records it: created, approved, invoiced,
+  processing, shipped, delivered, canceled or unavailable.
+logicalType: string
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#OrderStatus

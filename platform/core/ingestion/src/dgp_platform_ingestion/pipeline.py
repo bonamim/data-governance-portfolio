@@ -29,8 +29,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
+from dgp_platform_contracts import odcs
 from dgp_platform_quality.engine import Assertion, ValidationResult, validate_file
-from dgp_platform_quality.rules import contract_path, load_contract_for
+from dgp_platform_quality.rules import load_contract_for, source_contract_path
 
 from . import alerts, arrivals, db, governance, layout, ledger
 from .config import Dataset, load_datasets, olist_files
@@ -456,6 +457,7 @@ def _load_oltp(
         for d, table in oltp_sets:
             dump = Path(tmp) / f"{table}.csv"
             db.export_table_to_csv(oltp, "shop", table, dump)
+            _check_oltp_schema(repo_root, d, dump)
             batch_id = f"{run_id}:{d.raw_schema}.{d.raw_table}"
             rows = db.load_csv_file(
                 analytics,
@@ -583,17 +585,35 @@ def _from_gate(a: ledger.Accepted) -> dict:
 def _raw_governance(
     analytics: psycopg.Connection, repo_root: Path, settings: Settings, d: Dataset
 ) -> Callable[[], list[str]]:
-    """What describes and tags the raw table (governance.py): its landing contract when it has one,
-    and the platform's system columns. Rendered once the table exists (``db.load_csv_file`` runs
-    it before the first row is written)."""
+    """What describes and tags the raw table (governance.py): its source contract (landing or
+    OLTP) when it has one, and the platform's system columns. Rendered once the table exists
+    (``db.load_csv_file`` runs it before the first row is written)."""
 
     def render() -> list[str]:
-        path = contract_path(repo_root, d.domain, d.name)
+        path = source_contract_path(repo_root, d.domain, d.name, d.source_type)
         gov = governance.RawGovernance.from_contract(path if path.exists() else None)
         present = db.columns_of(analytics, d.raw_schema, d.raw_table)
         return governance.statements(settings.warehouse, d.raw_schema, d.raw_table, gov, present)
 
     return render
+
+
+def _check_oltp_schema(repo_root: Path, d: Dataset, dump: Path) -> None:
+    """An operational table must still have the columns its contract describes before it replaces
+    raw: a renamed or dropped column fails the load, as a landing file that breaks its contract is
+    quarantined (no contract yet: nothing to check)."""
+    path = source_contract_path(repo_root, d.domain, d.name, "oltp")
+    if not path.exists():
+        return
+    schema = (odcs.load(path).get("schema") or [{}])[0]
+    expected = [p["name"] for p in schema.get("properties") or [] if p.get("name")]
+    found = db.csv_header(dump)
+    if found != expected:
+        raise ValueError(
+            f"shop_oltp.shop.{d.raw_table} no longer matches its contract "
+            f"({path.relative_to(repo_root)}): "
+            f"expected columns {expected}, found {found}"
+        )
 
 
 def _stamp(

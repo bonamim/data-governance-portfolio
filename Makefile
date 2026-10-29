@@ -210,7 +210,7 @@ check-landing-access: ## Fail if the committed landing access policies drift fro
 	@uv run python -m dgp_platform_access.generate_landing_access --check
 
 .PHONY: check-contracts
-check-contracts: ## Enforce that every landing dataset has a valid ODCS contract
+check-contracts: ## Enforce that every source dataset (landing, OLTP) has a valid, documented ODCS contract
 	@uv run python governance/policies/check_contracts.py
 
 .PHONY: check-data-products

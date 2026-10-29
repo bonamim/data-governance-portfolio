@@ -21,6 +21,7 @@ def test_an_entity_type_is_owned_by_the_domain_defining_its_identifier():
         "Review": "customer_experience",
         "Seller": "marketplace",
         "Location": "reference",
+        "Product": "marketplace",
     }
 
 

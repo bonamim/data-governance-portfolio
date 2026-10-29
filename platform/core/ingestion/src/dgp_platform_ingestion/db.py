@@ -33,10 +33,12 @@ def connect(settings: PostgresSettings) -> Iterator[psycopg.Connection]:
         yield conn
 
 
-def _read_header(csv_path: Path) -> list[str]:
-    with csv_path.open("r", encoding="utf-8", newline="") as fh:
-        reader = csv.reader(fh)
-        return next(reader)
+def csv_header(csv_path: Path) -> list[str]:
+    """A CSV file's column names. A UTF-8 byte-order mark is not part of the first one: some
+    exports (Olist's product_category_name_translation) start with one, and it used to end up in
+    the column's name."""
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as fh:
+        return next(csv.reader(fh))
 
 
 def _existing_columns(conn: psycopg.Connection, schema: str, table: str) -> list[str] | None:
@@ -152,7 +154,7 @@ def load_csv_file(
     them for this file's rows. ``governance`` renders the statements that describe and tag the
     table. They run as soon as the table exists and before its first row is written, so the data is
     never in an ungoverned table, even on a warehouse whose DDL commits on its own (Snowflake)."""
-    columns = _read_header(csv_path)
+    columns = csv_header(csv_path)
     if not append:
         prepare_text_table(conn, schema, table, columns, system)
         if governance is not None:

@@ -174,3 +174,9 @@ def test_a_table_from_before_gets_the_system_columns_in_place(tmp_path: Path, an
         analytics.execute(f"DROP VIEW IF EXISTS {view}")
         analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
         analytics.commit()
+
+
+def test_a_byte_order_mark_is_not_part_of_the_first_column(tmp_path: Path):
+    csv_path = tmp_path / "bom.csv"
+    csv_path.write_bytes("﻿product_category_name,english\nbeleza_saude,health_beauty\n".encode())
+    assert db.csv_header(csv_path) == ["product_category_name", "english"]

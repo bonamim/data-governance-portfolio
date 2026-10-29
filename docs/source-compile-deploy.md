@@ -31,7 +31,7 @@ to contracts, meaning and access too.
 | `ingestion/sources.yml` | `make landing-access` | landing bucket and key policies | yes | `check-landing-access` |
 | ontology, data elements, semantic models, contracts | `make ossie-build` | `build/ossie/`: the ontology, the compiled semantic models, the mappings: the bundle Ossie tools and Snowflake read | no, built | `check-ontology` (builds and validates) |
 | port metadata from `dbt-ports` | the dbt build (post-hook) | governed tags on each output port, before access is granted | no, warehouse | `governance_tags_preview` |
-| landing contracts (+ linked data elements) | the loader, when it creates each raw table, before the first row (`load-raw`, `replay`) | descriptions (`COMMENT`) and, on Snowflake, governed tags on each raw table | no, warehouse | `dgp-ingest governance-preview`, unit tests |
+| source contracts, landing and OLTP (+ linked data elements) | the loader, when it creates each raw table, before the first row (`load-raw`, `replay`) | descriptions (`COMMENT`) and, on Snowflake, governed tags on each raw table | no, warehouse | `dgp-ingest governance-preview`, unit tests |
 | contracts (masking policies), data product definitions | `make mask`, `make grants` | masking views, consumer grants | no, warehouse | proof P8 |
 | data products, contracts, ontology, tags | `make catalog-govern` | DataHub: domains, products, business glossary, data elements, tags (on ports, landing files and raw tables) | no, catalog | re-applied from git (ADR-0018) |
 | compiled semantic models | `make bi-publish` | Superset datasets and metrics | no, BI | `bi-check-drift` |

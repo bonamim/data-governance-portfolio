@@ -1,0 +1,8 @@
+description: When the order was delivered to the customer, empty until it is.
+logicalType: date
+classification: public
+synonyms:
+  - synonym: order_delivered_customer_date
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#OrderDeliveredAt

@@ -1,0 +1,76 @@
+# ODCS contract for the products table the platform copies from shop_oltp into marketplace_raw.
+# Column names are the source's, its spelling included (lenght).
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: marketplace.products.oltp
+name: Marketplace - Products (OLTP source)
+status: draft
+description:
+  purpose: The products listed on the marketplace, copied daily as a full snapshot of shop_oltp.shop.products.
+domain: marketplace
+schema:
+  - name: products
+    description: "One row per product, as the shop's database holds it: its category, the size of its listing and its package dimensions. Any of them can be empty."
+    physicalType: table
+    authoritativeDefinitions:
+      - type: ontology
+        url: ../../../../governance/ontology/commerce.ontology.yaml#Product
+    properties:
+      - name: product_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/product_id.odcs.yaml
+        physicalType: text
+        required: true
+        unique: true
+      - name: product_category_name
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/product_category_name.odcs.yaml
+        physicalType: text
+        required: false
+      - name: product_name_lenght
+        description: "Number of characters in the product's name. The source spells the column lenght."
+        logicalType: integer
+        physicalType: text
+        required: false
+        classification: public
+      - name: product_description_lenght
+        description: "Number of characters in the product's description. The source spells the column lenght."
+        logicalType: integer
+        physicalType: text
+        required: false
+        classification: public
+      - name: product_photos_qty
+        description: "Number of photos in the product's listing."
+        logicalType: integer
+        physicalType: text
+        required: false
+        classification: public
+      - name: product_weight_g
+        description: "The product's weight in grams."
+        logicalType: integer
+        physicalType: text
+        required: false
+        classification: public
+      - name: product_length_cm
+        description: "The product's length in centimetres."
+        logicalType: integer
+        physicalType: text
+        required: false
+        classification: public
+      - name: product_height_cm
+        description: "The product's height in centimetres."
+        logicalType: integer
+        physicalType: text
+        required: false
+        classification: public
+      - name: product_width_cm
+        description: "The product's width in centimetres."
+        logicalType: integer
+        physicalType: text
+        required: false
+        classification: public
+team:
+  name: marketplace

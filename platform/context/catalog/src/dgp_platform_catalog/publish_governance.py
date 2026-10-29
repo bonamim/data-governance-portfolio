@@ -69,7 +69,7 @@ from dgp_governance.repo import root
 from dgp_platform_contracts import odcs
 from dgp_platform_ingestion import layout
 from dgp_platform_ingestion.config import load_datasets
-from dgp_platform_quality.rules import contract_path
+from dgp_platform_quality.rules import source_contract_path
 from dgp_platform_semantics import ossie
 
 from .gms import Gms, default_url
@@ -428,8 +428,9 @@ def _publish_meaning(
 def publish_ingested(emitter: DatahubRestEmitter, gms: Gms | None = None) -> None:
     """The meaning of every dataset the platform ingests, on each asset it is.
 
-    A landing dataset's resolved landing contract goes on its landing file (S3, always tagged
-    here: object storage has no column tags) and on the raw table it loads into. Every raw table,
+    A dataset's resolved source contract (landing or OLTP) goes on the raw table it loads into, and
+    a landing one on its landing file too (S3, always tagged here: object storage has no column
+    tags). Every raw table,
     an OLTP source's too, also carries the platform's system columns (ADR-0028). A raw table is
     tagged here unless the warehouse has native tags (the loader sets those). A raw table that is
     a dbt source has a dbt sibling, the primary one DataHub opens: it gets the same meaning, once
@@ -437,10 +438,9 @@ def publish_ingested(emitter: DatahubRestEmitter, gms: Gms | None = None) -> Non
     business, n = _business_concepts(), 0
     system = [dict(c) for c in registry.system_columns()]
     for d in load_datasets(root()):
-        path = contract_path(root(), d.domain, d.name)
-        landing = d.source_type == "landing" and path.exists()
-        schema = (odcs.load(path).get("schema") or [{}])[0] if landing else {}
-        if landing:
+        path = source_contract_path(root(), d.domain, d.name, d.source_type)
+        schema = (odcs.load(path).get("schema") or [{}])[0] if path.exists() else {}
+        if d.source_type == "landing" and path.exists():
             s3_urn = make_dataset_urn("s3", layout.catalog_name(ARCHIVE, d.source_system, d.name))
             _publish_meaning(emitter, s3_urn, schema, path, business, tagged=True)
         raw = {**schema, "properties": [*(schema.get("properties") or []), *system]}

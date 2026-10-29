@@ -31,7 +31,7 @@ branch to compare with, so it runs on its own (`make check-breaking`), and CI ru
 |---|---|---|
 | `check_domains.py` | the registry matches the folders under `domains/` | `check-domains` |
 | `check_boundaries.py` | the platform never imports a domain, and no domain imports another (ADR-0008) | `check-boundaries` |
-| `check_contracts.py` | every landing dataset has a valid contract with rules the loader can run | `check-contracts` |
+| `check_contracts.py` | every dataset the platform loads into raw (landing file or OLTP table) has a valid, documented contract, a landing one with rules the loader can run | `check-contracts` |
 | `check_data_products.py` | every data product definition meets the standard | `check-data-products` |
 | `check_output_ports.py` | every output port is contracted, built, defined and fully documented | `check-output-ports` |
 | `check_port_versions.py` | a versioned port's lifecycle: deprecated, sunset, retired | `check-port-versions` |

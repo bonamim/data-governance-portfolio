@@ -23,7 +23,7 @@ models:
               check: orders__order_id__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.0.1
               generated: true
         description: Check that field order_id has no missing values
     - unique:
@@ -33,7 +33,7 @@ models:
               check: orders__order_id__field_unique
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.0.1
               generated: true
         description: Check that field order_id has no duplicate values
     config:
@@ -55,7 +55,7 @@ models:
               check: orders__customer_id__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.0.1
               generated: true
         description: Check that field customer_id has no missing values
     config:
@@ -66,7 +66,8 @@ models:
           SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
   - name: order_status
     data_type: text
-    description: Lifecycle status of the order.
+    description: 'The order''s lifecycle status, as the source records it: created,
+      approved, invoiced, processing, shipped, delivered, canceled or unavailable.'
     data_tests:
     - not_null:
         config:
@@ -75,7 +76,7 @@ models:
               check: orders__order_status__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.0.1
               generated: true
         description: Check that field order_status has no missing values
     config:
@@ -86,7 +87,7 @@ models:
           SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: order_purchase_timestamp
     data_type: timestamp
-    description: When the order was placed.
+    description: When the customer placed the order.
     data_tests:
     - not_null:
         config:
@@ -95,7 +96,7 @@ models:
               check: orders__order_purchase_timestamp__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.0.1
               generated: true
         description: Check that field order_purchase_timestamp has no missing values
     config:
@@ -106,7 +107,7 @@ models:
           SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: order_approved_at
     data_type: timestamp
-    description: When the order was approved.
+    description: When the order was approved, empty while it is not.
     config:
       meta:
         datacontract_cli:
@@ -115,7 +116,7 @@ models:
           SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: order_delivered_customer_date
     data_type: timestamp
-    description: When the order was delivered to the customer.
+    description: When the order was delivered to the customer, empty until it is.
     config:
       meta:
         datacontract_cli:
@@ -124,7 +125,7 @@ models:
           SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   - name: order_estimated_delivery_date
     data_type: timestamp
-    description: Estimated delivery date given to the customer.
+    description: The delivery date the customer was given when the order was placed.
     config:
       meta:
         datacontract_cli:

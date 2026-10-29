@@ -55,6 +55,14 @@ def contract_path(repo_root: Path, domain: str, dataset: str) -> Path:
     return repo_root / "domains" / domain / "contracts" / "landing" / f"{dataset}.odcs.yaml"
 
 
+def source_contract_path(repo_root: Path, domain: str, dataset: str, source_type: str) -> Path:
+    """Where the contract of what a source delivers lives, by how it arrives: a landing file's in
+    ``contracts/landing/``, an operational database table's in ``contracts/oltp/``. Either
+    governs the raw table the platform loads it into."""
+    folder = {"landing": "landing", "oltp": "oltp"}[source_type]
+    return repo_root / "domains" / domain / "contracts" / folder / f"{dataset}.odcs.yaml"
+
+
 def _parse_column(prop: dict) -> ColumnRule:
     opts = prop.get("logicalTypeOptions") or {}
     return ColumnRule(

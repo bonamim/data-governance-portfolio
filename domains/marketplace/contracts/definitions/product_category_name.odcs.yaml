@@ -1,0 +1,9 @@
+description: >-
+  The product's category, in Portuguese as the source names it (e.g. perfumaria, beleza_saude).
+  Empty for a product the source gives no category. Its English name is in
+  product_category_name_translation.
+logicalType: string
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#ProductCategoryName

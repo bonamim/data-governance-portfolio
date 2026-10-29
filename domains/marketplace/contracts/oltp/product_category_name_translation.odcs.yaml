@@ -1,0 +1,31 @@
+# ODCS contract for the product_category_name_translation table the platform copies from shop_oltp
+# into marketplace_raw.
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: marketplace.product_category_name_translation.oltp
+name: Marketplace - Product category names (OLTP source)
+status: draft
+description:
+  purpose: The English name of each product category, copied daily as a full snapshot of shop_oltp.shop.product_category_name_translation.
+domain: marketplace
+schema:
+  - name: product_category_name_translation
+    description: "One row per product category: its name in Portuguese, as products use it, and in English."
+    physicalType: table
+    properties:
+      - name: product_category_name
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/product_category_name.odcs.yaml
+        physicalType: text
+        required: true
+        unique: true
+      - name: product_category_name_english
+        description: "The category's name in English, lower case with underscores (e.g. health_beauty)."
+        logicalType: string
+        physicalType: text
+        required: true
+        classification: public
+team:
+  name: marketplace

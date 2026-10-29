@@ -85,3 +85,14 @@ def test_every_raw_table_carries_the_system_columns():
 def test_system_columns_have_a_type_on_each_warehouse():
     assert governance.system_columns("postgres")["_system_loaded_at"] == "timestamptz"
     assert governance.system_columns("snowflake")["_system_batch_id"] == "VARCHAR"
+
+
+def test_an_oltp_table_that_no_longer_matches_its_contract_is_refused(tmp_path):
+    from dgp_platform_ingestion import pipeline
+    from dgp_platform_ingestion.config import load_datasets
+
+    (orders,) = [d for d in load_datasets(REPO, "sales") if d.name == "orders"]
+    dump = tmp_path / "orders.csv"
+    dump.write_text("order_id,customer_id,status\n1,2,delivered\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="no longer matches its contract"):
+        pipeline._check_oltp_schema(REPO, orders, dump)

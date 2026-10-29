@@ -211,9 +211,9 @@ def test_the_dbt_sibling_gets_the_meaning_only_once_ingested(generator, ingested
         assert all(not getattr(f, "description", None) for f in schema.editableSchemaFieldInfo)
 
 
-def test_every_raw_table_carries_the_system_columns_but_no_landing_file(generator):
-    """The platform's columns are added by the loader, so they are on each raw table, an OLTP
-    source's too, and never on the landing file: no source delivers them (ADR-0028)."""
+def test_every_raw_table_carries_its_contract_and_the_system_columns(generator):
+    """An OLTP raw table gets its source contract's meaning like a landing one. The platform's
+    columns are on each raw table and never on the landing file: no source delivers them."""
     emitter = Recorder()
     generator.publish_ingested(emitter)
     s3 = generator.make_dataset_urn("s3", "landing-archive/accepted/olist/reviews")
@@ -230,10 +230,10 @@ def test_every_raw_table_carries_the_system_columns_but_no_landing_file(generato
 
     assert not any(c.startswith("_system_") for c in columns(s3))
     assert "_system_batch_id" in columns(landing_raw)
-    assert set(columns(oltp_raw)) == {
-        "_system_batch_id",
-        "_system_source_path",
-        "_system_partition",
-        "_system_loaded_at",
-    }
+    assert {"order_status", "order_delivered_carrier_date", "_system_batch_id"} <= set(
+        columns(oltp_raw)
+    )
+    assert _terms(columns(oltp_raw)["order_status"]) == ["urn:li:glossaryTerm:Ontology.OrderStatus"]
     assert _tags(columns(oltp_raw)["_system_loaded_at"]) == ["urn:li:tag:sensitivity.internal"]
+    (table,) = emitter.aspects(oltp_raw, "terms")
+    assert [t.urn for t in table.terms] == ["urn:li:glossaryTerm:Ontology.Order"]

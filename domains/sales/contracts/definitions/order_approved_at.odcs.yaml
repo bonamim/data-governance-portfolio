@@ -1,0 +1,6 @@
+description: When the order was approved, empty while it is not.
+logicalType: date
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#OrderApprovedAt

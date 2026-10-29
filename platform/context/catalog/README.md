@@ -81,8 +81,8 @@ definitions that drive the grants and the contracts, and is never maintained by 
   the output-port datasets (the Postgres table and its dbt sibling) as its assets.
 - **Meaning** (ADR-0027): the business glossary (entity types, and the value types the ontology
   gives a business definition, grouped by the domain responsible for each), and the data
-  dictionary. Every contracted asset gets it: each output port, and each landing dataset on both
-  its assets, the landing file (S3) and the raw table it loads into. The table carries the term of
+  dictionary. Every contracted asset gets it: each output port, each raw table from its source
+  contract (a landing file's or an OLTP table's), and each landing file (S3) too. The table carries the term of
   the entity one row is, and every column the data element it holds, its business term and its
   governed tags (sensitivity, privacy category), all from the resolved contract. Every raw table,
   an OLTP source's too, also carries the platform's system columns (ADR-0028). The landing file

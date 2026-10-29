@@ -75,6 +75,26 @@ ontology:
         roles: [{concept: ItemsValue}]
         multiplicity: ManyToOne
         verbalizes: ["{Order} has items worth {ItemsValue}"]
+      - name: has_status
+        roles: [{concept: OrderStatus}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Order} has status {OrderStatus}"]
+      - name: purchased_at
+        roles: [{concept: OrderPurchasedAt}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Order} was purchased at {OrderPurchasedAt}"]
+      - name: approved_at
+        roles: [{concept: OrderApprovedAt}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Order} was approved at {OrderApprovedAt}"]
+      - name: delivered_at
+        roles: [{concept: OrderDeliveredAt}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Order} was delivered at {OrderDeliveredAt}"]
+      - name: estimated_delivery_at
+        roles: [{concept: OrderEstimatedDeliveryAt}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Order} was estimated for delivery at {OrderEstimatedDeliveryAt}"]
 
   - concept: Review
     type: EntityType
@@ -160,6 +180,23 @@ ontology:
         multiplicity: ManyToOne
         verbalizes: ["{Location} is at longitude {Longitude}"]
 
+  - concept: Product
+    type: EntityType
+    description: >-
+      An item a seller lists on the marketplace, in a product category. Used for: what each order
+      item sold.
+    iri: schema:Product
+    identify_by: [has_product_id]
+    relationships:
+      - name: has_product_id
+        roles: [{concept: ProductId}]
+        multiplicity: OneToOne
+        verbalizes: ["{Product} is identified by {ProductId}"]
+      - name: in_category
+        roles: [{concept: ProductCategoryName}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Product} is in category {ProductCategoryName}"]
+
   # --- value types -------------------------------------------------------------------------------
   - concept: CustomerPersonId
     type: ValueType
@@ -241,6 +278,38 @@ ontology:
     type: ValueType
     extends: [String]
     iri: schema:addressRegion
+
+  - concept: OrderStatus
+    type: ValueType
+    extends: [String]
+    description: >-
+      Where an order is in its lifecycle, from created to delivered. Rule: an order whose status
+      is canceled or unavailable is not a valid order. Used for: counting valid orders
+      (valid_order_count) and following orders through fulfilment.
+
+  - concept: OrderPurchasedAt
+    type: ValueType
+    extends: [Date]
+
+  - concept: OrderApprovedAt
+    type: ValueType
+    extends: [Date]
+
+  - concept: OrderDeliveredAt
+    type: ValueType
+    extends: [Date]
+
+  - concept: OrderEstimatedDeliveryAt
+    type: ValueType
+    extends: [Date]
+
+  - concept: ProductId
+    type: ValueType
+    extends: [String]
+
+  - concept: ProductCategoryName
+    type: ValueType
+    extends: [String]
 
   - concept: Latitude
     type: ValueType

@@ -1,0 +1,47 @@
+# ODCS contract for the order_payments table the platform copies from shop_oltp into sales_raw.
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: sales.order_payments.oltp
+name: Sales - Order payments (OLTP source)
+status: draft
+description:
+  purpose: The payments of each order, copied daily as a full snapshot of shop_oltp.shop.order_payments.
+domain: sales
+schema:
+  - name: order_payments
+    description: "One row per payment of an order, as the shop's database holds it: an order paid with several methods or vouchers has several rows."
+    physicalType: table
+    properties:
+      - name: order_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_id.odcs.yaml
+        physicalType: text
+        required: true
+      - name: payment_sequential
+        description: "The payment's number within its order, from 1."
+        logicalType: integer
+        physicalType: text
+        required: true
+        classification: public
+      - name: payment_type
+        description: "How the payment was made, as the source records it: credit_card, boleto, voucher, debit_card or not_defined."
+        logicalType: string
+        physicalType: text
+        required: true
+        classification: public
+      - name: payment_installments
+        description: "How many instalments the customer chose for this payment."
+        logicalType: integer
+        physicalType: text
+        required: true
+        classification: public
+      - name: payment_value
+        description: "The payment's amount in BRL, two decimals, instalment interest included. An order's payments summed are its PaymentAmount."
+        logicalType: number
+        physicalType: text
+        required: true
+        classification: public
+team:
+  name: sales

@@ -1,0 +1,69 @@
+# ODCS contract for the orders table the platform copies from shop_oltp into sales_raw. Describes
+# what the source holds, so the raw table is governed from its first row.
+version: 1.0.0
+kind: DataContract
+apiVersion: v3.2.0
+id: sales.orders.oltp
+name: Sales - Orders (OLTP source)
+status: draft
+description:
+  purpose: The shop's orders, copied daily as a full snapshot of shop_oltp.shop.orders.
+domain: sales
+schema:
+  - name: orders
+    description: "One row per order, as the shop's database holds it: its customer record, its status and the timestamps of its lifecycle, from purchase to delivery."
+    physicalType: table
+    authoritativeDefinitions:
+      - type: ontology
+        url: ../../../../governance/ontology/commerce.ontology.yaml#Order
+    properties:
+      - name: order_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_id.odcs.yaml
+        physicalType: text
+        required: true
+      - name: customer_id
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/customer_key.odcs.yaml
+        physicalType: text
+        required: true
+      - name: order_status
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_status.odcs.yaml
+        physicalType: text
+        required: true
+      - name: order_purchase_timestamp
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_purchased_at.odcs.yaml
+        physicalType: text
+        required: true
+      - name: order_approved_at
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_approved_at.odcs.yaml
+        physicalType: text
+        required: false
+      - name: order_delivered_carrier_date
+        description: "When the seller handed the order to the logistics carrier, empty until then."
+        logicalType: date
+        physicalType: text
+        required: false
+        classification: public
+      - name: order_delivered_customer_date
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_delivered_at.odcs.yaml
+        physicalType: text
+        required: false
+      - name: order_estimated_delivery_date
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/order_estimated_delivery_at.odcs.yaml
+        physicalType: text
+        required: true
+team:
+  name: sales

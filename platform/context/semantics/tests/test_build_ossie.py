@@ -14,7 +14,8 @@ def test_export_is_a_valid_ossie_document_with_every_value_types_description():
 
 
 def test_the_mapping_is_generated_from_the_contracts_links():
-    """orders (one row per Order) maps Order by its id and customer key. Nothing hand-written."""
+    """orders (one row per Order) maps Order by its id, and each linked column to the concept it
+    holds. Nothing hand-written."""
     mappings = build_ossie.mappings()  # validated against Ossie's mapping schema, or raises
 
     (order,) = mappings["orders"]["concept_mappings"]
@@ -22,8 +23,9 @@ def test_the_mapping_is_generated_from_the_contracts_links():
     assert order["object_mappings"][0]["referent_mappings"] == [
         {"relationship": "has_order_id", "expression": "orders.order_id"}
     ]
-    (child,) = order["link_mappings"][0]["children"]
-    assert child["object_mapping"] == {"concept": "CustomerKey", "expression": "orders.customer_id"}
+    children = [c["object_mapping"] for c in order["link_mappings"][0]["children"]]
+    assert {"concept": "CustomerKey", "expression": "orders.customer_id"} in children
+    assert {"concept": "OrderStatus", "expression": "orders.order_status"} in children
     assert "sales_performance" not in mappings  # one row per state is no entity
 
 
