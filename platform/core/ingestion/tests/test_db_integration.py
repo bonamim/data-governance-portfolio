@@ -68,3 +68,27 @@ def test_reload_keeps_dependent_views(tmp_path: Path, analytics):
     finally:
         analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table} CASCADE")
         analytics.commit()
+
+
+def test_comment_table_documents_the_table_and_its_columns(tmp_path: Path, analytics):
+    """The raw table carries its landing contract's descriptions. A column the file doesn't have is
+    skipped, not an error."""
+    schema, table = os.environ.get("TEST_SCHEMA", "reference_raw"), "pytest_comments"
+    csv_path = tmp_path / "c.csv"
+    csv_path.write_text("id,name\n1,alpha\n", encoding="utf-8")
+    try:
+        db.load_csv_file(analytics, schema, table, csv_path)
+        db.comment_table(
+            analytics, schema, table, "One row per widget.", {"id": "The widget id.", "gone": "x"}
+        )
+        analytics.commit()
+        rel = f"'{schema}.{table}'::regclass"
+        assert analytics.execute(f"SELECT obj_description({rel})").fetchone() == (
+            "One row per widget.",
+        )
+        assert analytics.execute(f"SELECT col_description({rel}, 1)").fetchone() == (
+            "The widget id.",
+        )
+    finally:
+        analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
+        analytics.commit()

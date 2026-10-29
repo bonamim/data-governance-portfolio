@@ -512,6 +512,7 @@ def load_raw(
                 rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, local, append=n > 0)
                 ledger.record(analytics, **common, **_from_gate(a), row_count=rows, status="loaded")
                 total += rows
+            _document_raw(analytics, repo_root, d)
             for a in (a for b in older for a in b):
                 ledger.record(
                     analytics,
@@ -549,6 +550,16 @@ def _from_gate(a: ledger.Accepted) -> dict:
         "archive_key": a.archive_key,
         "archive_version": a.archive_version,
     }
+
+
+def _document_raw(analytics: psycopg.Connection, repo_root: Path, d: Dataset) -> None:
+    """Describe the raw table from its landing contract (resolved, so a column says what its
+    definition says): the raw table is the first warehouse asset a consuming domain reads."""
+    contract = load_contract_for(repo_root, d.domain, d.name)
+    if contract is None:
+        return
+    columns = {c.name: c.description for c in contract.columns}
+    db.comment_table(analytics, d.raw_schema, d.raw_table, contract.description, columns)
 
 
 # ---------------------------------------------------------------------- replay
@@ -601,5 +612,6 @@ def replay(
                 archive_key=obj.key,
                 message="replayed from archive",
             )
+            _document_raw(analytics, repo_root, d)
             analytics.commit()
             log.info("replayed %s.%s (%d rows) from %s", d.raw_schema, d.raw_table, rows, obj.key)
