@@ -92,3 +92,28 @@ def test_governance_documents_the_table_and_its_columns(tmp_path: Path, analytic
     finally:
         analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
         analytics.commit()
+
+
+def test_governance_runs_on_the_empty_table_before_the_first_row(tmp_path: Path, analytics):
+    """The table is governed as soon as it exists: no row is ever in an undescribed table."""
+    schema, table = os.environ.get("TEST_SCHEMA", "reference_raw"), "pytest_govern_first"
+    csv_path = tmp_path / "g.csv"
+    csv_path.write_text("id\n1\n2\n", encoding="utf-8")
+    seen: list[int] = []
+
+    def govern() -> list[str]:
+        seen.append(analytics.execute(f"SELECT count(*) FROM {schema}.{table}").fetchone()[0])
+        gov = governance.RawGovernance("One row per widget.", {"id": "The widget id."})
+        return governance.statements("postgres", schema, table, gov)
+
+    try:
+        assert db.load_csv_file(analytics, schema, table, csv_path, governance=govern) == 2
+        analytics.commit()
+        assert seen == [0]
+        rel = f"'{schema}.{table}'::regclass"
+        assert analytics.execute(f"SELECT obj_description({rel})").fetchone() == (
+            "One row per widget.",
+        )
+    finally:
+        analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
+        analytics.commit()

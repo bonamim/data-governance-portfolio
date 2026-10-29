@@ -187,3 +187,14 @@ def test_business_terms_are_glossary_terms_and_data_elements_a_property(generato
     assert terms["urn:li:glossaryTerm:Ontology.PaymentAmount"] == f"{business}.sales"  # has a rule
     assert "urn:li:glossaryTerm:Ontology.StateCode" not in terms  # a data element, not a term
     assert {"StateCode", "OrderId", "PaymentAmount"} <= {v.value for v in element.allowedValues}
+
+
+@pytest.mark.parametrize("ingested", [True, False])
+def test_the_dbt_sibling_gets_the_meaning_only_once_ingested(generator, ingested):
+    """A raw table that is a dbt source opens as its dbt sibling, so that one carries the meaning
+    too, but never before it was ingested: writing to it would create an empty entity."""
+    gms = SimpleNamespace(has_aspect=lambda urn, aspect: ingested)
+    emitter = Recorder()
+    generator.publish_landing(emitter, gms)
+    dbt = generator.make_dataset_urn("dbt", "analytics.customer_experience_raw.reviews")
+    assert bool(emitter.aspects(dbt, "editableSchemaFieldInfo")) is ingested

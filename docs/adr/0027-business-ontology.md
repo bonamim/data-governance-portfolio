@@ -167,10 +167,13 @@ the post-hook is a no-op and the masking views enforce access. The workflow is i
 
 **The raw table a landing file loads into is governed the same way, by the loader.** It has a
 contract (the landing one), and it is where restricted data sits unmasked, so a tag can't wait for a
-port. Right after every load, in the load's transaction, the loader writes the resolved contract
-onto the table: each description as a `COMMENT`, and on Snowflake the same governed tags the build
+port. As soon as the table exists and before its first row is written, on every load, the loader
+writes the resolved contract onto the table: each description as a `COMMENT`, and on Snowflake the same governed tags the build
 sets on a port (`dgp_governance.registry.warehouse_tags` is the one answer for both writers).
-`dgp-ingest governance-preview --warehouse snowflake` prints the statements on any machine.
+`dgp-ingest governance-preview --warehouse snowflake` prints the statements on any machine. Before
+the first row, not after the load: Snowflake commits DDL on its own, so a table governed after its
+rows would be readable ungoverned for a moment. A dbt source over the raw table takes the same
+descriptions (`make dbt-ports`), so its catalog entity, the one DataHub opens, says the same.
 
 ### Semantic models and the mapping
 Ossie links an ontology to a semantic model through a **mapping**: which semantic-model fields

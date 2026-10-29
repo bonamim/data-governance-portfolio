@@ -2,7 +2,9 @@
 
 The raw table is the first warehouse asset a consuming domain reads, and the one place where
 restricted data sits unmasked. So the loader that writes it also writes what the contract says it
-holds, right after every load (a recreated table loses both), in the load's transaction:
+holds, as soon as the table exists and before its first row is written (``db.load_csv_file``), on
+every load (a recreated table loses both). No row is ever in an ungoverned table, even on a
+warehouse whose DDL commits on its own:
 
   * the table's and every column's description, resolved from the definitions (ADR-0027), as a
     ``COMMENT``. Any tool reading the warehouse finds them (the catalog ingest among them).

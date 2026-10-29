@@ -411,10 +411,12 @@ def _publish_meaning(
         )
 
 
-def publish_landing(emitter: DatahubRestEmitter) -> None:
+def publish_landing(emitter: DatahubRestEmitter, gms: Gms | None = None) -> None:
     """Every landing dataset's meaning, from its resolved landing contract, on both assets it is:
     the landing file (S3, always tagged here) and the raw table it loads into (tagged here unless
-    the warehouse has native tags, which the loader then sets)."""
+    the warehouse has native tags, which the loader then sets). A raw table that is a dbt source
+    has a dbt sibling, the primary one DataHub opens: it gets the same meaning, when it has been
+    ingested (writing to a dbt URN that was never ingested would create an empty entity)."""
     business, n = _business_concepts(), 0
     for d in load_datasets(root()):
         path = contract_path(root(), d.domain, d.name)
@@ -425,6 +427,9 @@ def publish_landing(emitter: DatahubRestEmitter) -> None:
         raw_urn = make_dataset_urn(WAREHOUSE_PLATFORM, f"{DB}.{d.raw_schema}.{d.raw_table}")
         _publish_meaning(emitter, s3_urn, schema, path, business, tagged=True)
         _publish_meaning(emitter, raw_urn, schema, path, business, tagged=not NATIVE_TAGS)
+        dbt_urn = make_dataset_urn("dbt", f"{DB}.{d.raw_schema}.{d.raw_table}")
+        if gms is not None and gms.has_aspect(dbt_urn, "schemaMetadata"):
+            _publish_meaning(emitter, dbt_urn, schema, path, business, tagged=not NATIVE_TAGS)
         n += 1
     print(f"  landing datasets with their meaning (file + raw table): {n}")
 
@@ -541,7 +546,7 @@ def main() -> int:
     file_datasets(emitter, gms)
     publish_tags_and_glossary(emitter)
     publish_products(emitter)
-    publish_landing(emitter)
+    publish_landing(emitter, gms)
     link_building_dags(emitter, gms)
     link_bi_datasets(emitter)
     return 0

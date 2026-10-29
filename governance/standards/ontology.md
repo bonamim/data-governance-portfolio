@@ -96,8 +96,9 @@ the catalog shows the tags (`dbt run-operation dgp_dbt.governance_tags_preview` 
 would run).
 
 **A raw table is tagged by the loader that writes it.** A landing contract is a contract like a
-port's, so the raw table it loads into gets the same descriptions and governed tags, set right after
-every load in the load's transaction (`dgp-ingest governance-preview` prints the statements). In the
+port's, so the raw table it loads into gets the same descriptions and governed tags, set as soon as
+the table exists and before its first row is written (`dgp-ingest governance-preview` prints the
+statements). In the
 catalog, the landing file and the raw table carry the entity's term and every column's data element,
 business term and tags, like a port.
 

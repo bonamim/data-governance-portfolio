@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import tempfile
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -509,10 +510,16 @@ def load_raw(
                 obj = store.head(store.archive, a.archive_key, a.archive_version)
                 local = Path(tmp) / obj.filename
                 store.download(obj, local)
-                rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, local, append=n > 0)
+                rows = db.load_csv_file(
+                    analytics,
+                    d.raw_schema,
+                    d.raw_table,
+                    local,
+                    append=n > 0,
+                    governance=_raw_governance(analytics, repo_root, settings, d),
+                )
                 ledger.record(analytics, **common, **_from_gate(a), row_count=rows, status="loaded")
                 total += rows
-            _govern_raw(analytics, repo_root, settings, d)
             for a in (a for b in older for a in b):
                 ledger.record(
                     analytics,
@@ -552,18 +559,21 @@ def _from_gate(a: ledger.Accepted) -> dict:
     }
 
 
-def _govern_raw(
+def _raw_governance(
     analytics: psycopg.Connection, repo_root: Path, settings: Settings, d: Dataset
-) -> None:
-    """Describe and tag the raw table from its landing contract (governance.py), in the load's
-    transaction: the table is never readable without what the contract says it holds."""
-    path = contract_path(repo_root, d.domain, d.name)
-    if not path.exists():
-        return
-    gov = governance.RawGovernance.from_contract(path)
-    present = db.columns_of(analytics, d.raw_schema, d.raw_table)
-    rendered = governance.statements(settings.warehouse, d.raw_schema, d.raw_table, gov, present)
-    db.execute_all(analytics, rendered)
+) -> Callable[[], list[str]]:
+    """What describes and tags the raw table from its landing contract (governance.py), rendered
+    once the table exists (``db.load_csv_file`` runs it before the first row is written)."""
+
+    def render() -> list[str]:
+        path = contract_path(repo_root, d.domain, d.name)
+        if not path.exists():
+            return []
+        gov = governance.RawGovernance.from_contract(path)
+        present = db.columns_of(analytics, d.raw_schema, d.raw_table)
+        return governance.statements(settings.warehouse, d.raw_schema, d.raw_table, gov, present)
+
+    return render
 
 
 # ---------------------------------------------------------------------- replay
@@ -598,7 +608,13 @@ def replay(
             obj = store.head(store.archive, key)
             local = Path(tmp) / obj.filename
             store.download(obj, local)
-            rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, local)
+            rows = db.load_csv_file(
+                analytics,
+                d.raw_schema,
+                d.raw_table,
+                local,
+                governance=_raw_governance(analytics, repo_root, settings, d),
+            )
             ledger.record(
                 analytics,
                 source_type="file",
@@ -616,6 +632,5 @@ def replay(
                 archive_key=obj.key,
                 message="replayed from archive",
             )
-            _govern_raw(analytics, repo_root, settings, d)
             analytics.commit()
             log.info("replayed %s.%s (%d rows) from %s", d.raw_schema, d.raw_table, rows, obj.key)

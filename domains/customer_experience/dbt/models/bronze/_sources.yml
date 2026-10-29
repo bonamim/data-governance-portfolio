@@ -1,8 +1,23 @@
 version: 2
-
 sources:
-  - name: customer_experience_raw
-    description: "Review events as loaded from the landing zone (text columns, internal)."
-    schema: customer_experience_raw
-    tables:
-      - name: reviews
+- name: customer_experience_raw
+  description: Review events as loaded from the landing zone (text columns, internal).
+  schema: customer_experience_raw
+  tables:
+  - name: reviews
+    description: 'One row per survey answer and order, as the source delivers it: the score, when it was sent and answered, and the customer''s free-text comment.'
+    columns:
+    - name: review_id
+      description: 'Identifies one satisfaction-survey answer. Not unique on its own: the same review id can appear on several orders.'
+    - name: order_id
+      description: Identifies one order on the marketplace, with the same value in every domain.
+    - name: review_score
+      description: Whole number from 1 (worst) to 5 (best), the customer's survey answer.
+    - name: review_comment_title
+      description: 'Short headline the customer typed above their survey comment, empty when they wrote none. Free text the customer controls, so it can name or contact a person: personal data, never published.'
+    - name: review_comment_message
+      description: 'The comment the customer wrote with their survey answer, empty when they wrote none. Free text the customer controls, so it can name or contact a person: personal data, never published (the reviews port carries only whether one exists, has_comment).'
+    - name: review_creation_date
+      description: Date the satisfaction survey was sent to the customer.
+    - name: review_answer_timestamp
+      description: When the customer answered the satisfaction survey, empty if not answered yet.

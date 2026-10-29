@@ -9,7 +9,7 @@ quoted so a hostile header cannot inject SQL.
 from __future__ import annotations
 
 import csv
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import IO
@@ -81,13 +81,25 @@ def copy_csv_into(
 
 
 def load_csv_file(
-    conn: psycopg.Connection, schema: str, table: str, csv_path: Path, *, append: bool = False
+    conn: psycopg.Connection,
+    schema: str,
+    table: str,
+    csv_path: Path,
+    *,
+    append: bool = False,
+    governance: Callable[[], list[str]] | None = None,
 ) -> int:
     """Create <schema>.<table> from the CSV header and load it (or, with ``append``, add the rows
-    of another file of the same batch to it). Returns row count."""
+    of another file of the same batch to it). Returns row count.
+
+    ``governance`` renders the statements that describe and tag the table. They run as soon as the
+    table exists and before its first row is written, so the data is never in an ungoverned table,
+    even on a warehouse whose DDL commits on its own (Snowflake)."""
     columns = _read_header(csv_path)
     if not append:
         prepare_text_table(conn, schema, table, columns)
+        if governance is not None:
+            execute_all(conn, governance())
     with csv_path.open("rb") as fh:
         return copy_csv_into(conn, schema, table, fh)
 
