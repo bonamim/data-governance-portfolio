@@ -87,9 +87,9 @@ definitions that drive the grants and the contracts, and is never maintained by 
   governed tags (sensitivity, privacy category), all from the resolved contract. Every raw table,
   an OLTP source's too, also carries the platform's system columns (ADR-0028). The landing file
   doesn't: no source delivers them. A raw table that is a dbt source opens in DataHub as its dbt
-  sibling, which gets the same meaning once ingested, descriptions included: the warehouse table
-  takes them from the loader's `COMMENT`s, but a dbt source's YAML describes no warehouse object
-  and stays hand-written.
+  sibling, which gets the same terms and tags once ingested. Its column descriptions are the loader's
+  `COMMENT`s, which dbt's catalog carries, and only its table description is set here: DataHub's
+  dbt ingest doesn't carry a table's comment. A dbt source's YAML stays hand-written.
 - **Deprecation**: a port version being retired carries its sunset date and its successor
   (ADR-0019).
 - **Where each dataset is built**: a link from every warehouse dataset to the Airflow DAG that

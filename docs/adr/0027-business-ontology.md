@@ -174,7 +174,8 @@ sets on a port (`dgp_governance.registry.warehouse_tags` is the one answer for b
 the first row, not after the load: Snowflake commits DDL on its own, so a table governed after its
 rows would be readable ungoverned for a moment. The loader owns the raw table and dbt only reads it,
 so a dbt source's YAML stays hand-written: its catalog entity, the one DataHub opens, gets the
-descriptions from `catalog-govern` with the terms and tags.
+column descriptions from the same `COMMENT`s through dbt's catalog, and its table description,
+terms and tags from `catalog-govern`.
 
 ### Semantic models and the mapping
 Ossie links an ontology to a semantic model through a **mapping**: which semantic-model fields

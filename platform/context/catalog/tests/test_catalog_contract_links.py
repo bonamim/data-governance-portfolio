@@ -200,19 +200,15 @@ def test_the_dbt_sibling_gets_the_meaning_only_once_ingested(generator, ingested
     dbt = generator.make_dataset_urn("dbt", "analytics.customer_experience_raw.reviews")
     assert bool(emitter.aspects(dbt, "editableSchemaFieldInfo")) is ingested
     if ingested:
-        # The dbt source describes no warehouse object, so the catalog carries the descriptions.
+        # dbt's catalog carries the columns' COMMENTs to DataHub, not the table's: only that is set.
         (table,) = emitter.aspects(dbt, "description")
         assert table.description.startswith("One row per survey answer and order")
-        (schema,) = emitter.aspects(dbt, "editableSchemaFieldInfo")
-        fields = {f.fieldPath: f for f in schema.editableSchemaFieldInfo}
-        assert fields["review_comment_message"].description.startswith("The comment the customer")
-        assert fields["_system_loaded_at"].description.startswith("When the load")
-    # The warehouse table's descriptions come from the loader's COMMENTs, through its ingest.
     pg = generator.make_dataset_urn(
         generator.WAREHOUSE_PLATFORM, "analytics.customer_experience_raw.reviews"
     )
-    (pg_schema,) = emitter.aspects(pg, "editableSchemaFieldInfo")
-    assert all(f.description is None for f in pg_schema.editableSchemaFieldInfo)
+    for urn in (pg, dbt) if ingested else (pg,):
+        (schema,) = emitter.aspects(urn, "editableSchemaFieldInfo")
+        assert all(not getattr(f, "description", None) for f in schema.editableSchemaFieldInfo)
 
 
 def test_every_raw_table_carries_the_system_columns_but_no_landing_file(generator):

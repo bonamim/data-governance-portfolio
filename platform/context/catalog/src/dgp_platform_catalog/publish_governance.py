@@ -335,7 +335,6 @@ def _field_info(
     business: set[str],
     *,
     tagged: bool,
-    described: bool = False,
 ) -> list[EditableSchemaFieldInfoClass]:
     """Each column's meaning (ADR-0027), from its resolved contract: its data element (a
     structured property), the business term that element represents or (for an identifier) the
@@ -370,7 +369,6 @@ def _field_info(
         fields.append(
             EditableSchemaFieldInfoClass(
                 fieldPath=col,
-                description=column.get("description") if described else None,
                 globalTags=GlobalTagsClass(tags=tags),
                 glossaryTerms=GlossaryTermsClass(
                     terms=[GlossaryTermAssociationClass(urn=t) for t in terms], auditStamp=AUDIT
@@ -392,12 +390,11 @@ def _publish_meaning(
 ) -> None:
     """A contracted table's meaning on one asset: the term of the entity one row is on the table,
     and each column's data element, business term and (when ``tagged``) governed tags. When
-    ``described``, the table's and each column's description too, for an asset whose own metadata
-    can't carry them (a dbt source: its YAML describes no warehouse object)."""
+    ``described``, the table's description too, for an asset that doesn't take it from the
+    warehouse (a dbt source: dbt reads the table's COMMENT, but DataHub's dbt ingest uses only the
+    columns' comments)."""
     columns = [c for c in schema.get("properties") or [] if c.get("name")]
-    fields = _field_info(
-        emitter, urn, columns, contract, business, tagged=tagged, described=described
-    )
+    fields = _field_info(emitter, urn, columns, contract, business, tagged=tagged)
     if described and schema.get("description"):
         emitter.emit(
             MetadataChangeProposalWrapper(
@@ -449,8 +446,8 @@ def publish_ingested(emitter: DatahubRestEmitter, gms: Gms | None = None) -> Non
         raw = {**schema, "properties": [*(schema.get("properties") or []), *system]}
         raw_urn = make_dataset_urn(WAREHOUSE_PLATFORM, f"{DB}.{d.raw_schema}.{d.raw_table}")
         dbt_urn = make_dataset_urn("dbt", f"{DB}.{d.raw_schema}.{d.raw_table}")
-        # The warehouse table is described by the loader's COMMENTs, which its ingest reads. Its
-        # dbt sibling is described here: the loader owns the table, and dbt only reads it.
+        # Descriptions come from the loader's COMMENTs: the warehouse ingest reads them, and the dbt
+        # sibling's columns get them through dbt's catalog. Only its table description is set here.
         _publish_meaning(emitter, raw_urn, raw, path, business, tagged=not NATIVE_TAGS)
         if gms is not None and gms.has_aspect(dbt_urn, "schemaMetadata"):
             _publish_meaning(
