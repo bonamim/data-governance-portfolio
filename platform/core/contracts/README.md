@@ -23,6 +23,8 @@ inherits PII is masked like one that declares it.
   were on the base branch), and treats a changed definition as a change to every contract
   linking to it (`odcs.linked_files`).
 - `governance/tests/test_contract_reads.py` fails if a new reader skips the loader.
-- The definitions columns link to are the ontology's value types, each kept by the domain that owns
-  it (`domains/<d>/contracts/definitions/`, ADR-0027), and `make check-ontology` keeps each column's
-  meaning in one place.
+- The definitions columns link to are the data dictionary (`domains/<d>/contracts/definitions/`,
+  ADR-0027): shared column properties, each kept by the domain that owns it. The business terms
+  live in the ontology (`governance/ontology/`). Each definition names the ontology value type it
+  holds, and a contract's table names the entity type one row is. A column never links a business
+  term directly, only a definition. `make check-ontology` keeps each column's meaning in one place.
