@@ -141,8 +141,8 @@ def data_product(name: str) -> DataProduct | None:
 
 
 def contract_files(domain: str | None = None) -> list[Path]:
-    """Every output-port-level contract file (``domains/<d>/contracts/*.odcs.yaml``): landing
-    contracts (``contracts/landing/``) and definitions (``contracts/definitions/``) sit deeper."""
+    """Every output-port-level contract file (``domains/<d>/contracts/*.odcs.yaml``): source
+    contracts (``contracts/sources/``) and data elements (``contracts/dictionary/``) sit deeper."""
     return sorted(root().glob(f"domains/{domain or '*'}/contracts/*.odcs.yaml"))
 
 

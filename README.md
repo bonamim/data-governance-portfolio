@@ -222,7 +222,9 @@ governance/               Federated governance, owned by the governance guild
   src/dgp_governance/     The library every tool reads these definitions through
 
 domains/<domain>/         Owned by each domain team
-  contracts/              ODCS contracts; definitions/ holds the meaning of the value types it owns
+  contracts/              ODCS contracts: one per output port
+    sources/              What each source delivers into raw (a landing file or an OLTP table)
+    dictionary/           The data dictionary: the data elements the domain owns, linked from columns
   ingestion/              Configuration of the domain's sources
   dbt/                    The domain's dbt project
   data_products/          Data product definitions: output ports, SLA, consumers

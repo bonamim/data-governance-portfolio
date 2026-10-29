@@ -69,7 +69,7 @@ from dgp_governance.repo import root
 from dgp_platform_contracts import odcs
 from dgp_platform_ingestion import layout
 from dgp_platform_ingestion.config import load_datasets
-from dgp_platform_quality.rules import source_contract_path
+from dgp_platform_quality.rules import contract_path
 from dgp_platform_semantics import ossie
 
 from .gms import Gms, default_url
@@ -217,7 +217,7 @@ def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
                 qualifiedName="dgp.data_element",
                 displayName="Data element",
                 description="The data element a column holds: its definition in the data "
-                "dictionary (domains/<domain>/contracts/definitions/), linked from the column's "
+                "dictionary (domains/<domain>/contracts/dictionary/), linked from the column's "
                 "contract and inherited by it (ADR-0027).",
                 valueType="urn:li:dataType:datahub.string",
                 cardinality=PropertyCardinalityClass.SINGLE,
@@ -438,7 +438,7 @@ def publish_ingested(emitter: DatahubRestEmitter, gms: Gms | None = None) -> Non
     business, n = _business_concepts(), 0
     system = [dict(c) for c in registry.system_columns()]
     for d in load_datasets(root()):
-        path = source_contract_path(root(), d.domain, d.name, d.source_type)
+        path = contract_path(root(), d.domain, d.name)
         schema = (odcs.load(path).get("schema") or [{}])[0] if path.exists() else {}
         if d.source_type == "landing" and path.exists():
             s3_urn = make_dataset_urn("s3", layout.catalog_name(ARCHIVE, d.source_system, d.name))

@@ -12,7 +12,7 @@ from dgp_platform_ingestion import governance
 from dgp_platform_ingestion.governance import RawGovernance
 
 REPO = Path(__file__).resolve().parents[4]
-REVIEWS = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"
+REVIEWS = REPO / "domains/customer_experience/contracts/sources/reviews.odcs.yaml"
 
 GOV = RawGovernance(
     description="One row per widget.",

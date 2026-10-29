@@ -20,14 +20,14 @@ schema:
       - name: product_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/product_id.odcs.yaml
+            url: ../dictionary/product_id.odcs.yaml
         physicalType: text
         required: true
         unique: true
       - name: product_category_name
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/product_category_name.odcs.yaml
+            url: ../dictionary/product_category_name.odcs.yaml
         physicalType: text
         required: false
       - name: product_name_lenght

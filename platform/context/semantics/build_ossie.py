@@ -3,7 +3,7 @@
 
 Source → compile → validate → deploy, as for dbt. The sources are written once and never repeat a
 fact: the ontology's structure (``governance/ontology/*.ontology.yaml``), each value type's data
-element (``domains/<d>/contracts/definitions/``), the semantic models (``domains/<d>/semantics/``)
+element (``domains/<d>/contracts/dictionary/``), the semantic models (``domains/<d>/semantics/``)
 and the contracts that link them. Ossie tools (Snowflake's
 ``SYSTEM$CREATE_SEMANTIC_VIEW_FROM_OSSIE_YAML``, an Ossie viewer, any converter) read a document as
 it is, so the bundle compiles each source into a complete one, validates it with Ossie's own

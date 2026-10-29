@@ -16,7 +16,7 @@ schema:
       - name: order_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/order_id.odcs.yaml
+            url: ../dictionary/order_id.odcs.yaml
         physicalType: text
         required: true
       - name: order_item_id
@@ -28,13 +28,13 @@ schema:
       - name: product_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../../marketplace/contracts/definitions/product_id.odcs.yaml
+            url: ../../../marketplace/contracts/dictionary/product_id.odcs.yaml
         physicalType: text
         required: true
       - name: seller_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../../marketplace/contracts/definitions/seller_id.odcs.yaml
+            url: ../../../marketplace/contracts/dictionary/seller_id.odcs.yaml
         physicalType: text
         required: true
       - name: shipping_limit_date

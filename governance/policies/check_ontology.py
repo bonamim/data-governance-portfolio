@@ -3,7 +3,7 @@
 
 The ontology's structure is one Apache Ossie document (``governance/ontology/*.ontology.yaml``).
 Each value type's meaning is an ODCS property that the domain owning it defines in
-``domains/<domain>/contracts/definitions/<value_type>.odcs.yaml`` (shared places in the
+``domains/<domain>/contracts/dictionary/<value_type>.odcs.yaml`` (shared places in the
 reference domain), and every contract column that means it links there and inherits it.
 
   Ontology
@@ -200,7 +200,7 @@ def _term_violations(
             where = ", ".join(relative(p, base) for p in paths)
             out.append(f"value type '{name}' is defined {len(paths)} times ({where}). Define once")
     out += [
-        f"value type '{name}': no domain defines it (contracts/definitions/)"
+        f"value type '{name}': no domain defines it (contracts/dictionary/)"
         for name in sorted(values - set(definitions))
     ]
     out += [
@@ -421,7 +421,7 @@ def contract_violations(
             if resolved and concept is None:  # rule 7
                 out.append(
                     f"{where}: column '{col}' takes its meaning from outside the definitions "
-                    f"({resolved[0].get('url')}). Link a contracts/definitions/ file as a "
+                    f"({resolved[0].get('url')}). Link a contracts/dictionary/ file as a "
                     "businessDefinition"
                 )
             elif concept is not None and concept not in meaning:

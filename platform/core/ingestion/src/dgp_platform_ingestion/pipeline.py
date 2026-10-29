@@ -31,7 +31,7 @@ from pathlib import Path
 import psycopg
 from dgp_platform_contracts import odcs
 from dgp_platform_quality.engine import Assertion, ValidationResult, validate_file
-from dgp_platform_quality.rules import load_contract_for, source_contract_path
+from dgp_platform_quality.rules import contract_path, load_contract_for
 
 from . import alerts, arrivals, db, governance, layout, ledger
 from .config import Dataset, load_datasets, olist_files
@@ -590,7 +590,7 @@ def _raw_governance(
     (``db.load_csv_file`` runs it before the first row is written)."""
 
     def render() -> list[str]:
-        path = source_contract_path(repo_root, d.domain, d.name, d.source_type)
+        path = contract_path(repo_root, d.domain, d.name)
         gov = governance.RawGovernance.from_contract(path if path.exists() else None)
         present = db.columns_of(analytics, d.raw_schema, d.raw_table)
         return governance.statements(settings.warehouse, d.raw_schema, d.raw_table, gov, present)
@@ -602,7 +602,7 @@ def _check_oltp_schema(repo_root: Path, d: Dataset, dump: Path) -> None:
     """An operational table must still have the columns its contract describes before it replaces
     raw: a renamed or dropped column fails the load, as a landing file that breaks its contract is
     quarantined (no contract yet: nothing to check)."""
-    path = source_contract_path(repo_root, d.domain, d.name, "oltp")
+    path = contract_path(repo_root, d.domain, d.name)
     if not path.exists():
         return
     schema = (odcs.load(path).get("schema") or [{}])[0]

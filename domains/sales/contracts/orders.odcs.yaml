@@ -18,44 +18,44 @@ schema:
   - name: order_id
     authoritativeDefinitions:
     - type: businessDefinition
-      url: definitions/order_id.odcs.yaml
+      url: dictionary/order_id.odcs.yaml
     physicalType: text
     required: true
     unique: true
   - name: customer_id
     authoritativeDefinitions:
     - type: businessDefinition
-      url: definitions/customer_key.odcs.yaml
+      url: dictionary/customer_key.odcs.yaml
     physicalType: text
     required: true
   - name: order_status
     authoritativeDefinitions:
     - type: businessDefinition
-      url: definitions/order_status.odcs.yaml
+      url: dictionary/order_status.odcs.yaml
     physicalType: text
     required: true
   - name: order_purchase_timestamp
     authoritativeDefinitions:
     - type: businessDefinition
-      url: definitions/order_purchased_at.odcs.yaml
+      url: dictionary/order_purchased_at.odcs.yaml
     physicalType: timestamp
     required: true
   - name: order_approved_at
     authoritativeDefinitions:
     - type: businessDefinition
-      url: definitions/order_approved_at.odcs.yaml
+      url: dictionary/order_approved_at.odcs.yaml
     physicalType: timestamp
     required: false
   - name: order_delivered_customer_date
     authoritativeDefinitions:
     - type: businessDefinition
-      url: definitions/order_delivered_at.odcs.yaml
+      url: dictionary/order_delivered_at.odcs.yaml
     physicalType: timestamp
     required: false
   - name: order_estimated_delivery_date
     authoritativeDefinitions:
     - type: businessDefinition
-      url: definitions/order_estimated_delivery_at.odcs.yaml
+      url: dictionary/order_estimated_delivery_at.odcs.yaml
     physicalType: timestamp
     required: false
   quality:

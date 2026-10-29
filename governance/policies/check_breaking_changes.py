@@ -48,8 +48,8 @@ def _resolve_base() -> str | None:
 
 def _changed_output_port_contracts(base: str) -> list[Path]:
     """Output-port contracts changed vs base: the file itself, or a definition it links to (a
-    changed concept changes every contract that uses it). Landing contracts live one level deeper
-    (``contracts/landing/``) and are not output ports."""
+    changed concept changes every contract that uses it). Source contracts live one level deeper
+    (``contracts/sources/``) and are not output ports."""
     changed = set(_git("diff", "--name-only", base).stdout.splitlines())
     # New files not committed yet (a local run on a working tree). A PR has them in the diff.
     changed |= set(_git("ls-files", "--others", "--exclude-standard").stdout.splitlines())

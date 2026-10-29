@@ -151,11 +151,11 @@ def ontology_link(doc: dict) -> str | None:
 
 
 def definition_files(base: Path | None = None) -> dict[str | None, list[Path]]:
-    """Value type -> its data element file(s) in ``domains/<domain>/contracts/definitions/``,
+    """Value type -> its data element file(s) in ``domains/<domain>/contracts/dictionary/``,
     keyed by the value type each file names with its ``ontology`` link (None: files that name
     none). A value type has exactly one. ``check_ontology`` reports duplicates and missing links."""
     out: dict[str | None, list[Path]] = {}
-    for path in sorted((base or root()).glob("domains/*/contracts/definitions/*.odcs.yaml")):
+    for path in sorted((base or root()).glob("domains/*/contracts/dictionary/*.odcs.yaml")):
         out.setdefault(ontology_link(load_yaml(path)), []).append(path)
     return out
 
@@ -218,7 +218,7 @@ def concept_of(prop: dict, contract: Path) -> str | None:
         if link.get("type") != "businessDefinition" or not url.endswith(".odcs.yaml"):
             continue
         target = (Path(contract).parent / url).resolve()
-        if "definitions" in target.parts and target.is_file():
+        if "dictionary" in target.parts and target.is_file():
             return ontology_link(load_yaml(target))
     return None
 

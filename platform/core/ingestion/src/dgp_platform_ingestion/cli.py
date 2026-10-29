@@ -117,7 +117,7 @@ def _governance_preview(repo_root: Path, warehouse: str, domain: str | None) -> 
     """Print what the loader runs on each raw table when it creates it, landing and OLTP. Needs no
     warehouse connection, so the Snowflake statements can be reviewed anywhere."""
     for d in load_datasets(repo_root, domain):
-        path = pipeline.source_contract_path(repo_root, d.domain, d.name, d.source_type)
+        path = pipeline.contract_path(repo_root, d.domain, d.name)
         gov = governance.RawGovernance.from_contract(path if path.exists() else None)
         print(f"-- {d.raw_schema}.{d.raw_table} ({warehouse})")
         for statement in governance.statements(warehouse, d.raw_schema, d.raw_table, gov):

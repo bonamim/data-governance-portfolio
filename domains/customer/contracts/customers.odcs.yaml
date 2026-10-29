@@ -23,21 +23,21 @@ schema:
       - name: customer_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../sales/contracts/definitions/customer_key.odcs.yaml
+            url: ../../sales/contracts/dictionary/customer_key.odcs.yaml
         physicalType: text
         required: true
         unique: true
       - name: customer_unique_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: definitions/customer_person_id.odcs.yaml
+            url: dictionary/customer_person_id.odcs.yaml
         description: "The person identifier (links a person's orders). PII, masked at read by role: consumers see a hash pseudonym, the compliance role sees the raw value."
         physicalType: text
         required: true
       - name: customer_zip_code_prefix
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../reference/contracts/definitions/zip_code_prefix.odcs.yaml
+            url: ../../reference/contracts/dictionary/zip_code_prefix.odcs.yaml
         description: "The customer's zip-code prefix. With city and state it narrows a person down, so it is internal here, not public."
         physicalType: text
         required: true
@@ -48,7 +48,7 @@ schema:
       - name: customer_city
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../reference/contracts/definitions/city_name.odcs.yaml
+            url: ../../reference/contracts/dictionary/city_name.odcs.yaml
         description: "City of the customer's delivery address (lower case, as entered)."
         physicalType: text
         required: true
@@ -58,7 +58,7 @@ schema:
       - name: customer_state
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../reference/contracts/definitions/state_code.odcs.yaml
+            url: ../../reference/contracts/dictionary/state_code.odcs.yaml
         description: "Two-letter Brazilian state of the customer's delivery address (e.g. SP, RJ)."
         physicalType: text
         required: true

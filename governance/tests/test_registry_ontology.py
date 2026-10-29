@@ -8,7 +8,7 @@ from dgp_governance.repo import relative, root
 def test_a_value_type_is_defined_in_its_owning_domains_folder():
     (path,) = registry.definition_files()["CustomerKey"]
 
-    assert relative(path) == "domains/sales/contracts/definitions/customer_key.odcs.yaml"
+    assert relative(path) == "domains/sales/contracts/dictionary/customer_key.odcs.yaml"
     assert registry.concept_owners()["ZipCodePrefix"] == "reference"
 
 
@@ -32,9 +32,9 @@ def test_a_column_reaches_its_value_type_through_its_data_element():
     def link(type_: str, url: str) -> dict:
         return {"authoritativeDefinitions": [{"type": type_, "url": url}]}
 
-    key = link("businessDefinition", "../../sales/contracts/definitions/customer_key.odcs.yaml")
+    key = link("businessDefinition", "../../sales/contracts/dictionary/customer_key.odcs.yaml")
     assert registry.concept_of(key, customers) == "CustomerKey"
-    assert registry.concept_of(link("videoTutorial", "definitions/x.odcs.yaml"), customers) is None
+    assert registry.concept_of(link("videoTutorial", "dictionary/x.odcs.yaml"), customers) is None
     assert registry.concept_of({}, customers) is None
 
 

@@ -100,9 +100,9 @@ def test_replay_takes_each_datasets_newest_file_as_of_a_date():
 @pytest.mark.parametrize(
     "contract",
     [
-        "domains/customer_experience/contracts/landing/reviews.odcs.yaml",
-        "domains/marketplace/contracts/landing/sellers.odcs.yaml",
-        "domains/reference/contracts/landing/geolocation.odcs.yaml",
+        "domains/customer_experience/contracts/sources/reviews.odcs.yaml",
+        "domains/marketplace/contracts/sources/sellers.odcs.yaml",
+        "domains/reference/contracts/sources/geolocation.odcs.yaml",
     ],
 )
 def test_repo_landing_contracts_are_executable(contract):
@@ -191,7 +191,7 @@ def test_deadline_owes_the_previous_business_day():
 
 
 def test_repo_contract_reads_its_delivery_deadline():
-    path = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"
+    path = REPO / "domains/customer_experience/contracts/sources/reviews.odcs.yaml"
     rules = LandingRules.from_contract(load_contract(path))
     assert rules.time_of_availability is not None and rules.time_of_availability.hour == 4
     assert rules.business_date_lag_days == 1

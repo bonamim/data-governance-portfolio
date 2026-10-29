@@ -15,7 +15,7 @@ responsible, and what it is used for.
 |---|---|---|---|---|
 | **Business term** | What does the business mean, by what rule, for what use? | `Customer` (a person, counted by person id, never by key), `PaymentAmount` vs `ItemsValue` | the ontology, `governance/ontology/commerce.ontology.yaml` (Apache Ossie): an entity type, or a value type with a business `description` | the domain responsible for it (owner of the entity type), and the ontology's structure by the governance guild |
 | **Metric**: a business term with a formula | How is it calculated? | `valid_order_count` (orders not canceled or unavailable). An LTV would live here | the domain's Ossie semantic model, `domains/<d>/semantics/*.semantic_model.yaml`, where the formula is executable SQL | the domain |
-| **Data element** | What does a column holding this value contain: format, type, sensitivity? | *StateCode* (two-letter state code), *OrderId* | `domains/<d>/contracts/definitions/<term>.odcs.yaml` (ODCS property) | the domain that owns the value |
+| **Data element** | What does a column holding this value contain: format, type, sensitivity? | *StateCode* (two-letter state code), *OrderId* | `domains/<d>/contracts/dictionary/<term>.odcs.yaml` (ODCS property) | the domain that owns the value |
 | **Reference data** | Which values exist / are allowed? | the Brazilian states and zip-code prefixes | a kind of data any domain can own, here the geolocation data of the **reference domain** | the owning domain |
 
 A data element's `description` is the column documentation every column holding it inherits (the
@@ -59,8 +59,8 @@ Worked example: `customer_experience.reviews.order_id`:
 - name: order_id
   authoritativeDefinitions:
     - type: businessDefinition            # → the data element
-      url: ../../sales/contracts/definitions/order_id.odcs.yaml
-# domains/sales/contracts/definitions/order_id.odcs.yaml (the data element, owned by sales)
+      url: ../../sales/contracts/dictionary/order_id.odcs.yaml
+# domains/sales/contracts/dictionary/order_id.odcs.yaml (the data element, owned by sales)
 description: Identifies one order on the marketplace, with the same value in every domain.
 classification: internal
 authoritativeDefinitions:
@@ -170,18 +170,18 @@ viewer planned (no issue or roadmap item). This is a community tool: read it, do
 ## 8. Workflow: adding a column to a contract
 
 1. **Look it up.** Search the business glossary and the *Data element* property in DataHub, or the
-   files (`domains/*/contracts/definitions/`, the ontology).
+   files (`domains/*/contracts/dictionary/`, the ontology).
 2. **It exists → link the data element.** Add `authoritativeDefinitions: [{type: businessDefinition,
    url: <relative path>}]`. Write nothing the data element already says (the check refuses copies).
    Override description, classification or privacy category only where your table changes them.
 3. **It does not exist → define it with its owner.** It belongs to the domain that owns the thing it
    describes (the entity type), not to whoever needs it first:
    - You own that entity → add the value type and its relationship to the ontology, and its data
-     element (with its `ontology` link) to your `definitions/`, in one pull request (the guild
+     element (with its `ontology` link) to your `dictionary/`, in one pull request (the guild
      reviews the ontology part).
    - If the business has a rule about it, give the value type a business `description`, and it becomes
      a business term.
-   - Another domain owns it → open the pull request to *their* `definitions/`. Being first does not
+   - Another domain owns it → open the pull request to *their* `dictionary/`. Being first does not
      make you the owner: `customer_id` reached the customer domain's contract first, but the key is
      issued per order, so sales defines it.
 4. **Same name, different meaning → a homonym.** Link each column to the data element it means

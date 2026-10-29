@@ -5,7 +5,7 @@ A property can take its meaning from a shared definition instead of repeating it
     - name: customer_id
       authoritativeDefinitions:
         - type: businessDefinition
-          url: ../../sales/contracts/definitions/customer_key.odcs.yaml
+          url: ../../sales/contracts/dictionary/customer_key.odcs.yaml
 
 The definition fills every element the property leaves unset (description, businessName,
 logicalType, classification, tags, examples, …), and anything the contract sets itself wins. So a

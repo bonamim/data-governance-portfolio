@@ -23,7 +23,7 @@ schema:
       - name: review_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/review_id.odcs.yaml
+            url: ../dictionary/review_id.odcs.yaml
         physicalType: string
         required: true
         # Not unique: in the Olist source a review_id can map to several orders
@@ -31,37 +31,37 @@ schema:
       - name: order_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../../sales/contracts/definitions/order_id.odcs.yaml
+            url: ../../../sales/contracts/dictionary/order_id.odcs.yaml
         physicalType: string
         required: true
       - name: review_score
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/review_score.odcs.yaml
+            url: ../dictionary/review_score.odcs.yaml
         physicalType: integer
         required: true
       - name: review_comment_title
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/review_comment_title.odcs.yaml
+            url: ../dictionary/review_comment_title.odcs.yaml
         physicalType: string
         required: false
       - name: review_comment_message
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/review_comment_message.odcs.yaml
+            url: ../dictionary/review_comment_message.odcs.yaml
         physicalType: string
         required: false
       - name: review_creation_date
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/review_sent_date.odcs.yaml
+            url: ../dictionary/review_sent_date.odcs.yaml
         physicalType: string
         required: true
       - name: review_answer_timestamp
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/review_answered_at.odcs.yaml
+            url: ../dictionary/review_answered_at.odcs.yaml
         physicalType: string
         required: false
     quality:

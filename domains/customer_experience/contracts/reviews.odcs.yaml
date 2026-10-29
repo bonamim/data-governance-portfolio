@@ -21,19 +21,19 @@ schema:
       - name: review_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: definitions/review_id.odcs.yaml
+            url: dictionary/review_id.odcs.yaml
         physicalType: text
         required: true
       - name: order_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../sales/contracts/definitions/order_id.odcs.yaml
+            url: ../../sales/contracts/dictionary/order_id.odcs.yaml
         physicalType: text
         required: true
       - name: review_score
         authoritativeDefinitions:
           - type: businessDefinition
-            url: definitions/review_score.odcs.yaml
+            url: dictionary/review_score.odcs.yaml
         physicalType: integer
         required: true
       - name: has_comment
@@ -45,13 +45,13 @@ schema:
       - name: review_creation_date
         authoritativeDefinitions:
           - type: businessDefinition
-            url: definitions/review_sent_date.odcs.yaml
+            url: dictionary/review_sent_date.odcs.yaml
         physicalType: timestamp
         required: true
       - name: review_answer_timestamp
         authoritativeDefinitions:
           - type: businessDefinition
-            url: definitions/review_answered_at.odcs.yaml
+            url: dictionary/review_answered_at.odcs.yaml
         physicalType: timestamp
         required: false
       # A platform column (ADR-0028): named here, its meaning is the platform's.

@@ -47,7 +47,7 @@ version: 2.0.0            # was 1.0.0: a breaking change is a new major
       - name: state_code   # was customer_state
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../reference/contracts/definitions/state_code.odcs.yaml
+            url: ../../reference/contracts/dictionary/state_code.odcs.yaml
 ```
 
 **2. Change the model and regenerate its dbt schema** in `domains/customer/dbt/models/silver/customers.sql`

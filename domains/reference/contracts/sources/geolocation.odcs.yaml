@@ -22,13 +22,13 @@ schema:
       - name: geolocation_zip_code_prefix
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/zip_code_prefix.odcs.yaml
+            url: ../dictionary/zip_code_prefix.odcs.yaml
         physicalType: string
         required: true
       - name: geolocation_lat
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/latitude.odcs.yaml
+            url: ../dictionary/latitude.odcs.yaml
         # The file samples many points per zip-code prefix, so a row is one point, not the centre.
         description: "The latitude of one point sampled inside the zip-code prefix, in decimal degrees. The location's latitude is the average of its points."
         physicalType: string
@@ -36,7 +36,7 @@ schema:
       - name: geolocation_lng
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/longitude.odcs.yaml
+            url: ../dictionary/longitude.odcs.yaml
         # The file samples many points per zip-code prefix, so a row is one point, not the centre.
         description: "The longitude of one point sampled inside the zip-code prefix, in decimal degrees. The location's longitude is the average of its points."
         physicalType: string
@@ -44,13 +44,13 @@ schema:
       - name: geolocation_city
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/city_name.odcs.yaml
+            url: ../dictionary/city_name.odcs.yaml
         physicalType: string
         required: true
       - name: geolocation_state
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/state_code.odcs.yaml
+            url: ../dictionary/state_code.odcs.yaml
         physicalType: string
         required: true
     quality:

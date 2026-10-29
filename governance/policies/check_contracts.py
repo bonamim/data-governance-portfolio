@@ -2,9 +2,10 @@
 """Every dataset the platform loads into raw has a valid ODCS contract of what its source holds.
 
 The raw layer is a governed boundary (docs/data-mesh.md): many data products consume it, so each
-dataset declares an ODCS contract and that contract must be valid. A landing file's lives in
-``contracts/landing/``, an operational database table's in ``contracts/oltp/``. This fails CI when
-a dataset has no contract, or its contract doesn't pass ``datacontract lint``.
+dataset declares an ODCS contract of what its source delivers, in ``contracts/sources/`` whatever
+the transport (a landing file, an operational database table: ``sources.yml`` says which), and that
+contract must be valid. This fails CI when a dataset has no contract, or its contract doesn't pass
+``datacontract lint``.
 
 For a landing dataset it also checks that the contract's operational rules are ones the loader can
 run (ADR-0024): the partition scheme and source, the file-name pattern, the retention class and the
@@ -32,7 +33,7 @@ from dgp_governance.repo import relative, root
 from dgp_platform_contracts import odcs
 from dgp_platform_ingestion.config import load_datasets
 from dgp_platform_ingestion.layout import LandingRules
-from dgp_platform_quality.rules import load_contract, source_contract_path
+from dgp_platform_quality.rules import contract_path, load_contract
 
 
 def source_datasets() -> list[tuple[str, str, str]]:
@@ -44,7 +45,7 @@ def source_datasets() -> list[tuple[str, str, str]]:
 def violations() -> list[str]:
     out: list[str] = []
     for domain, dataset, source_type in source_datasets():
-        path = source_contract_path(root(), domain, dataset, source_type)
+        path = contract_path(root(), domain, dataset)
         where = relative(path)
         if not path.exists():
             out.append(f"{domain}.{dataset}: no ODCS contract at {where}")

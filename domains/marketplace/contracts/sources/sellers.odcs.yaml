@@ -21,26 +21,26 @@ schema:
       - name: seller_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/seller_id.odcs.yaml
+            url: ../dictionary/seller_id.odcs.yaml
         physicalType: string
         required: true
         unique: true
       - name: seller_zip_code_prefix
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../../reference/contracts/definitions/zip_code_prefix.odcs.yaml
+            url: ../../../reference/contracts/dictionary/zip_code_prefix.odcs.yaml
         physicalType: string
         required: true
       - name: seller_city
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../../reference/contracts/definitions/city_name.odcs.yaml
+            url: ../../../reference/contracts/dictionary/city_name.odcs.yaml
         physicalType: string
         required: true
       - name: seller_state
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../../reference/contracts/definitions/state_code.odcs.yaml
+            url: ../../../reference/contracts/dictionary/state_code.odcs.yaml
         physicalType: string
         required: true
     quality:

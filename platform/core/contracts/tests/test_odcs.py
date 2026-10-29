@@ -338,7 +338,7 @@ def test_conforms_to_datacontract_cli_on_linked_contracts(ontology):
 
 def test_conforms_to_datacontract_cli_on_every_repo_contract():
     paths = sorted(REPO.glob("domains/*/contracts/**/*.odcs.yaml"))
-    contracts = [p for p in paths if "definitions" not in p.parts]  # definitions are not contracts
+    contracts = [p for p in paths if "dictionary" not in p.parts]  # data elements are not contracts
     assert contracts
     for path in contracts:
         ours, cli = _cli_properties(odcs.load(path)), _cli_properties(_cli(path))

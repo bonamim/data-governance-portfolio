@@ -37,7 +37,7 @@ from dgp_platform_ingestion import db, layout, pipeline, sla
 from dgp_platform_ingestion.settings import Settings
 
 REPO = root()
-CONTRACT = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"
+CONTRACT = REPO / "domains/customer_experience/contracts/sources/reviews.odcs.yaml"
 DOMAIN, PREFIX = "customer_experience", "olist/reviews/"
 REAL = REPO / "data" / "olist" / "olist_order_reviews_dataset.csv"
 SCHED = "governance-platform-airflow-scheduler-1"

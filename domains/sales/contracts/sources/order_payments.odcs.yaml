@@ -16,7 +16,7 @@ schema:
       - name: order_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/order_id.odcs.yaml
+            url: ../dictionary/order_id.odcs.yaml
         physicalType: text
         required: true
       - name: payment_sequential

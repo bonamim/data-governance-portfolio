@@ -17,7 +17,7 @@ platform (`platform/`) is *how* they are enforced at run time.
 | `src/dgp_governance/` | the library every tool reads these definitions through | the guild |
 
 The meaning of each value type is not here: it lives with the domain that owns it, in
-`domains/<domain>/contracts/definitions/`, and contract columns link to it.
+`domains/<domain>/contracts/dictionary/`, and contract columns link to it.
 
 ## The checks
 

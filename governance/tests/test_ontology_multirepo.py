@@ -14,10 +14,10 @@ from dgp_platform_contracts import odcs
 
 REPO = Path(__file__).resolve().parents[2]
 CUSTOMERS = Path("domains/customer/contracts/customers.odcs.yaml")
-OWN = Path("domains/customer/contracts/definitions")
+OWN = Path("domains/customer/contracts/dictionary")
 REUSED = [
-    Path("domains/sales/contracts/definitions"),
-    Path("domains/reference/contracts/definitions"),
+    Path("domains/sales/contracts/dictionary"),
+    Path("domains/reference/contracts/dictionary"),
 ]
 
 
@@ -45,7 +45,7 @@ def test_a_domain_repository_resolves_its_contracts_with_vendored_definitions(tm
 
 
 def test_a_missing_vendored_definition_is_a_clear_error_not_a_silent_gap(tmp_path):
-    path = _customer_repo(tmp_path, [Path("domains/reference/contracts/definitions")])  # no sales
+    path = _customer_repo(tmp_path, [Path("domains/reference/contracts/dictionary")])  # no sales
 
     with pytest.raises(odcs.ResolutionError, match="customer_key.odcs.yaml' does not exist"):
         odcs.load(path)

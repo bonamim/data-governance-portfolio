@@ -12,7 +12,7 @@
 # terms too, defined executably in the owning domain's Ossie semantic model.
 #
 # Every value type also has a DATA ELEMENT definition (what a column holding it contains: format,
-# type, sensitivity) in domains/<domain>/contracts/definitions/<value_type>.odcs.yaml (snake_case
+# type, sensitivity) in domains/<domain>/contracts/dictionary/<value_type>.odcs.yaml (snake_case
 # of its name), which contract columns link to and inherit. A value type without a description
 # here (an id, a date, a state code) is a data element only, not a business term.
 version: 0.2.0.dev0

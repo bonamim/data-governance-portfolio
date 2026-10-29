@@ -17,7 +17,7 @@ schema:
       - name: product_category_name
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../definitions/product_category_name.odcs.yaml
+            url: ../dictionary/product_category_name.odcs.yaml
         physicalType: text
         required: true
         unique: true

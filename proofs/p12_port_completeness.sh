@@ -11,9 +11,9 @@ CF=domains/customer/contracts/customers.odcs.yaml
 SM=domains/sales/semantics/sales_performance.semantic_model.yaml
 # The definitions customer_city and customer_state inherit their meaning from (ADR-0027): a column
 # is undocumented only when neither it nor its definition says what it means.
-CITY=domains/reference/contracts/definitions/city_name.odcs.yaml
-STATE=domains/reference/contracts/definitions/state_code.odcs.yaml
-LANDING=domains/customer_experience/contracts/landing/reviews.odcs.yaml
+CITY=domains/reference/contracts/dictionary/city_name.odcs.yaml
+STATE=domains/reference/contracts/dictionary/state_code.odcs.yaml
+LANDING=domains/customer_experience/contracts/sources/reviews.odcs.yaml
 FILES=("$CF" "$SM" "$CITY" "$STATE" "$LANDING")
 BACKUP="$(mktemp -d)"
 OUT="$(mktemp)"

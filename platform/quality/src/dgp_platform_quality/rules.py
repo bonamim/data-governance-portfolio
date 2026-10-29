@@ -51,16 +51,10 @@ class Contract:
 
 
 def contract_path(repo_root: Path, domain: str, dataset: str) -> Path:
-    """Where a domain's landing (ingress) ODCS contract for a dataset lives."""
-    return repo_root / "domains" / domain / "contracts" / "landing" / f"{dataset}.odcs.yaml"
-
-
-def source_contract_path(repo_root: Path, domain: str, dataset: str, source_type: str) -> Path:
-    """Where the contract of what a source delivers lives, by how it arrives: a landing file's in
-    ``contracts/landing/``, an operational database table's in ``contracts/oltp/``. Either
-    governs the raw table the platform loads it into."""
-    folder = {"landing": "landing", "oltp": "oltp"}[source_type]
-    return repo_root / "domains" / domain / "contracts" / folder / f"{dataset}.odcs.yaml"
+    """Where a domain's source contract for a dataset lives: what the source delivers into raw,
+    however it arrives (a landing file, an operational database table; ``sources.yml`` says
+    which). One folder, ``contracts/sources/``, whatever the transport."""
+    return repo_root / "domains" / domain / "contracts" / "sources" / f"{dataset}.odcs.yaml"
 
 
 def _parse_column(prop: dict) -> ColumnRule:

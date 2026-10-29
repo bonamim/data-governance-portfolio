@@ -18,7 +18,7 @@ from dgp_platform_quality.engine import validate_file
 from dgp_platform_quality.rules import load_contract
 
 REPO = root()
-CONTRACT = REPO / "domains/customer_experience/contracts/landing/reviews.odcs.yaml"
+CONTRACT = REPO / "domains/customer_experience/contracts/sources/reviews.odcs.yaml"
 
 HEADER = [
     "review_id",

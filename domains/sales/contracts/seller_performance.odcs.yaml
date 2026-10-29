@@ -22,7 +22,7 @@ schema:
       - name: seller_id
         authoritativeDefinitions:
           - type: businessDefinition
-            url: ../../marketplace/contracts/definitions/seller_id.odcs.yaml
+            url: ../../marketplace/contracts/dictionary/seller_id.odcs.yaml
         physicalType: text
         required: true
         unique: true
@@ -43,7 +43,7 @@ schema:
         # items' value, excluding freight. Each links its own value type (ADR-0027).
         authoritativeDefinitions:
           - type: businessDefinition
-            url: definitions/items_value.odcs.yaml
+            url: dictionary/items_value.odcs.yaml
         description: "Value of the seller's items sold, at their price, excluding freight."
         physicalType: numeric
         required: true

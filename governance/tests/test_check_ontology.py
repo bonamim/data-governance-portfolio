@@ -49,7 +49,7 @@ def _define(root: Path, domain: str, term: str, meaning: dict) -> Path:
         "type": "ontology",
         "url": f"../../../../governance/ontology/commerce.ontology.yaml#{value_type}",
     }
-    f = root / "domains" / domain / "contracts" / "definitions" / f"{term}.odcs.yaml"
+    f = root / "domains" / domain / "contracts" / "dictionary" / f"{term}.odcs.yaml"
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(yaml.safe_dump({**meaning, "authoritativeDefinitions": [link]}), encoding="utf-8")
     return f
@@ -162,7 +162,7 @@ def test_a_definition_carries_valid_meaning_only(tmp_path, change, message):
 
 
 def _link(term: str = "order_id") -> list[dict]:
-    return [{"type": "businessDefinition", "url": f"definitions/{term}.odcs.yaml"}]
+    return [{"type": "businessDefinition", "url": f"dictionary/{term}.odcs.yaml"}]
 
 
 def _contract(root: Path, i: int, *columns: dict) -> None:

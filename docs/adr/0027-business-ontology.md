@@ -42,8 +42,8 @@ what is true of the idea everywhere. Every file and field follows an existing st
 | Path | Holds | Maintained by | Standard |
 |---|---|---|---|
 | `governance/ontology/commerce.ontology.yaml` | The **business terms**: entity types and the value types the business has a rule about, each with a business definition (meaning, rule, use), plus relationships, identifiers and IRIs | the governance guild (one representative per domain + platform, CODEOWNERS), a federated artefact | **Apache Ossie** 0.2.0.dev0, checked with **Ossie's own validator** |
-| `domains/<d>/contracts/definitions/<value_type>.odcs.yaml` | The **data elements**, i.e. the data dictionary: what a column holding each value type the domain owns contains (description, classification, logical type + options, synonyms, examples) | **the owning domain** (its folder, its CODEOWNERS) | an **ODCS property**, in datacontract-cli's layout of definitions next to the contracts that use them |
-| `domains/reference/contracts/definitions/` | Shared place data elements (zip-code prefix, city, state). Other domains *link* them to reuse the meaning. *Reading* the reference domain's data needs its output port, like any domain's (none yet) | the reference domain, a domain like the others with its own team | same |
+| `domains/<d>/contracts/dictionary/<value_type>.odcs.yaml` | The **data elements**, i.e. the data dictionary: what a column holding each value type the domain owns contains (description, classification, logical type + options, synonyms, examples) | **the owning domain** (its folder, its CODEOWNERS) | an **ODCS property**, in datacontract-cli's layout of definitions next to the contracts that use them |
+| `domains/reference/contracts/dictionary/` | Shared place data elements (zip-code prefix, city, state). Other domains *link* them to reuse the meaning. *Reading* the reference domain's data needs its output port, like any domain's (none yet) | the reference domain, a domain like the others with its own team | same |
 | `governance/tags/sensitivity.yaml`, `privacy_category.yaml` | The governed tags, one file per tag: **sensitivity** (restricted, confidential, internal, public, from ODCS `classification`) and **privacy category** (identifier, quasi_identifier, sensitive, from the custom property `privacyCategory`) | the governance guild | the **Snowflake-provided** tags `SNOWFLAKE.TAGS.SENSITIVITY` and `SNOWFLAKE.CORE.PRIVACY_CATEGORY`, and DataHub tags |
 | `dgp_platform_semantics/vendor/ossie/` | Ossie's validator and schemas, copied unchanged at a pinned commit | platform | Apache Ossie |
 
@@ -61,7 +61,7 @@ Lifecycle approval is the pull request: a definition merged to `main` is approve
 | Identifiers / attributes | `identify_by`, with `OneToOne` for an identifier and `ManyToOne` for an attribute. Compound identifiers are allowed | Ossie spec (a Review is identified by review id *and* order, as Ossie's Runway is by designator and airport) |
 | Value-type base | `extends: [String \| Integer \| Date …]` | Ossie built-in concepts |
 | Global identifiers | `iri` with `prefixes` (`schema:Order` = <https://schema.org/Order>): aligns a concept with a shared vocabulary, optional, never fetched | Ossie spec |
-| Definition file | `definitions/<snake_case of the value type>.odcs.yaml`, one file per term, named for the **concept**, not a column (`customer_key`, linked from columns called `customer_id`, and `zip_code_prefix`, linked from `seller_zip_code_prefix`) | datacontract-cli ("a glossary kept as one file per term") |
+| Definition file | `dictionary/<snake_case of the value type>.odcs.yaml`, one file per term, named for the **concept**, not a column (`customer_key`, linked from columns called `customer_id`, and `zip_code_prefix`, linked from `seller_zip_code_prefix`) | datacontract-cli ("a glossary kept as one file per term") |
 | The link | `authoritativeDefinitions: [{type: businessDefinition, url: <relative path>}]` | ODCS recommended type `businessDefinition` (not the CLI-specific `semantics`), resolved by datacontract-cli |
 | Contract file | `<product>.odcs.yaml` | ODCS tooling |
 
@@ -71,7 +71,7 @@ Lifecycle approval is the pull request: a definition merged to `main` is approve
 - name: customer_id
   authoritativeDefinitions:
     - type: businessDefinition
-      url: ../../sales/contracts/definitions/customer_key.odcs.yaml
+      url: ../../sales/contracts/dictionary/customer_key.odcs.yaml
   physicalType: text
   required: true
 ```
@@ -116,7 +116,7 @@ layers keep that apart (DAMA-DMBOK's glossary / data dictionary / reference data
 |---|---|---|
 | Business term | the ontology: entity types, and value types with a business `description` | `Customer`, `Order`, `PaymentAmount` vs `ItemsValue`, `CustomerKey` |
 | Metric (a business term with a formula) | the domain's Ossie semantic model, where the formula is executable | `valid_order_count` (an LTV would live here) |
-| Data element | `domains/<d>/contracts/definitions/`, linked from every column | `StateCode`, `OrderId` |
+| Data element | `domains/<d>/contracts/dictionary/`, linked from every column | `StateCode`, `OrderId` |
 | Reference data | the reference domain's data products | the Brazilian states and zip prefixes |
 
 Every column links a data element. Some data elements represent a business term (`PaymentAmount`),
@@ -213,7 +213,7 @@ the semantic model. Three changes keep each fact in one place:
    It sets no `businessName`: the readable name is derived from the concept.
 5. Every definition is used by a contract column.
 6. A column takes its meaning only from a definition: any link datacontract-cli resolves points at a
-   `contracts/definitions/` file, and resolves.
+   `contracts/dictionary/` file, and resolves.
 7. One place per fact: a linked column does not restate or blank its definition's description,
    classification, options, synonyms or examples, and sets no `businessName`.
 8. A linked column's `logicalType` does not contradict its definition's.

@@ -43,8 +43,8 @@ dbt *staging* layer's job (M3), which keeps this loader free of per-dataset sche
 
 **Every raw table is governed by the load that writes it** (`governance.py`, ADR-0027). As soon as
 the table exists (created, or emptied for a reload) and before its first row is written, the loader
-writes the dataset's resolved source contract onto it (a landing file's, `contracts/landing/`, or an
-operational table's, `contracts/oltp/`): the table's and each column's description as a `COMMENT`, and on
+writes the dataset's resolved source contract (`contracts/sources/`, a landing file's or an
+operational table's alike) onto it: the table's and each column's description as a `COMMENT`, and on
 a warehouse with object tags (`WAREHOUSE_PLATFORM=snowflake`) each column's sensitivity and privacy
 category and the table's sensitivity, the values the dbt build sets on a port. The platform's system
 columns (`_system_batch_id`, `_system_source_path`, `_system_partition`, `_system_loaded_at`,
