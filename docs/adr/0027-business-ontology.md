@@ -172,8 +172,9 @@ writes the resolved contract onto the table: each description as a `COMMENT`, an
 sets on a port (`dgp_governance.registry.warehouse_tags` is the one answer for both writers).
 `dgp-ingest governance-preview --warehouse snowflake` prints the statements on any machine. Before
 the first row, not after the load: Snowflake commits DDL on its own, so a table governed after its
-rows would be readable ungoverned for a moment. A dbt source over the raw table takes the same
-descriptions (`make dbt-ports`), so its catalog entity, the one DataHub opens, says the same.
+rows would be readable ungoverned for a moment. The loader owns the raw table and dbt only reads it,
+so a dbt source's YAML stays hand-written: its catalog entity, the one DataHub opens, gets the
+descriptions from `catalog-govern` with the terms and tags.
 
 ### Semantic models and the mapping
 Ossie links an ontology to a semantic model through a **mapping**: which semantic-model fields

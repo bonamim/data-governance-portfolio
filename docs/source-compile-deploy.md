@@ -27,7 +27,7 @@ to contracts, meaning and access too.
 
 | Source (git) | Generator | Output | Committed? | Checked by |
 |---|---|---|---|---|
-| ODCS contracts (+ linked data elements) | `make dbt-ports` | dbt `_ports.yml`: columns, descriptions, contract tests, governed-tag metadata. And the landing contracts' descriptions on their dbt sources (`_sources.yml`) | yes, dbt reads it | CI drift diff |
+| ODCS contracts (+ linked data elements) | `make dbt-ports` | dbt `_ports.yml`: columns, descriptions, contract tests, governed-tag metadata | yes, dbt reads it | CI drift diff |
 | `ingestion/sources.yml` | `make landing-access` | landing bucket and key policies | yes | `check-landing-access` |
 | ontology, data elements, semantic models, contracts | `make ossie-build` | `build/ossie/`: the ontology, the compiled semantic models, the mappings: the bundle Ossie tools and Snowflake read | no, built | `check-ontology` (builds and validates) |
 | port metadata from `dbt-ports` | the dbt build (post-hook) | governed tags on each output port, before access is granted | no, warehouse | `governance_tags_preview` |
