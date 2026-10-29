@@ -12,6 +12,7 @@ description:
 domain: marketplace
 schema:
   - name: sellers
+    description: "One row per seller on the marketplace, as the source delivers it: the seller id and where the seller is based."
     physicalType: file
     authoritativeDefinitions:
       - type: ontology

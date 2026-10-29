@@ -14,6 +14,7 @@ description:
 domain: customer_experience
 schema:
   - name: reviews
+    description: "One row per survey answer and order, as the source delivers it: the score, when it was sent and answered, and the customer's free-text comment."
     physicalType: file
     authoritativeDefinitions:
       - type: ontology
@@ -40,15 +41,17 @@ schema:
         physicalType: integer
         required: true
       - name: review_comment_title
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/review_comment_title.odcs.yaml
         physicalType: string
         required: false
-        classification: internal
       - name: review_comment_message
-        logicalType: string
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/review_comment_message.odcs.yaml
         physicalType: string
         required: false
-        classification: internal
       - name: review_creation_date
         authoritativeDefinitions:
           - type: businessDefinition

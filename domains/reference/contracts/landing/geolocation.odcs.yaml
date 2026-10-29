@@ -13,6 +13,7 @@ description:
 domain: reference
 schema:
   - name: geolocation
+    description: "Points sampled inside each Brazilian zip-code prefix, as the source delivers them: one row per point, so a prefix appears many times, with its coordinates, city and state."
     physicalType: file
     authoritativeDefinitions:
       - type: ontology
@@ -25,21 +26,21 @@ schema:
         physicalType: string
         required: true
       - name: geolocation_lat
-        logicalType: number
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/latitude.odcs.yaml
+        # The file samples many points per zip-code prefix, so a row is one point, not the centre.
+        description: "The latitude of one point sampled inside the zip-code prefix, in decimal degrees. The location's latitude is the average of its points."
         physicalType: string
         required: true
-        classification: public
-        logicalTypeOptions:
-          minimum: -90
-          maximum: 90
       - name: geolocation_lng
-        logicalType: number
+        authoritativeDefinitions:
+          - type: businessDefinition
+            url: ../definitions/longitude.odcs.yaml
+        # The file samples many points per zip-code prefix, so a row is one point, not the centre.
+        description: "The longitude of one point sampled inside the zip-code prefix, in decimal degrees. The location's longitude is the average of its points."
         physicalType: string
         required: true
-        classification: public
-        logicalTypeOptions:
-          minimum: -180
-          maximum: 180
       - name: geolocation_city
         authoritativeDefinitions:
           - type: businessDefinition

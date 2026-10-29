@@ -1,0 +1,10 @@
+description: >-
+  Longitude of the location's centre, in decimal degrees (negative west of Greenwich).
+logicalType: number
+logicalTypeOptions:
+  minimum: -180
+  maximum: 180
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#Longitude

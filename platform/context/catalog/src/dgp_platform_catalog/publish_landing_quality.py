@@ -254,6 +254,7 @@ def _dataset_mcps(d: Dataset, contract, rules: LandingRules, ds_urn: str) -> lis
             type=SchemaFieldDataTypeClass(type=_TYPES.get(c.logical_type or "", StringTypeClass)()),
             nativeDataType=c.logical_type or "string",
             nullable=not c.required,
+            description=c.description,
         )
         for c in contract.columns
     ]
@@ -264,7 +265,8 @@ def _dataset_mcps(d: Dataset, contract, rules: LandingRules, ds_urn: str) -> lis
         DatasetPropertiesClass(
             name=f"{src}/{name} (landing)",
             description=(
-                f"{contract.purpose or ''}\n\nPartner-delivered files for **{src}/{name}**, "
+                "\n\n".join(t for t in (contract.description, contract.purpose) if t)
+                + f"\n\nPartner-delivered files for **{src}/{name}**, "
                 f"gated against the ODCS landing contract `{contract.id}` before load. "
                 f"Accepted files are immutable evidence ({rules.retention_days}d). Rejected files "
                 f"go to quarantine with a `_reason.json` (90d). Owner: **{d.domain}**."

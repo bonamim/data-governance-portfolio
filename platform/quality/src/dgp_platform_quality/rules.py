@@ -21,6 +21,8 @@ class ColumnRule:
     unique: bool = False
     minimum: float | None = None
     maximum: float | None = None
+    # What the column means, its own or inherited from its definition (ADR-0027).
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,8 @@ class Contract:
     properties: dict = field(default_factory=dict)
     team: str | None = None
     purpose: str | None = None
+    # What the file holds: the schema object's description (one row per what).
+    description: str | None = None
     # ODCS `slaProperties` as {property: {value, unit, element}}, e.g. timeOfAvailability, the
     # delivery deadline the landing SLA monitor checks (ADR-0016).
     sla: dict = field(default_factory=dict)
@@ -60,6 +64,7 @@ def _parse_column(prop: dict) -> ColumnRule:
         unique=bool(prop.get("unique", False)),
         minimum=opts.get("minimum"),
         maximum=opts.get("maximum"),
+        description=prop.get("description"),
     )
 
 
@@ -84,6 +89,7 @@ def load_contract(path: Path) -> Contract:
         },
         team=(raw.get("team") or {}).get("name"),
         purpose=(raw.get("description") or {}).get("purpose"),
+        description=schema.get("description"),
         sla={
             p["property"]: {k: v for k, v in p.items() if k != "property"}
             for p in raw.get("slaProperties") or []

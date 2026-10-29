@@ -1,0 +1,10 @@
+description: >-
+  Latitude of the location's centre, in decimal degrees (negative south of the equator).
+logicalType: number
+logicalTypeOptions:
+  minimum: -90
+  maximum: 90
+classification: public
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#Latitude

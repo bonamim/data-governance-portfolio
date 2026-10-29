@@ -105,6 +105,14 @@ ontology:
         roles: [{concept: ReviewAnsweredAt}]
         multiplicity: ManyToOne
         verbalizes: ["{Review} was answered at {ReviewAnsweredAt}"]
+      - name: has_comment_title
+        roles: [{concept: ReviewCommentTitle}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Review} has comment title {ReviewCommentTitle}"]
+      - name: has_comment_message
+        roles: [{concept: ReviewCommentMessage}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Review} has comment message {ReviewCommentMessage}"]
 
   - concept: Seller
     type: EntityType
@@ -143,6 +151,14 @@ ontology:
         roles: [{concept: StateCode}]
         multiplicity: ManyToOne
         verbalizes: ["{Location} is in state {StateCode}"]
+      - name: at_latitude
+        roles: [{concept: Latitude}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Location} is at latitude {Latitude}"]
+      - name: at_longitude
+        roles: [{concept: Longitude}]
+        multiplicity: ManyToOne
+        verbalizes: ["{Location} is at longitude {Longitude}"]
 
   # --- value types -------------------------------------------------------------------------------
   - concept: CustomerPersonId
@@ -199,6 +215,15 @@ ontology:
     type: ValueType
     extends: [Date]
 
+  - concept: ReviewCommentTitle
+    type: ValueType
+    extends: [String]
+
+  - concept: ReviewCommentMessage
+    type: ValueType
+    extends: [String]
+    iri: schema:reviewBody
+
   - concept: SellerId
     type: ValueType
     extends: [String]
@@ -216,3 +241,13 @@ ontology:
     type: ValueType
     extends: [String]
     iri: schema:addressRegion
+
+  - concept: Latitude
+    type: ValueType
+    extends: [Decimal]
+    iri: schema:latitude
+
+  - concept: Longitude
+    type: ValueType
+    extends: [Decimal]
+    iri: schema:longitude

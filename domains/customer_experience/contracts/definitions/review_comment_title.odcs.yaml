@@ -1,0 +1,15 @@
+description: >-
+  Short headline the customer typed above their survey comment, empty when they wrote none. Free
+  text the customer controls, so it can name or contact a person: personal data, never published.
+logicalType: string
+classification: restricted
+customProperties:
+  - property: privacyCategory  # free text can hold a name, a phone or an email
+    value: identifier
+  - property: maskingPolicy  # ADR-0013: free text can't be partly masked, so it is hidden whole
+    value:
+      method: full
+      unmask_roles: [compliance]
+authoritativeDefinitions:
+  - type: ontology  # the ontology value type this data element holds
+    url: ../../../../governance/ontology/commerce.ontology.yaml#ReviewCommentTitle

@@ -19,30 +19,9 @@ from __future__ import annotations
 
 import sys
 
-from _checks import report
+from _checks import completeness_violations, report
 from dgp_governance import checks, products
 from dgp_governance.repo import relative
-
-
-def _is_described(text: object, name: str) -> bool:
-    """A real description: not blank, and not just the name restated."""
-    t = str(text or "").strip()
-    return bool(t) and t.lower().replace(" ", "_") != name.lower()
-
-
-def completeness_violations(schema: dict, where: str) -> list[str]:
-    """Missing documentation on one output-port schema object (the table and its columns)."""
-    out: list[str] = []
-    table = schema.get("name", "?")
-    if not _is_described(schema.get("description"), table):
-        out.append(f"{where}: table '{table}' has no description")
-    for prop in schema.get("properties") or []:
-        col = prop.get("name", "?")
-        if not _is_described(prop.get("description"), col):
-            out.append(f"{where}: column '{col}' has no description")
-        if not prop.get("classification"):
-            out.append(f"{where}: column '{col}' has no classification")
-    return out
 
 
 def violations() -> list[str]:

@@ -2,7 +2,8 @@
 # Proof P12: output-port completeness. An output port is an interface people, BI and AI agents
 # read without asking the owner, so it can't be published undocumented. Strips one piece of
 # documentation at a time from the real customer.customers contract and the sales Ossie model,
-# runs the real CI gates, and shows each one blocking. Reverts everything on exit.
+# runs the real CI gates, and shows each one blocking. The landing file every domain reads first is
+# held to the same documentation rule. Reverts everything on exit.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,7 +13,8 @@ SM=domains/sales/semantics/sales_performance.semantic_model.yaml
 # is undocumented only when neither it nor its definition says what it means.
 CITY=domains/reference/contracts/definitions/city_name.odcs.yaml
 STATE=domains/reference/contracts/definitions/state_code.odcs.yaml
-FILES=("$CF" "$SM" "$CITY" "$STATE")
+LANDING=domains/customer_experience/contracts/landing/reviews.odcs.yaml
+FILES=("$CF" "$SM" "$CITY" "$STATE" "$LANDING")
 BACKUP="$(mktemp -d)"
 OUT="$(mktemp)"
 for f in "${FILES[@]}"; do mkdir -p "$BACKUP/$(dirname "$f")"; cp "$f" "$BACKUP/$f"; done
@@ -35,7 +37,8 @@ expect_blocked() {
 echo "### P12.1: the documented ports  ->  expect PASS"
 make -s check-output-ports >"$OUT" 2>&1 || { echo "FAIL: baseline should pass"; cat "$OUT"; exit 1; }
 make -s check-semantics >>"$OUT" 2>&1 || { echo "FAIL: baseline should pass"; cat "$OUT"; exit 1; }
-echo "  OK: both gates pass on the fully documented ports"
+make -s check-contracts >>"$OUT" 2>&1 || { echo "FAIL: baseline should pass"; cat "$OUT"; exit 1; }
+echo "  OK: the gates pass on the fully documented ports and landing files"
 
 echo "### P12.2: a column with no description, here or in its definition  ->  expect BLOCKED"
 edit "$CF" "[p.pop('description') for p in d['schema'][0]['properties'] if p['name']=='customer_city']"
@@ -61,6 +64,12 @@ edit "$SM" "[m.pop('description') for m in d['metrics'] if m['name']=='customer_
 expect_blocked check-semantics "metric 'customer_count' has no description"
 restore
 
+echo "### P12.6: a landing column with no description and no definition  ->  expect BLOCKED"
+edit "$LANDING" "[p.pop('authoritativeDefinitions') for p in d['schema'][0]['properties'] if p['name']=='review_comment_title']"
+expect_blocked check-contracts "column 'review_comment_title' has no description"
+restore
+
 echo
-echo "P12 proven: an output port can't be published undocumented: every table, column and"
-echo "metric a consumer or AI agent reads says what it means, here or in its definition."
+echo "P12 proven: an output port can't be published undocumented, nor a landing file contracted"
+echo "undocumented: every table, column and metric a consumer or AI agent reads says what it"
+echo "means, here or in its definition."
