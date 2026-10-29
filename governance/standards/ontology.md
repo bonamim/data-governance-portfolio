@@ -95,6 +95,12 @@ without tags (the local Postgres) the post-hook does nothing: the masking views 
 the catalog shows the tags (`dbt run-operation dgp_dbt.governance_tags_preview` prints what Snowflake
 would run).
 
+**A raw table is tagged by the loader that writes it.** A landing contract is a contract like a
+port's, so the raw table it loads into gets the same descriptions and governed tags, set right after
+every load in the load's transaction (`dgp-ingest governance-preview` prints the statements). In the
+catalog, the landing file and the raw table carry the entity's term and every column's data element,
+business term and tags, like a port.
+
 ## 4. Reusing meaning is not consuming data
 
 A domain may **link** another domain's data element or term freely. That is reusing a definition

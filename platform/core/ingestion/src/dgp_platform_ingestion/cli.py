@@ -8,6 +8,7 @@
     dgp-ingest replay      # rebuild raw from shop_oltp + archive accepted/ (--partition-date)
     dgp-ingest sla         # check landing delivery deadlines, alert the owner on a miss
     dgp-ingest all         # acquire -> seed -> land -> gate -> load-raw
+    dgp-ingest governance-preview  # print the SQL that governs each raw table (--warehouse)
 
 The Airflow DAGs call the same functions in pipeline.py. This CLI is for local
 runs and for the Makefile.
@@ -22,7 +23,8 @@ import sys
 import time
 from pathlib import Path
 
-from . import pipeline, sla
+from . import governance, pipeline, sla
+from .config import load_datasets
 from .settings import Settings
 
 
@@ -52,8 +54,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=["acquire", "seed", "land", "gate", "load-raw", "replay", "sla", "all"],
+        choices=[
+            "acquire",
+            "seed",
+            "land",
+            "gate",
+            "load-raw",
+            "replay",
+            "sla",
+            "all",
+            "governance-preview",
+        ],
         help="pipeline step to run",
+    )
+    parser.add_argument(
+        "--warehouse",
+        default=os.environ.get("WAREHOUSE_PLATFORM", "postgres"),
+        choices=sorted(governance.NATIVE_TAGS),
+        help="governance-preview: the warehouse to render for (default: WAREHOUSE_PLATFORM)",
     )
     args = parser.parse_args(argv)
 
@@ -62,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     repo_root = (args.repo_root or _default_repo_root()).resolve()
+    if args.command == "governance-preview":
+        return _governance_preview(repo_root, args.warehouse, args.domain)
     data_dir = (args.data_dir or _default_data_dir(repo_root)).resolve()
     run_id = args.run_id or f"local-{int(time.time())}"
     settings = Settings.from_env()
@@ -90,6 +110,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     for step in order:
         steps[step]()
+    return 0
+
+
+def _governance_preview(repo_root: Path, warehouse: str, domain: str | None) -> int:
+    """Print what the loader runs after loading each landing dataset's raw table. Needs no
+    warehouse connection, so the Snowflake statements can be reviewed anywhere."""
+    for d in load_datasets(repo_root, domain):
+        path = pipeline.contract_path(repo_root, d.domain, d.name)
+        if d.source_type != "landing" or not path.exists():
+            continue
+        gov = governance.RawGovernance.from_contract(path)
+        print(f"-- {d.raw_schema}.{d.raw_table} ({warehouse})")
+        for statement in governance.statements(warehouse, d.raw_schema, d.raw_table, gov):
+            print(f"{statement};")
     return 0
 
 

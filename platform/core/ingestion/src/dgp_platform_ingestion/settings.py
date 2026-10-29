@@ -90,6 +90,9 @@ class Settings:
     kaggle_dataset: str
     # The landing arrival queue (ADR-0016). None when not configured (the gate then skips acks).
     landing_events: PostgresSettings | None = None
+    # The warehouse the raw tables live in, which decides how the loader governs them
+    # (governance.py): postgres | snowflake. The same variable the catalog publishers read.
+    warehouse: str = "postgres"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -115,4 +118,5 @@ class Settings:
             landing_events=analytics("landing_events", os.environ["LANDING_EVENTS_PASSWORD"])
             if os.environ.get("LANDING_EVENTS_PASSWORD")
             else None,
+            warehouse=os.environ.get("WAREHOUSE_PLATFORM", "postgres"),
         )

@@ -125,20 +125,7 @@ def _sync_governance_tags(layer_dir: Path, port: products.OutputPort) -> None:
     """The port's governed tags (governance/tags/) as {warehouse tag: value} in dbt meta (on each
     column from its resolved contract, and on the model the most sensitive column's sensitivity),
     for the post-hook dgp_dbt.apply_governance_tags to set as part of the build (ADR-0027)."""
-    governed = registry.tags()
-    warehouse = {
-        name: {v["value"]: v["warehouse_value"] for v in tag["values"]}
-        for name, tag in governed.items()
-    }
-    columns = {c["name"]: registry.column_tags(c) for c in port.columns}
-    table: dict[str, str] = {}
-    for name, tag in governed.items():
-        if (tag.get("odcs") or {}).get("field") != "classification":
-            continue  # only sensitivity has a table-level meaning (privacy is about a column)
-        ranked = [v["value"] for v in tag["values"]]  # most sensitive first
-        present = [values[name] for values in columns.values() if name in values]
-        if present:
-            table[tag["warehouse_tag"]] = warehouse[name][min(present, key=ranked.index)]
+    table, columns = registry.warehouse_tags(port.columns)
     f = layer_dir / "_ports.yml"
     ports = load_yaml(f)
     for model in ports.get("models") or []:
@@ -146,11 +133,9 @@ def _sync_governance_tags(layer_dir: Path, port: products.OutputPort) -> None:
             continue
         model.setdefault("config", {}).setdefault("meta", {})["governance_tags"] = table
         for col in model.get("columns") or []:
-            values = columns.get(col.get("name"), {})
-            col.setdefault("config", {}).setdefault("meta", {})["governance_tags"] = {
-                governed[name]["warehouse_tag"]: warehouse[name][value]
-                for name, value in values.items()
-            }
+            col.setdefault("config", {}).setdefault("meta", {})["governance_tags"] = columns.get(
+                col.get("name"), {}
+            )
     f.write_text(yaml.safe_dump(ports, sort_keys=False), encoding="utf-8")
 
 

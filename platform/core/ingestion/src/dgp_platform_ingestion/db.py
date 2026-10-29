@@ -92,23 +92,16 @@ def load_csv_file(
         return copy_csv_into(conn, schema, table, fh)
 
 
-def comment_table(
-    conn: psycopg.Connection,
-    schema: str,
-    table: str,
-    description: str | None,
-    columns: dict[str, str | None],
-) -> None:
-    """Write the table's and its columns' descriptions as Postgres COMMENTs, where every tool that
-    reads the warehouse (the catalog ingest among them) finds them. A dropped and recreated table
-    loses its comments, so this runs after every load."""
-    ident = sql.Identifier(schema, table)
-    conn.execute(sql.SQL("COMMENT ON TABLE {} IS {}").format(ident, sql.Literal(description)))
-    existing = set(_existing_columns(conn, schema, table) or [])
-    for column, text in columns.items():
-        if column in existing:
-            target = sql.Identifier(schema, table, column)
-            conn.execute(sql.SQL("COMMENT ON COLUMN {} IS {}").format(target, sql.Literal(text)))
+def columns_of(conn: psycopg.Connection, schema: str, table: str) -> set[str]:
+    """The columns ``schema.table`` has (empty if it does not exist)."""
+    return set(_existing_columns(conn, schema, table) or [])
+
+
+def execute_all(conn: psycopg.Connection, statements: list[str]) -> None:
+    """Run already-rendered statements in the caller's transaction (governance.statements quotes
+    every identifier and literal it renders)."""
+    for statement in statements:
+        conn.execute(statement.encode())
 
 
 def export_table_to_csv(conn: psycopg.Connection, schema: str, table: str, dest: Path) -> None:

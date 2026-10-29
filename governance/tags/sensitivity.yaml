@@ -3,9 +3,10 @@
 # maintained by the governance guild (CODEOWNERS /governance/).
 #
 # A column's value is its ODCS `classification` (set on the column, or inherited from its data
-# element). It is applied by the build (the dbt post-hook `dgp_dbt.apply_governance_tags` sets it on
-# every output-port column, and on the table with its most sensitive column's level, before the
-# pipeline grants anyone access) and published to the catalog (DataHub tag).
+# element). It is applied by whatever writes the table, before anyone can read it: the dbt post-hook
+# `dgp_dbt.apply_governance_tags` on every output-port column, the loader on every raw-table column
+# (dgp_platform_ingestion.governance), and on each table its most sensitive column's level. It is
+# published to the catalog (DataHub tag), on the landing file too.
 tag: sensitivity
 warehouse_tag: SNOWFLAKE.TAGS.SENSITIVITY
 odcs: {field: classification}

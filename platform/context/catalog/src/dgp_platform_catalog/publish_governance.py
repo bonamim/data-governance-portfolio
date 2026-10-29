@@ -8,7 +8,9 @@ definitions that drive grants and the data contracts:
   * **Data products**: one per ``domains/*/data_products/*.yaml``: display name, purpose,
     owner, and the output-port datasets (Postgres + dbt sibling) as its assets.
   * **Meaning**: the business glossary and the data dictionary from the ontology (ADR-0027), and
-    on every output-port column its data element, business term and governed tags.
+    on every contracted asset (each output port, and each landing file with the raw table it
+    loads into) the entity's term on the table and, on every column, its data element, business
+    term and governed tags.
   * **Links**: each warehouse dataset to the Airflow DAG that builds it, and each BI dataset to
     the output port it reads (lineage through to the chart, proof P7).
 
@@ -19,6 +21,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from pathlib import Path
 
 from datahub.api.entities.dataproduct.dataproduct import DataProduct
 from datahub.emitter.mce_builder import (
@@ -61,6 +64,11 @@ from datahub.metadata.schema_classes import (
     UpstreamLineageClass,
 )
 from dgp_governance import products, registry
+from dgp_governance.repo import root
+from dgp_platform_contracts import odcs
+from dgp_platform_ingestion import layout
+from dgp_platform_ingestion.config import load_datasets
+from dgp_platform_quality.rules import contract_path
 from dgp_platform_semantics import ossie
 
 from .gms import Gms, default_url
@@ -73,8 +81,10 @@ AIRFLOW_URL = os.environ.get(
 )
 BUSINESS_NODE = "urn:li:glossaryNode:BusinessGlossary"
 DATA_ELEMENT = "urn:li:structuredProperty:dgp.data_element"
-# A warehouse with native tags carries the governed tags itself (the dbt build sets them) and
-# DataHub ingests them from there. Only a warehouse without tags (Postgres) gets them from here.
+ARCHIVE = os.environ.get("LANDING_ARCHIVE_BUCKET", "landing-archive")
+# A warehouse with native tags carries the governed tags itself (the dbt build sets them on a port,
+# the loader on a raw table) and DataHub ingests them from there. A warehouse without tags
+# (Postgres) gets them from here, and so does a landing file: object storage has none.
 NATIVE_TAGS = WAREHOUSE_PLATFORM in {"snowflake", "databricks", "bigquery"}
 AUDIT = AuditStampClass(time=0, actor="urn:li:corpuser:datahub")
 
@@ -225,19 +235,18 @@ def _ontology_aspects() -> list[MetadataChangeProposalWrapper]:
     return mcps
 
 
-def _column_concepts(port: products.OutputPort) -> dict[str, str]:
-    """Column -> the ontology concept it links, for every linked column of the port."""
+def _column_concepts(columns: list[dict], contract: Path) -> dict[str, str]:
+    """Column -> the ontology concept it links, for every linked column of a contract."""
+    return {c["name"]: concept for c in columns if (concept := registry.concept_of(c, contract))}
+
+
+def _business_concepts() -> set[str]:
+    """The value types that are business terms (they carry a business ``description``)."""
     return {
-        c["name"]: concept
-        for c in port.columns
-        if (concept := registry.concept_of(c, port.contract))
+        c["concept"]
+        for c in registry.ontology().get("ontology") or []
+        if c.get("type") == "ValueType" and c.get("description")
     }
-
-
-def _columns_with_tags(port: products.OutputPort) -> list[tuple[str, dict[str, str]]]:
-    """(column, {governed tag: value}) for every column of the port, from its resolved contract:
-    sensitivity from ``classification``, privacy category from ``privacyCategory``."""
-    return [(c["name"], registry.column_tags(c)) for c in port.columns]
 
 
 def _deprecation(port: products.OutputPort) -> DeprecationClass:
@@ -294,8 +303,9 @@ def file_datasets(emitter: DatahubRestEmitter, gms: Gms) -> None:
 
 def publish_tags_and_glossary(emitter: DatahubRestEmitter) -> None:
     """The governed tags (sensitivity, privacy category) as DataHub tags (a governance label, like
-    the warehouse tag each mirrors), then the business glossary and the data dictionary."""
-    governed = {} if NATIVE_TAGS else registry.tags()
+    the warehouse tag each mirrors), then the business glossary and the data dictionary. Always
+    published: a landing file carries them from here whatever the warehouse."""
+    governed = registry.tags()
     for name, tag in governed.items():
         for value in tag["values"]:
             emitter.emit(
@@ -307,9 +317,8 @@ def publish_tags_and_glossary(emitter: DatahubRestEmitter) -> None:
                 )
             )
     print(
-        "  governed tags: from the warehouse (native tags)"
-        if NATIVE_TAGS
-        else f"  governed tags: {', '.join(governed)}"
+        f"  governed tags: {', '.join(governed)}"
+        + (" (warehouse assets carry the native ones)" if NATIVE_TAGS else "")
     )
     aspects = _ontology_aspects()
     for mcp in aspects:
@@ -318,15 +327,23 @@ def publish_tags_and_glossary(emitter: DatahubRestEmitter) -> None:
 
 
 def _field_info(
-    emitter: DatahubRestEmitter, pg_urn: str, port: products.OutputPort, business: set[str]
+    emitter: DatahubRestEmitter,
+    urn: str,
+    columns: list[dict],
+    contract: Path,
+    business: set[str],
+    *,
+    tagged: bool,
 ) -> list[EditableSchemaFieldInfoClass]:
-    """Each column's meaning (ADR-0027): its data element (a structured property), the business
-    term that element represents or (for an identifier) the entity it identifies, and, without
-    native warehouse tags, its governed tags."""
+    """Each column's meaning (ADR-0027), from its resolved contract: its data element (a
+    structured property), the business term that element represents or (for an identifier) the
+    entity it identifies, and, when ``tagged`` (the asset's platform has no native tags), its
+    governed tags: sensitivity from ``classification``, privacy from ``privacyCategory``."""
     identified = _identified_entities()
-    linked = _column_concepts(port)
+    linked = _column_concepts(columns, contract)
     fields = []
-    for col, governed in _columns_with_tags(port):
+    for column in columns:
+        col, governed = column["name"], registry.column_tags(column)
         element = linked.get(col)
         terms = [_concept_term(element)] if element in business else []
         if element in identified:
@@ -334,7 +351,7 @@ def _field_info(
         if element:
             emitter.emit(
                 MetadataChangeProposalWrapper(
-                    entityUrn=make_schema_field_urn(pg_urn, col),
+                    entityUrn=make_schema_field_urn(urn, col),
                     aspect=StructuredPropertiesClass(
                         properties=[
                             StructuredPropertyValueAssignmentClass(
@@ -346,7 +363,7 @@ def _field_info(
             )
         tags = [
             TagAssociationClass(tag=_governed_tag(name, value))
-            for name, value in ({} if NATIVE_TAGS else governed).items()
+            for name, value in (governed if tagged else {}).items()
         ]
         fields.append(
             EditableSchemaFieldInfoClass(
@@ -360,13 +377,61 @@ def _field_info(
     return fields
 
 
+def _publish_meaning(
+    emitter: DatahubRestEmitter,
+    urn: str,
+    schema: dict,
+    contract: Path,
+    business: set[str],
+    *,
+    tagged: bool,
+) -> None:
+    """A contracted table's meaning on one asset: the term of the entity one row is on the table,
+    and each column's data element, business term and (when ``tagged``) governed tags."""
+    columns = [c for c in schema.get("properties") or [] if c.get("name")]
+    fields = _field_info(emitter, urn, columns, contract, business, tagged=tagged)
+    entity = registry.entity_of_table(schema)
+    emitter.emit(
+        MetadataChangeProposalWrapper(
+            entityUrn=urn,
+            aspect=GlossaryTermsClass(
+                terms=[GlossaryTermAssociationClass(urn=_concept_term(entity))] if entity else [],
+                auditStamp=AUDIT,
+            ),
+        )
+    )
+    if fields:
+        emitter.emit(
+            MetadataChangeProposalWrapper(
+                entityUrn=urn,
+                aspect=EditableSchemaMetadataClass(
+                    editableSchemaFieldInfo=fields, created=AUDIT, lastModified=AUDIT
+                ),
+            )
+        )
+
+
+def publish_landing(emitter: DatahubRestEmitter) -> None:
+    """Every landing dataset's meaning, from its resolved landing contract, on both assets it is:
+    the landing file (S3, always tagged here) and the raw table it loads into (tagged here unless
+    the warehouse has native tags, which the loader then sets)."""
+    business, n = _business_concepts(), 0
+    for d in load_datasets(root()):
+        path = contract_path(root(), d.domain, d.name)
+        if d.source_type != "landing" or not path.exists():
+            continue
+        schema = (odcs.load(path).get("schema") or [{}])[0]
+        s3_urn = make_dataset_urn("s3", layout.catalog_name(ARCHIVE, d.source_system, d.name))
+        raw_urn = make_dataset_urn(WAREHOUSE_PLATFORM, f"{DB}.{d.raw_schema}.{d.raw_table}")
+        _publish_meaning(emitter, s3_urn, schema, path, business, tagged=True)
+        _publish_meaning(emitter, raw_urn, schema, path, business, tagged=not NATIVE_TAGS)
+        n += 1
+    print(f"  landing datasets with their meaning (file + raw table): {n}")
+
+
 def publish_products(emitter: DatahubRestEmitter) -> None:
     """Every data product, with its output port's meaning, owner, domain and deprecation."""
-    business = {
-        c["concept"]
-        for c in registry.ontology().get("ontology") or []
-        if c.get("type") == "ValueType" and c.get("description")
-    }
+    business = _business_concepts()
     for product in products.data_products():
         owner = product.owner
         if not owner:
@@ -377,27 +442,9 @@ def publish_products(emitter: DatahubRestEmitter) -> None:
         schema, table = location
         pg_urn = make_dataset_urn("postgres", f"{DB}.{schema}.{table}", "PROD")
         port = products.output_port(product.name, owner)
-        fields = _field_info(emitter, pg_urn, port, business) if port else []
-        # The table carries the business term of the entity one row is.
-        entity = registry.entity_of_table(port.schema) if port else None
-        table_terms = [_concept_term(entity)] if entity else []
-        emitter.emit(
-            MetadataChangeProposalWrapper(
-                entityUrn=pg_urn,
-                aspect=GlossaryTermsClass(
-                    terms=[GlossaryTermAssociationClass(urn=t) for t in table_terms],
-                    auditStamp=AUDIT,
-                ),
-            )
-        )
-        if fields:
-            emitter.emit(
-                MetadataChangeProposalWrapper(
-                    entityUrn=pg_urn,
-                    aspect=EditableSchemaMetadataClass(
-                        editableSchemaFieldInfo=fields, created=AUDIT, lastModified=AUDIT
-                    ),
-                )
+        if port is not None:
+            _publish_meaning(
+                emitter, pg_urn, port.schema, port.contract, business, tagged=not NATIVE_TAGS
             )
         assets = [pg_urn, make_dataset_urn("dbt", f"{DB}.{schema}.{table}", "PROD")]
         dp = DataProduct(
@@ -494,6 +541,7 @@ def main() -> int:
     file_datasets(emitter, gms)
     publish_tags_and_glossary(emitter)
     publish_products(emitter)
+    publish_landing(emitter)
     link_building_dags(emitter, gms)
     link_bi_datasets(emitter)
     return 0

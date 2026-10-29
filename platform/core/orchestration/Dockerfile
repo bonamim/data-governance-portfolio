@@ -40,8 +40,8 @@ COPY --chown=airflow:0 platform/core/orchestration /opt/dgp/orchestration
 # DataHub plugin above. ingestion brings boto3/psycopg/pyyaml/kaggle.
 RUN pip install --no-cache-dir /opt/dgp/contracts \
  && pip install --no-cache-dir /opt/dgp/quality \
- && pip install --no-cache-dir /opt/dgp/ingestion \
  && pip install --no-cache-dir /opt/dgp/governance \
+ && pip install --no-cache-dir /opt/dgp/ingestion \
  && pip install --no-cache-dir /opt/dgp/semantics \
  && pip install --no-cache-dir /opt/dgp/catalog \
  && pip install --no-cache-dir /opt/dgp/access \

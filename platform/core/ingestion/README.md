@@ -36,9 +36,17 @@ datasets:
 | sla | `dgp-ingest sla` | Check each landing dataset's due partition against its contract deadline (`timeOfAvailability`), and alert the owner on `missing` / `incomplete` / `rejected` (ADR-0016) |
 | replay | `dgp-ingest replay --partition-date D` | Rebuild raw from `shop_oltp` + each dataset's newest `accepted/` file on or before `D` (restore drill, backfill). Never touches the inbox |
 | all | `dgp-ingest all` | acquire → seed → land → gate → load-raw |
+| governance-preview | `dgp-ingest governance-preview [--warehouse snowflake]` | Print the SQL the loader runs on each raw table after a load (below). Needs no connection |
 
 Raw tables are created with **text columns** from the CSV header. Typing and cleaning are the
 dbt *staging* layer's job (M3), which keeps this loader free of per-dataset schema knowledge.
+
+**Every raw table is governed by the load that writes it** (`governance.py`, ADR-0027). Right after
+a landing dataset is loaded or replayed, in the same transaction, the loader writes its resolved
+landing contract onto the table: the table's and each column's description as a `COMMENT`, and on
+a warehouse with object tags (`WAREHOUSE_PLATFORM=snowflake`) each column's sensitivity and privacy
+category and the table's sensitivity, the values the dbt build sets on a port. A recreated table
+loses both, so this runs after every load. On Postgres the catalog carries the tags.
 
 ## Design notes
 

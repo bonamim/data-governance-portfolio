@@ -68,6 +68,33 @@ def column_tags(prop: dict) -> dict[str, str]:
     return out
 
 
+def warehouse_tags(columns: list[dict]) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    """The governed tags of a table as the warehouse names them (``{warehouse tag: value}``, e.g.
+    ``SNOWFLAKE.TAGS.SENSITIVITY: RESTRICTED``), from its resolved contract columns: each column's
+    tags, and the table's sensitivity, the most sensitive of its columns' (privacy category is
+    about a column, so a table has none). One answer for every writer: the dbt build of an output
+    port and the loader of a raw table."""
+    governed = tags()
+    warehouse = {
+        name: {v["value"]: v["warehouse_value"] for v in tag["values"]}
+        for name, tag in governed.items()
+    }
+    values = {c["name"]: column_tags(c) for c in columns if c.get("name")}
+    table: dict[str, str] = {}
+    for name, tag in governed.items():
+        if (tag.get("odcs") or {}).get("field") != "classification":
+            continue
+        ranked = [v["value"] for v in tag["values"]]  # most sensitive first
+        present = [v[name] for v in values.values() if name in v]
+        if present:
+            table[tag["warehouse_tag"]] = warehouse[name][min(present, key=ranked.index)]
+    per_column = {
+        col: {governed[name]["warehouse_tag"]: warehouse[name][value] for name, value in v.items()}
+        for col, v in values.items()
+    }
+    return table, per_column
+
+
 def ontology_files(base: Path | None = None) -> list[Path]:
     """The ontology documents. There must be exactly one (``check_ontology`` says so)."""
     return sorted((_governance(base) / "ontology").glob("*.ontology.yaml"))

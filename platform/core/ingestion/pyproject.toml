@@ -9,6 +9,8 @@ dependencies = [
     "pyyaml>=6",
     "kaggle>=1.6",
     "dgp-platform-quality",
+    "dgp-platform-contracts",
+    "dgp-governance",
 ]
 
 [project.scripts]
@@ -23,3 +25,5 @@ packages = ["src/dgp_platform_ingestion"]
 
 [tool.uv.sources]
 dgp-platform-quality = { workspace = true }
+dgp-platform-contracts = { workspace = true }
+dgp-governance = { workspace = true }

@@ -1309,6 +1309,7 @@ version = "0.1.0"
 source = { editable = "platform/context/catalog" }
 dependencies = [
     { name = "dgp-governance" },
+    { name = "dgp-platform-contracts" },
     { name = "dgp-platform-ingestion" },
     { name = "dgp-platform-quality" },
     { name = "dgp-platform-semantics" },
@@ -1324,6 +1325,7 @@ publish = [
 requires-dist = [
     { name = "acryl-datahub", marker = "extra == 'publish'", specifier = ">=1.7" },
     { name = "dgp-governance", editable = "governance" },
+    { name = "dgp-platform-contracts", editable = "platform/core/contracts" },
     { name = "dgp-platform-ingestion", editable = "platform/core/ingestion" },
     { name = "dgp-platform-quality", editable = "platform/quality" },
     { name = "dgp-platform-semantics", editable = "platform/context/semantics" },
@@ -1348,6 +1350,8 @@ version = "0.1.0"
 source = { editable = "platform/core/ingestion" }
 dependencies = [
     { name = "boto3" },
+    { name = "dgp-governance" },
+    { name = "dgp-platform-contracts" },
     { name = "dgp-platform-quality" },
     { name = "kaggle" },
     { name = "psycopg", extra = ["binary"] },
@@ -1357,6 +1361,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.34" },
+    { name = "dgp-governance", editable = "governance" },
+    { name = "dgp-platform-contracts", editable = "platform/core/contracts" },
     { name = "dgp-platform-quality", editable = "platform/quality" },
     { name = "kaggle", specifier = ">=1.6" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },

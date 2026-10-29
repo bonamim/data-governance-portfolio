@@ -81,16 +81,20 @@ definitions that drive the grants and the contracts, and is never maintained by 
   the output-port datasets (the Postgres table and its dbt sibling) as its assets.
 - **Meaning** (ADR-0027): the business glossary (entity types, and the value types the ontology
   gives a business definition, grouped by the domain responsible for each), and the data
-  dictionary: on every output-port column, the data element it holds, its business term and its
-  governed tags (sensitivity, privacy category).
+  dictionary. Every contracted asset gets it: each output port, and each landing dataset on both
+  its assets, the landing file (S3) and the raw table it loads into. The table carries the term of
+  the entity one row is, and every column the data element it holds, its business term and its
+  governed tags (sensitivity, privacy category), all from the resolved contract.
 - **Deprecation**: a port version being retired carries its sunset date and its successor
   (ADR-0019).
 - **Where each dataset is built**: a link from every warehouse dataset to the Airflow DAG that
   builds it, kept as node metadata rather than a lineage edge (ADR-0018).
 - **BI lineage**: each Superset dataset is linked to the output port it reads.
 
-With a warehouse that has native tags (Snowflake, Databricks, BigQuery), the governed tags are set
-by the dbt build and ingested from the warehouse instead (`WAREHOUSE_PLATFORM`).
+With a warehouse that has native tags (Snowflake, Databricks, BigQuery), the governed tags on a
+warehouse asset are set by whatever writes it (the dbt build on a port, the loader on a raw table)
+and ingested from the warehouse instead (`WAREHOUSE_PLATFORM`). A landing file always gets them
+from here: object storage has no column tags.
 
 ## Landing quality (`publish_landing_quality`)
 
