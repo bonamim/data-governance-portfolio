@@ -1,6 +1,6 @@
 # ODCS contract for the customer_experience.reviews OUTPUT PORT (a published table).
 # Free-text comments are not exposed, only the score, timing and a has_comment flag.
-version: 1.0.0
+version: 1.1.0
 kind: DataContract
 apiVersion: v3.2.0
 id: customer_experience.reviews
@@ -54,6 +54,17 @@ schema:
             url: definitions/review_answered_at.odcs.yaml
         physicalType: timestamp
         required: false
+      # A platform column (ADR-0028): named here, its meaning is the platform's.
+      - name: _system_loaded_at
+        physicalType: timestamptz
+        required: true
+      # This product's own column (ADR-0028): documented here like any column.
+      - name: _internal_row_hash
+        description: "A fingerprint of the row's published values. It changes when, and only when, one of them does, so a consumer can find the rows that changed since its last read without comparing every column. Never computed from the free-text comment."
+        logicalType: string
+        physicalType: text
+        required: true
+        classification: public
     quality:
       - type: library
         metric: rowCount

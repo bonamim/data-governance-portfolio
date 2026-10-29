@@ -21,7 +21,7 @@ models:
               check: reviews__review_id__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.1.0
               generated: true
         description: Check that field review_id has no missing values
     config:
@@ -42,7 +42,7 @@ models:
               check: reviews__order_id__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.1.0
               generated: true
         description: Check that field order_id has no missing values
     config:
@@ -63,7 +63,7 @@ models:
               check: reviews__review_score__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.1.0
               generated: true
         description: Check that field review_score has no missing values
     config:
@@ -83,7 +83,7 @@ models:
               check: reviews__has_comment__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.1.0
               generated: true
         description: Check that field has_comment has no missing values
     config:
@@ -104,7 +104,7 @@ models:
               check: reviews__review_creation_date__field_required
               include_in_tests: true
               contract_versions:
-              - 1.0.0
+              - 1.1.0
               generated: true
         description: Check that field review_creation_date has no missing values
     config:
@@ -124,5 +124,49 @@ models:
           SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
     description: When the customer answered the satisfaction survey, empty if not
       answered yet.
+  - name: _system_loaded_at
+    data_type: timestamptz
+    description: When the load that wrote the row ran, in UTC. Every row of one load
+      shares it.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: reviews___system_loaded_at__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.1.0
+              generated: true
+        description: Check that field _system_loaded_at has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: INTERNAL
+  - name: _internal_row_hash
+    data_type: text
+    description: A fingerprint of the row's published values. It changes when, and
+      only when, one of them does, so a consumer can find the rows that changed since
+      its last read without comparing every column. Never computed from the free-text
+      comment.
+    data_tests:
+    - not_null:
+        config:
+          meta:
+            datacontract_cli:
+              check: reviews___internal_row_hash__field_required
+              include_in_tests: true
+              contract_versions:
+              - 1.1.0
+              generated: true
+        description: Check that field _internal_row_hash has no missing values
+    config:
+      meta:
+        datacontract_cli:
+          generated: true
+        governance_tags:
+          SNOWFLAKE.TAGS.SENSITIVITY: PUBLIC
   description: 'One row per customer satisfaction review of an order: the score, when
     it was sent and answered, and whether it has a comment.'
