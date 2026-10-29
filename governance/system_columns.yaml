@@ -1,0 +1,40 @@
+# System columns (ADR-0028): columns that say how a row arrived, not what it means. Maintained by the
+# platform team with the governance guild (CODEOWNERS /governance/).
+#
+# Two reserved prefixes, so who owns a column shows in its name and nothing a partner delivers or a
+# product adds can collide with a column the platform adds later:
+#
+#   _system_    the platform's. The loader adds every column below to every raw table (landing and
+#               OLTP sources alike) and fills it on each load. Defined here once: a contract that
+#               carries one (an output port passing it through) names it and inherits the rest.
+#   _internal_  a data product's own (a row hash, a dedup rank), added in its models. Documented in
+#               its port contract like any column, and free to repeat across ports.
+#
+# No landing contract declares either prefix: a contract describes what the source delivers.
+system_prefix: _system_
+product_prefix: _internal_
+columns:
+  - name: _system_batch_id
+    description: >-
+      The delivery batch the row was loaded from: one file, a whole partition under a batch
+      completion signal, or one snapshot of a source table. Joins the row to its ingestion ledger
+      entries (platform_meta.ingestion_ledger.batch_id).
+    logicalType: string
+    classification: internal
+  - name: _system_source_path
+    description: >-
+      Where the row came from, as a URI whatever the source: the archived file it was read from
+      (s3://...), the database table it was copied from (postgres://...), or a stream's topic or an
+      API's endpoint.
+    logicalType: string
+    classification: internal
+  - name: _system_partition
+    description: >-
+      The partition the row was delivered for, in the dataset's partition scheme (dt=YYYY-MM-DD).
+      For a full snapshot of a source table, the day the snapshot was taken.
+    logicalType: string
+    classification: internal
+  - name: _system_loaded_at
+    description: When the load that wrote the row ran, in UTC. Every row of one load shares it.
+    logicalType: timestamp
+    classification: internal

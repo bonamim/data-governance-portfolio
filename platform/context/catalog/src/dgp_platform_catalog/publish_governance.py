@@ -10,7 +10,7 @@ definitions that drive grants and the data contracts:
   * **Meaning**: the business glossary and the data dictionary from the ontology (ADR-0027), and
     on every contracted asset (each output port, and each landing file with the raw table it
     loads into) the entity's term on the table and, on every column, its data element, business
-    term and governed tags.
+    term and governed tags. Every raw table's system columns too (ADR-0028).
   * **Links**: each warehouse dataset to the Airflow DAG that builds it, and each BI dataset to
     the output port it reads (lineage through to the chart, proof P7).
 
@@ -411,27 +411,33 @@ def _publish_meaning(
         )
 
 
-def publish_landing(emitter: DatahubRestEmitter, gms: Gms | None = None) -> None:
-    """Every landing dataset's meaning, from its resolved landing contract, on both assets it is:
-    the landing file (S3, always tagged here) and the raw table it loads into (tagged here unless
-    the warehouse has native tags, which the loader then sets). A raw table that is a dbt source
-    has a dbt sibling, the primary one DataHub opens: it gets the same meaning, when it has been
+def publish_ingested(emitter: DatahubRestEmitter, gms: Gms | None = None) -> None:
+    """The meaning of every dataset the platform ingests, on each asset it is.
+
+    A landing dataset's resolved landing contract goes on its landing file (S3, always tagged
+    here: object storage has no column tags) and on the raw table it loads into. Every raw table,
+    an OLTP source's too, also carries the platform's system columns (ADR-0028). A raw table is
+    tagged here unless the warehouse has native tags (the loader sets those). A raw table that is
+    a dbt source has a dbt sibling, the primary one DataHub opens: it gets the same meaning, once
     ingested (writing to a dbt URN that was never ingested would create an empty entity)."""
     business, n = _business_concepts(), 0
+    system = [dict(c) for c in registry.system_columns()]
     for d in load_datasets(root()):
         path = contract_path(root(), d.domain, d.name)
-        if d.source_type != "landing" or not path.exists():
-            continue
-        schema = (odcs.load(path).get("schema") or [{}])[0]
-        s3_urn = make_dataset_urn("s3", layout.catalog_name(ARCHIVE, d.source_system, d.name))
+        landing = d.source_type == "landing" and path.exists()
+        schema = (odcs.load(path).get("schema") or [{}])[0] if landing else {}
+        if landing:
+            s3_urn = make_dataset_urn("s3", layout.catalog_name(ARCHIVE, d.source_system, d.name))
+            _publish_meaning(emitter, s3_urn, schema, path, business, tagged=True)
+        raw = {**schema, "properties": [*(schema.get("properties") or []), *system]}
         raw_urn = make_dataset_urn(WAREHOUSE_PLATFORM, f"{DB}.{d.raw_schema}.{d.raw_table}")
-        _publish_meaning(emitter, s3_urn, schema, path, business, tagged=True)
-        _publish_meaning(emitter, raw_urn, schema, path, business, tagged=not NATIVE_TAGS)
         dbt_urn = make_dataset_urn("dbt", f"{DB}.{d.raw_schema}.{d.raw_table}")
-        if gms is not None and gms.has_aspect(dbt_urn, "schemaMetadata"):
-            _publish_meaning(emitter, dbt_urn, schema, path, business, tagged=not NATIVE_TAGS)
+        for urn in (raw_urn, dbt_urn):
+            if urn == dbt_urn and (gms is None or not gms.has_aspect(dbt_urn, "schemaMetadata")):
+                continue
+            _publish_meaning(emitter, urn, raw, path, business, tagged=not NATIVE_TAGS)
         n += 1
-    print(f"  landing datasets with their meaning (file + raw table): {n}")
+    print(f"  ingested datasets with their meaning (landing file, raw table): {n}")
 
 
 def publish_products(emitter: DatahubRestEmitter) -> None:
@@ -546,7 +552,7 @@ def main() -> int:
     file_datasets(emitter, gms)
     publish_tags_and_glossary(emitter)
     publish_products(emitter)
-    publish_landing(emitter, gms)
+    publish_ingested(emitter, gms)
     link_building_dags(emitter, gms)
     link_bi_datasets(emitter)
     return 0

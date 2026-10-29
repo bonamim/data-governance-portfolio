@@ -13,6 +13,10 @@ column a description and a classification, its own or inherited from its definit
 The landing file is what every consuming domain reads first, so it can't be the one place a column
 goes unexplained.
 
+And that no column uses a reserved prefix (``_system_``, ``_internal_``, ADR-0028): a landing
+contract describes what the source delivers, and those names belong to the platform and the data
+products, which add them after the gate.
+
 Output-port contracts are covered by ``check_output_ports.py`` and ``check_data_products.py``.
 """
 
@@ -22,7 +26,7 @@ import re
 import sys
 
 from _checks import completeness_violations, lint_contract, report
-from dgp_governance import checks
+from dgp_governance import checks, registry
 from dgp_governance.repo import relative, root
 from dgp_platform_contracts import odcs
 from dgp_platform_ingestion.config import load_datasets
@@ -51,8 +55,15 @@ def violations() -> list[str]:
         except (re.error, ValueError) as exc:  # e.g. a filenamePattern that isn't a valid regex
             problems = [str(exc)]
         out += [f"{where}: landing rule: {p}" for p in problems]
+        reserved = registry.reserved_prefixes()
         for schema in odcs.load(path).get("schema") or []:
             out += completeness_violations(schema, where)
+            out += [
+                f"{where}: column '{p['name']}' uses a reserved prefix ({', '.join(reserved)}): "
+                "the platform and the data products add those after the gate"
+                for p in schema.get("properties") or []
+                if str(p.get("name", "")).startswith(reserved)
+            ]
     return out
 
 

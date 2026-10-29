@@ -70,3 +70,18 @@ def test_names_and_text_cannot_break_out_of_the_statement():
 def test_an_unknown_warehouse_is_refused():
     with pytest.raises(ValueError, match="bigquery"):
         governance.statements("bigquery", "s", "t", GOV)
+
+
+def test_every_raw_table_carries_the_system_columns():
+    names = ["_system_batch_id", "_system_source_path", "_system_partition", "_system_loaded_at"]
+    landing = RawGovernance.from_contract(REVIEWS)
+    assert list(landing.columns)[-4:] == names  # after the contract's own
+    assert landing.columns["_system_batch_id"].startswith("The delivery batch")
+    oltp = RawGovernance.from_contract(None)  # an OLTP source: no landing contract
+    assert list(oltp.columns) == names and oltp.description is None
+    assert oltp.column_tags["_system_loaded_at"] == {"SNOWFLAKE.TAGS.SENSITIVITY": "INTERNAL"}
+
+
+def test_system_columns_have_a_type_on_each_warehouse():
+    assert governance.system_columns("postgres")["_system_loaded_at"] == "timestamptz"
+    assert governance.system_columns("snowflake")["_system_batch_id"] == "VARCHAR"

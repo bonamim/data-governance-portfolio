@@ -7,10 +7,11 @@ Clean separation of generated vs hand-authored dbt YAML (ADR-0012):
                        tests, the output_port tag). Never hand-edit it.
   <layer>/_models.yml  HAND-authored minimum metadata for internal (non-port)
                        models. This tool never touches it.
-  <layer>/_sources.yml HAND-authored sources, except that a raw table loaded from
-                       a landing contract gets its description and its columns'
-                       from that contract here (resolved), so the dbt source and
-                       its warehouse table say the same thing in the catalog.
+  <layer>/_sources.yml HAND-authored sources, except the columns of every raw table
+                       the platform loads: the platform's system columns (ADR-0028)
+                       and, for one loaded from a landing contract, the table's and
+                       its columns' descriptions from that contract (resolved), so
+                       the dbt source and its warehouse table say the same thing.
 
 To publish a port a team writes only the ODCS contract (with the output_port tag)
 and the dbt model SQL. This tool seeds the model into its layer's _ports.yml and
@@ -110,40 +111,50 @@ def main() -> int:
                 _sync_governance_tags(port.model_file.parent, port)
             _prune_stale_tests(domain, port)
         print(f"  {domain}: synced {len(ports)} output port(s) into _ports.yml")
-    _sync_landing_sources()
+    _sync_raw_sources()
     return 0
 
 
-def _sync_landing_sources() -> None:
-    """Describe every dbt source table that a landing dataset loads (its raw table) from the
-    dataset's resolved landing contract: the table's description and each column's."""
+def _sync_raw_sources() -> None:
+    """Describe every dbt source table the platform loads (a raw table): its columns, the
+    platform's system columns after them, and for a landing dataset the table's description and
+    each column's from its resolved landing contract."""
     if not any(root().glob("domains/*/ingestion/*.yml")):
-        return  # no source config, so nothing lands
+        return  # no source config, so nothing is loaded
+    datasets = load_datasets(root())
+    loaded = {(d.raw_schema, d.raw_table) for d in datasets}
     contracts = {
         (d.raw_schema, d.raw_table): path
-        for d in load_datasets(root())
+        for d in datasets
         if d.source_type == "landing" and (path := contract_path(root(), d.domain, d.name)).exists()
     }
+    system = [
+        {"name": c["name"], "description": c.get("description") or ""}
+        for c in registry.system_columns()
+    ]
     for domain in _dbt_domains():
         for f in sorted((root() / "domains" / domain / "dbt" / "models").rglob("_sources.yml")):
             doc = load_yaml(f)
             before = yaml.safe_dump(doc, sort_keys=False)
             for source in doc.get("sources") or []:
                 for table in source.get("tables") or []:
-                    path = contracts.get((source.get("schema", source["name"]), table["name"]))
-                    if path is None:
+                    key = (source.get("schema", source["name"]), table["name"])
+                    if key not in loaded:
                         continue
-                    schema = (odcs.load(path).get("schema") or [{}])[0]
-                    table["description"] = schema.get("description") or ""
-                    table["columns"] = [
-                        {"name": c["name"], "description": c.get("description") or ""}
-                        for c in schema.get("properties") or []
-                        if c.get("name")
-                    ]
+                    columns: list[dict] = []
+                    if (path := contracts.get(key)) is not None:
+                        schema = (odcs.load(path).get("schema") or [{}])[0]
+                        table["description"] = schema.get("description") or ""
+                        columns = [
+                            {"name": c["name"], "description": c.get("description") or ""}
+                            for c in schema.get("properties") or []
+                            if c.get("name")
+                        ]
+                    table["columns"] = columns + system
             after = yaml.safe_dump(doc, sort_keys=False)
             if after != before:
                 f.write_text(after, encoding="utf-8")
-                print(f"  {domain}: described landing sources in {f.name}")
+                print(f"  {domain}: described raw sources in {f.name}")
 
 
 def _prune_stale_tests(domain: str, port: products.OutputPort) -> None:

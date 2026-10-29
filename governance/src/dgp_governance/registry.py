@@ -1,7 +1,8 @@
 """The mesh's registry: its domains, governed tags and business ontology.
 
 The domains and their owners live in ``governance/domains/``, the governed tags in
-``governance/tags/`` and the ontology (entity types, value types and their relationships) in
+``governance/tags/``, the platform's system columns in ``governance/system_columns.yaml``
+(ADR-0028) and the ontology (entity types, value types and their relationships) in
 ``governance/ontology/`` (ADR-0027). The policy checks, the dbt generator, the catalog publisher
 and the semantic agents all read them from here, so none of them hardcodes a domain, a tag or a
 concept. Those copies used to drift apart.
@@ -93,6 +94,39 @@ def warehouse_tags(columns: list[dict]) -> tuple[dict[str, str], dict[str, dict[
         for col, v in values.items()
     }
     return table, per_column
+
+
+def _system_registry(base: Path | None = None) -> dict:
+    path = _governance(base) / "system_columns.yaml"
+    return load_yaml(path) if path.exists() else {}
+
+
+def system_columns(base: Path | None = None) -> list[dict]:
+    """The columns the platform adds to every raw table (``_system_*``, ADR-0028), each an ODCS
+    property: name, description, logicalType, classification."""
+    return list(_system_registry(base).get("columns") or [])
+
+
+def reserved_prefixes(base: Path | None = None) -> tuple[str, ...]:
+    """Column-name prefixes no source delivers: the platform's and the data products' own."""
+    reg = _system_registry(base)
+    return tuple(p for p in (reg.get("system_prefix"), reg.get("product_prefix")) if p)
+
+
+def is_system_column(name: str, base: Path | None = None) -> bool:
+    """A column named with the platform's prefix (whether or not the platform defines it)."""
+    prefix = _system_registry(base).get("system_prefix")
+    return bool(prefix) and name.startswith(prefix)
+
+
+def with_system_meaning(properties: list[dict], base: Path | None = None) -> list[dict]:
+    """Fill each ``_system_*`` property from the platform's definition wherever it leaves a field
+    unset, as a linked column inherits its definition: a contract only names it."""
+    defined = {c["name"]: c for c in system_columns(base)}
+    for prop in properties:
+        for key, value in (defined.get(prop.get("name")) or {}).items():
+            prop.setdefault(key, value)
+    return properties
 
 
 def ontology_files(base: Path | None = None) -> list[Path]:

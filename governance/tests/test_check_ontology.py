@@ -312,3 +312,27 @@ def test_the_readable_name_is_derived_from_the_concept_never_stored(tmp_path):
     assert any("definition 'OrderId': remove businessName" in v for v in found)
     assert registry.display_name("CustomerKey") == "Customer Key"
     assert registry.display_name("OrderId") == "Order Id"
+
+
+def test_reserved_columns_repeat_across_contracts_unlinked(tmp_path):
+    """A platform column is defined once by the platform, and a product's own is its owner's to
+    repeat, so neither has to link a definition to appear in several contracts (ADR-0028)."""
+    shared = [{"name": "_system_loaded_at"}, {"name": "_internal_row_hash", "description": "x"}]
+    definitions = _repo(
+        tmp_path,
+        [{"name": "order_id", "authoritativeDefinitions": _link()}, *copy.deepcopy(shared)],
+        [{"name": "order_id", "authoritativeDefinitions": _link()}, *copy.deepcopy(shared)],
+    )
+
+    assert _contract_violations(tmp_path, definitions) == []
+
+
+def test_the_platform_prefix_is_only_for_columns_the_platform_defines(tmp_path):
+    column = {"name": "_system_row_hash", "description": "A product's own, misnamed."}
+    definitions = _repo(
+        tmp_path, [{"name": "order_id", "authoritativeDefinitions": _link()}, column]
+    )
+
+    found = _contract_violations(tmp_path, definitions)
+
+    assert any("'_system_row_hash' uses the platform's prefix" in v for v in found)

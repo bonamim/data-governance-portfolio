@@ -84,7 +84,9 @@ definitions that drive the grants and the contracts, and is never maintained by 
   dictionary. Every contracted asset gets it: each output port, and each landing dataset on both
   its assets, the landing file (S3) and the raw table it loads into. The table carries the term of
   the entity one row is, and every column the data element it holds, its business term and its
-  governed tags (sensitivity, privacy category), all from the resolved contract.
+  governed tags (sensitivity, privacy category), all from the resolved contract. Every raw table,
+  an OLTP source's too, also carries the platform's system columns (ADR-0028), on its dbt sibling
+  as well once ingested. The landing file doesn't: no source delivers them.
 - **Deprecation**: a port version being retired carries its sunset date and its successor
   (ADR-0019).
 - **Where each dataset is built**: a link from every warehouse dataset to the Airflow DAG that

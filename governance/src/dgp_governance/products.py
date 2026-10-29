@@ -18,6 +18,7 @@ from pathlib import Path
 
 from dgp_platform_contracts import odcs
 
+from . import registry
 from .repo import domain_of, load_yaml, root
 
 
@@ -63,7 +64,7 @@ class DataProduct:
 @dataclass(frozen=True)
 class OutputPort:
     """An output-port contract, resolved: every column carries what it inherits from its
-    definition (``dgp_platform_contracts.odcs``)."""
+    definition (``dgp_platform_contracts.odcs``), a ``_system_*`` column from the platform's."""
 
     name: str
     domain: str
@@ -78,6 +79,8 @@ class OutputPort:
         schema = odcs.output_port(document)
         if schema is None:
             return None
+        # A port passing a platform column through names it and inherits its meaning (ADR-0028).
+        registry.with_system_meaning(schema.get("properties") or [])
         name = schema.get("name", contract.name.removesuffix(".odcs.yaml"))
         return cls(name, domain_of(contract), contract, document, schema)
 

@@ -45,7 +45,11 @@ dbt *staging* layer's job (M3), which keeps this loader free of per-dataset sche
 the table exists (created, or emptied for a reload) and before its first row is written, the loader
 writes the dataset's resolved landing contract onto it: the table's and each column's description as a `COMMENT`, and on
 a warehouse with object tags (`WAREHOUSE_PLATFORM=snowflake`) each column's sensitivity and privacy
-category and the table's sensitivity, the values the dbt build sets on a port. So no row is ever in
+category and the table's sensitivity, the values the dbt build sets on a port. The platform's system
+columns (`_system_batch_id`, `_system_source_path`, `_system_partition`, `_system_loaded_at`,
+ADR-0028) follow the delivered ones on every raw table, OLTP included: the loader stamps each file's
+values on its rows in the same COPY, and a table from before them gains them in place, never
+dropped. So no row is ever in
 an ungoverned table, even where DDL commits on its own (Snowflake). It runs on every load and replay,
 since a recreated table loses both. On Postgres the catalog carries the tags.
 

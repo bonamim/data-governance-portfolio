@@ -29,3 +29,4 @@
 | [0025](0025-separate-contract-gate-and-raw-load.md) | Separate the contract gate from the raw load (two tasks, ledger hand-off) | Accepted |
 | [0026](0026-sqlmesh-portability-check.md) | SQLMesh portability check: the contracts are the portable interface | Withdrawn |
 | [0027](0027-business-ontology.md) | Business ontology: define a column's meaning once, inherit it everywhere | Accepted |
+| [0028](0028-system-columns.md) | System columns: the platform's and the products', named apart and never blocked | Accepted |

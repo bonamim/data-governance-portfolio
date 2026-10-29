@@ -1,8 +1,24 @@
 version: 2
-
 sources:
-  - name: customer_raw
-    description: "Customer data as loaded from shop_oltp (text columns, internal, holds raw PII)."
-    schema: customer_raw
-    tables:
-      - name: customers
+- name: customer_raw
+  description: Customer data as loaded from shop_oltp (text columns, internal, holds
+    raw PII).
+  schema: customer_raw
+  tables:
+  - name: customers
+    columns:
+    - name: _system_batch_id
+      description: 'The delivery batch the row was loaded from: one file, a whole
+        partition under a batch completion signal, or one snapshot of a source table.
+        Joins the row to its ingestion ledger entries (platform_meta.ingestion_ledger.batch_id).'
+    - name: _system_source_path
+      description: 'Where the row came from, as a URI whatever the source: the archived
+        file it was read from (s3://...), the database table it was copied from (postgres://...),
+        or a stream''s topic or an API''s endpoint.'
+    - name: _system_partition
+      description: The partition the row was delivered for, in the dataset's partition
+        scheme (dt=YYYY-MM-DD). For a full snapshot of a source table, the day the
+        snapshot was taken.
+    - name: _system_loaded_at
+      description: When the load that wrote the row ran, in UTC. Every row of one
+        load shares it.

@@ -12,9 +12,10 @@ REPO = Path(__file__).resolve().parent
 @pytest.fixture
 def tmp_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A throwaway repository the code under test works on (``DGP_REPO_ROOT``), seeded with the
-    real domain registry and governed tags. A test adds the contracts, products and models it
-    needs."""
+    real domain registry, governed tags and system columns. A test adds the contracts, products
+    and models it needs."""
     for registry in ("domains", "tags"):
         shutil.copytree(REPO / "governance" / registry, tmp_path / "governance" / registry)
+    shutil.copy(REPO / "governance" / "system_columns.yaml", tmp_path / "governance")
     monkeypatch.setenv(ROOT_ENV, str(tmp_path))
     return tmp_path

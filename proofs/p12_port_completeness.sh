@@ -69,6 +69,13 @@ edit "$LANDING" "[p.pop('authoritativeDefinitions') for p in d['schema'][0]['pro
 expect_blocked check-contracts "column 'review_comment_title' has no description"
 restore
 
+# System columns (ADR-0028) are the platform's and the products', added after the gate: a landing
+# contract describes what the source delivers, so it can't claim one.
+echo "### P12.7: a landing contract declaring a reserved column  ->  expect BLOCKED"
+edit "$LANDING" "d['schema'][0]['properties'].append({'name': '_system_batch_id', 'description': 'x', 'classification': 'internal'})"
+expect_blocked check-contracts "column '_system_batch_id' uses a reserved prefix"
+restore
+
 echo
 echo "P12 proven: an output port can't be published undocumented, nor a landing file contracted"
 echo "undocumented: every table, column and metric a consumer or AI agent reads says what it"

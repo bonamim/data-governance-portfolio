@@ -117,3 +117,60 @@ def test_governance_runs_on_the_empty_table_before_the_first_row(tmp_path: Path,
     finally:
         analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
         analytics.commit()
+
+
+SYSTEM = {"_system_batch_id": "text", "_system_source_path": "text"}
+
+
+def test_system_columns_are_added_and_stamped_per_file(tmp_path: Path, analytics):
+    """The platform's columns follow the file's, and every row of a file gets that file's values,
+    in the one COPY. No default is left behind."""
+    schema, table = os.environ.get("TEST_SCHEMA", "reference_raw"), "pytest_system"
+    a, b = tmp_path / "a.csv", tmp_path / "b.csv"
+    a.write_text("id\n1\n2\n", encoding="utf-8")
+    b.write_text("id\n3\n", encoding="utf-8")
+    try:
+        stamp_a = {"_system_batch_id": "b1", "_system_source_path": "s3://x/a.csv"}
+        stamp_b = {"_system_batch_id": "b1", "_system_source_path": "s3://x/b.csv"}
+        db.load_csv_file(analytics, schema, table, a, system=SYSTEM, stamp=stamp_a)
+        db.load_csv_file(analytics, schema, table, b, append=True, system=SYSTEM, stamp=stamp_b)
+        analytics.commit()
+        rows = analytics.execute(
+            f"SELECT id, _system_batch_id, _system_source_path FROM {schema}.{table} ORDER BY id"
+        ).fetchall()
+        assert rows == [
+            ("1", "b1", "s3://x/a.csv"),
+            ("2", "b1", "s3://x/a.csv"),
+            ("3", "b1", "s3://x/b.csv"),
+        ]
+        defaults = analytics.execute(
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = %s "
+            "AND table_name = %s AND column_default IS NOT NULL",
+            (schema, table),
+        ).fetchone()
+        assert defaults == (0,)
+    finally:
+        analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
+        analytics.commit()
+
+
+def test_a_table_from_before_gets_the_system_columns_in_place(tmp_path: Path, analytics):
+    """A raw table loaded before system columns existed gains them on its next load without being
+    dropped, so the views built on it survive."""
+    schema, table = os.environ.get("TEST_SCHEMA", "reference_raw"), "pytest_upgrade"
+    csv_path = tmp_path / "u.csv"
+    csv_path.write_text("id\n1\n", encoding="utf-8")
+    view = f"{schema}.{table}_v"
+    try:
+        db.load_csv_file(analytics, schema, table, csv_path)  # the old shape: data columns only
+        analytics.execute(f"CREATE VIEW {view} AS SELECT id FROM {schema}.{table}")
+        analytics.commit()
+        stamp = {"_system_batch_id": "b2", "_system_source_path": "s3://x/u.csv"}
+        db.load_csv_file(analytics, schema, table, csv_path, system=SYSTEM, stamp=stamp)
+        analytics.commit()
+        assert analytics.execute(f"SELECT id FROM {view}").fetchall() == [("1",)]
+        assert db.columns_of(analytics, schema, table) == {"id", *SYSTEM}
+    finally:
+        analytics.execute(f"DROP VIEW IF EXISTS {view}")
+        analytics.execute(f"DROP TABLE IF EXISTS {schema}.{table}")
+        analytics.commit()

@@ -36,6 +36,9 @@ reference domain), and every contract column that means it links there and inher
     9. A linked column's logicalType does not contradict its definition's.
     10. A column name used in two or more contracts links a definition in every one of them. Two
        definitions under one name is a homonym, and it is explicit: each column links its own.
+       Reserved names are exempt (ADR-0028): a ``_system_*`` column is defined by the platform
+       once, and a product's ``_internal_*`` column is its own to repeat.
+    10a. A ``_system_*`` column is one the platform defines (governance/system_columns.yaml).
     11. A table that declares the entity it represents (an ODCS ``ontology`` link on the schema
        object, ``…commerce.ontology.yaml#Order``) names an entity type of the ontology, in a file
        that exists.
@@ -361,8 +364,11 @@ def _homonym_violations(
     Two definitions under one name is an explicit homonym."""
     out: list[str] = []
     homonyms: dict[str, list[str]] = {}
+    reserved = registry.reserved_prefixes()
     for col, uses in sorted(by_name.items()):
-        if len({w for w, _ in uses}) < 2:
+        # A platform column means the same everywhere by construction, and a product's own is its
+        # owner's to repeat across its ports (ADR-0028).
+        if len({w for w, _ in uses}) < 2 or col.startswith(reserved):
             continue
         linked = {c for _, c in uses}
         if None in linked:
@@ -386,6 +392,7 @@ def contract_violations(
     used: set[str] = set()
     by_name: dict[str, set[tuple[str, str | None]]] = defaultdict(set)
     entities = {e["concept"] for e in registry.entity_types()}
+    system = {c["name"] for c in registry.system_columns()}
     for path in _contracts(base):
         where = relative(path, base)
         try:
@@ -398,6 +405,12 @@ def contract_violations(
         for prop in _properties(raw):
             col = prop.get("name", "?")
             out += [f"{where}: column '{col}': {v}" for v in _tag_value_errors(prop)]
+            if registry.is_system_column(col) and col not in system:
+                out.append(
+                    f"{where}: column '{col}' uses the platform's prefix but the platform defines "
+                    f"no such column ({', '.join(sorted(system))}). A product's own column is "
+                    "named _internal_*"
+                )
             concept = registry.concept_of(prop, path)
             by_name[col].add((where, concept))
             resolved = [

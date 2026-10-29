@@ -444,8 +444,11 @@ def _by_folder(found: list[_Inspection], keys: dict[str, str]) -> dict[str, list
 
 
 # -------------------------------------------------------------------- load-raw
-def _load_oltp(analytics: psycopg.Connection, settings: Settings, datasets, run_id: str) -> None:
-    """OLTP-sourced: stream shop_oltp -> temp CSV -> <domain>_raw."""
+def _load_oltp(
+    analytics: psycopg.Connection, repo_root: Path, settings: Settings, datasets, run_id: str
+) -> None:
+    """OLTP-sourced: stream shop_oltp -> temp CSV -> <domain>_raw. Each table is one snapshot: one
+    batch, stamped with the table it was copied from and the day it was taken."""
     oltp_sets = _oltp_datasets(datasets)
     if not oltp_sets:
         return
@@ -453,7 +456,20 @@ def _load_oltp(analytics: psycopg.Connection, settings: Settings, datasets, run_
         for d, table in oltp_sets:
             dump = Path(tmp) / f"{table}.csv"
             db.export_table_to_csv(oltp, "shop", table, dump)
-            rows = db.load_csv_file(analytics, d.raw_schema, d.raw_table, dump)
+            batch_id = f"{run_id}:{d.raw_schema}.{d.raw_table}"
+            rows = db.load_csv_file(
+                analytics,
+                d.raw_schema,
+                d.raw_table,
+                dump,
+                governance=_raw_governance(analytics, repo_root, settings, d),
+                system=governance.system_columns(settings.warehouse),
+                stamp=_stamp(
+                    batch_id,
+                    f"postgres://{settings.oltp_reader.dbname}/shop.{table}",
+                    f"dt={_today_utc()}",
+                ),
+            )
             ledger.record(
                 analytics,
                 source_type="table",
@@ -463,6 +479,7 @@ def _load_oltp(analytics: psycopg.Connection, settings: Settings, datasets, run_
                 row_count=rows,
                 status="loaded",
                 run_id=run_id,
+                batch_id=batch_id,
             )
             log.info("loaded %s.%s (%d rows) from shop_oltp", d.raw_schema, d.raw_table, rows)
     analytics.commit()
@@ -487,7 +504,7 @@ def load_raw(
     outcomes = {"loaded": 0, "superseded": 0}
     with db.connect(settings.analytics_loader) as analytics, tempfile.TemporaryDirectory() as tmp:
         ledger.ensure_schema(analytics)
-        _load_oltp(analytics, settings, datasets, run_id)
+        _load_oltp(analytics, repo_root, settings, datasets, run_id)
         for d in _landing_datasets(datasets):
             dataset_id = f"{d.source_system}/{d.name}"
             batches = ledger.pending_batches(analytics, dataset_id)
@@ -505,7 +522,7 @@ def load_raw(
             # The newest batch (one file, or a whole partition) replaces raw: the first file
             # recreates the table, the rest append. Load and ledger rows share one transaction:
             # either raw has the batch and the ledger says so, or neither (a retry loads it again).
-            total = 0
+            total, loaded_at = 0, datetime.now(UTC)
             for n, a in enumerate(newest):
                 obj = store.head(store.archive, a.archive_key, a.archive_version)
                 local = Path(tmp) / obj.filename
@@ -517,6 +534,10 @@ def load_raw(
                     local,
                     append=n > 0,
                     governance=_raw_governance(analytics, repo_root, settings, d),
+                    system=governance.system_columns(settings.warehouse),
+                    stamp=_stamp(
+                        a.batch_id, f"s3://{store.archive}/{a.archive_key}", a.partition, loaded_at
+                    ),
                 )
                 ledger.record(analytics, **common, **_from_gate(a), row_count=rows, status="loaded")
                 total += rows
@@ -562,18 +583,30 @@ def _from_gate(a: ledger.Accepted) -> dict:
 def _raw_governance(
     analytics: psycopg.Connection, repo_root: Path, settings: Settings, d: Dataset
 ) -> Callable[[], list[str]]:
-    """What describes and tags the raw table from its landing contract (governance.py), rendered
-    once the table exists (``db.load_csv_file`` runs it before the first row is written)."""
+    """What describes and tags the raw table (governance.py): its landing contract when it has one,
+    and the platform's system columns. Rendered once the table exists (``db.load_csv_file`` runs
+    it before the first row is written)."""
 
     def render() -> list[str]:
         path = contract_path(repo_root, d.domain, d.name)
-        if not path.exists():
-            return []
-        gov = governance.RawGovernance.from_contract(path)
+        gov = governance.RawGovernance.from_contract(path if path.exists() else None)
         present = db.columns_of(analytics, d.raw_schema, d.raw_table)
         return governance.statements(settings.warehouse, d.raw_schema, d.raw_table, gov, present)
 
     return render
+
+
+def _stamp(
+    batch_id: str, source_path: str, partition: str | None, loaded_at: datetime | None = None
+) -> dict[str, object]:
+    """The platform's system columns for the rows of one delivery (ADR-0028). Every file of one
+    batch passes the batch's ``loaded_at``, so all its rows share it."""
+    return {
+        "_system_batch_id": batch_id,
+        "_system_source_path": source_path,
+        "_system_partition": partition,
+        "_system_loaded_at": loaded_at or datetime.now(UTC),
+    }
 
 
 # ---------------------------------------------------------------------- replay
@@ -595,7 +628,7 @@ def replay(
     store = ObjectStore(settings.objectstore)
     with db.connect(settings.analytics_loader) as analytics, tempfile.TemporaryDirectory() as tmp:
         ledger.ensure_schema(analytics)
-        _load_oltp(analytics, settings, datasets, run_id)
+        _load_oltp(analytics, repo_root, settings, datasets, run_id)
         for d in _landing_datasets(datasets):
             prefix = layout.accepted_prefix(d.source_system, d.name)
             keys = [o.key for o in store.list(store.archive, prefix)]
@@ -608,12 +641,16 @@ def replay(
             obj = store.head(store.archive, key)
             local = Path(tmp) / obj.filename
             store.download(obj, local)
+            batch_id = f"{run_id}:{obj.key}"
+            partition = layout.accepted_partition(d.source_system, d.name, obj.key)
             rows = db.load_csv_file(
                 analytics,
                 d.raw_schema,
                 d.raw_table,
                 local,
                 governance=_raw_governance(analytics, repo_root, settings, d),
+                system=governance.system_columns(settings.warehouse),
+                stamp=_stamp(batch_id, f"s3://{store.archive}/{obj.key}", partition),
             )
             ledger.record(
                 analytics,
@@ -628,9 +665,10 @@ def replay(
                 status="loaded",
                 run_id=run_id,
                 dataset=f"{d.source_system}/{d.name}",
-                partition=layout.accepted_partition(d.source_system, d.name, obj.key),
+                partition=partition,
                 archive_key=obj.key,
                 message="replayed from archive",
+                batch_id=batch_id,
             )
             analytics.commit()
             log.info("replayed %s.%s (%d rows) from %s", d.raw_schema, d.raw_table, rows, obj.key)

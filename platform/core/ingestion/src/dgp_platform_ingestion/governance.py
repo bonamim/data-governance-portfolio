@@ -8,6 +8,9 @@ warehouse whose DDL commits on its own:
 
   * the table's and every column's description, resolved from the definitions (ADR-0027), as a
     ``COMMENT``. Any tool reading the warehouse finds them (the catalog ingest among them).
+  * the platform's system columns (``_system_*``, governance/system_columns.yaml, ADR-0028), which
+    every raw table carries whatever its source, with the platform's descriptions. A raw table
+    without a landing contract (an OLTP source) is governed for those alone.
   * on a warehouse with native object tags (Snowflake), the governed tags (governance/tags/):
     every column's sensitivity and privacy category, the table's sensitivity. The values are the
     ones the dbt build sets on an output port (``dgp_governance.registry.warehouse_tags``).
@@ -29,6 +32,11 @@ from dgp_platform_contracts import odcs
 
 # Warehouses the loader can govern, and whether each has native object tags.
 NATIVE_TAGS = {"postgres": False, "snowflake": True}
+# The physical type of a system column, by its logicalType, per warehouse.
+_TYPES = {
+    "postgres": {"string": "text", "timestamp": "timestamptz"},
+    "snowflake": {"string": "VARCHAR", "timestamp": "TIMESTAMP_TZ"},
+}
 _PLAIN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -42,9 +50,12 @@ class RawGovernance:
     column_tags: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
-    def from_contract(cls, path: Path) -> RawGovernance:
-        schema = (odcs.load(path).get("schema") or [{}])[0]
+    def from_contract(cls, path: Path | None) -> RawGovernance:
+        """The raw table's governance: its landing contract's (when it has one, resolved), then
+        the platform's system columns."""
+        schema = (odcs.load(path).get("schema") or [{}])[0] if path is not None else {}
         props = [p for p in schema.get("properties") or [] if p.get("name")]
+        props += [dict(c) for c in registry.system_columns()]
         table_tags, column_tags = registry.warehouse_tags(props)
         return cls(
             description=schema.get("description"),
@@ -52,6 +63,12 @@ class RawGovernance:
             table_tags=table_tags,
             column_tags=column_tags,
         )
+
+
+def system_columns(warehouse: str) -> dict[str, str]:
+    """The platform's system columns as the loader creates them on ``warehouse``: {name: type}."""
+    types = _TYPES[warehouse]
+    return {c["name"]: types[c.get("logicalType", "string")] for c in registry.system_columns()}
 
 
 def statements(

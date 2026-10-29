@@ -140,7 +140,7 @@ def test_landing_file_and_raw_table_carry_the_landing_contract(generator):
     column's business term and governed tags. The landing file is tagged by the catalog whatever
     the warehouse, the raw table only when the warehouse has no native tags."""
     emitter = Recorder()
-    generator.publish_landing(emitter)
+    generator.publish_ingested(emitter)
     s3 = generator.make_dataset_urn("s3", "landing-archive/accepted/olist/reviews")
     raw = generator.make_dataset_urn(
         generator.WAREHOUSE_PLATFORM, "analytics.customer_experience_raw.reviews"
@@ -162,7 +162,7 @@ def test_raw_table_takes_native_tags_on_snowflake(generator, monkeypatch):
     monkeypatch.setattr(generator, "NATIVE_TAGS", True)
     monkeypatch.setattr(generator, "WAREHOUSE_PLATFORM", "snowflake")
     emitter = Recorder()
-    generator.publish_landing(emitter)
+    generator.publish_ingested(emitter)
     s3 = generator.make_dataset_urn("s3", "landing-archive/accepted/olist/reviews")
     raw = generator.make_dataset_urn("snowflake", "analytics.customer_experience_raw.reviews")
     ((s3_schema,), (raw_schema,)) = (
@@ -195,6 +195,34 @@ def test_the_dbt_sibling_gets_the_meaning_only_once_ingested(generator, ingested
     too, but never before it was ingested: writing to it would create an empty entity."""
     gms = SimpleNamespace(has_aspect=lambda urn, aspect: ingested)
     emitter = Recorder()
-    generator.publish_landing(emitter, gms)
+    generator.publish_ingested(emitter, gms)
     dbt = generator.make_dataset_urn("dbt", "analytics.customer_experience_raw.reviews")
     assert bool(emitter.aspects(dbt, "editableSchemaFieldInfo")) is ingested
+
+
+def test_every_raw_table_carries_the_system_columns_but_no_landing_file(generator):
+    """The platform's columns are added by the loader, so they are on each raw table, an OLTP
+    source's too, and never on the landing file: no source delivers them (ADR-0028)."""
+    emitter = Recorder()
+    generator.publish_ingested(emitter)
+    s3 = generator.make_dataset_urn("s3", "landing-archive/accepted/olist/reviews")
+    landing_raw = generator.make_dataset_urn(
+        generator.WAREHOUSE_PLATFORM, "analytics.customer_experience_raw.reviews"
+    )
+    oltp_raw = generator.make_dataset_urn(
+        generator.WAREHOUSE_PLATFORM, "analytics.sales_raw.orders"
+    )
+
+    def columns(urn):
+        (schema,) = emitter.aspects(urn, "editableSchemaFieldInfo")
+        return {f.fieldPath: f for f in schema.editableSchemaFieldInfo}
+
+    assert not any(c.startswith("_system_") for c in columns(s3))
+    assert "_system_batch_id" in columns(landing_raw)
+    assert set(columns(oltp_raw)) == {
+        "_system_batch_id",
+        "_system_source_path",
+        "_system_partition",
+        "_system_loaded_at",
+    }
+    assert _tags(columns(oltp_raw)["_system_loaded_at"]) == ["urn:li:tag:sensitivity.internal"]

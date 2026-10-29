@@ -95,6 +95,11 @@ without tags (the local Postgres) the post-hook does nothing: the masking views 
 the catalog shows the tags (`dbt run-operation dgp_dbt.governance_tags_preview` prints what Snowflake
 would run).
 
+**Technical columns are named, not linked** (ADR-0028). `_system_*` columns are the platform's
+(`governance/system_columns.yaml`): a contract that carries one only names it and inherits the
+rest. `_internal_*` columns are a data product's own, documented in its port like any column. Both
+may repeat across contracts unlinked, and no landing contract may declare either.
+
 **A raw table is tagged by the loader that writes it.** A landing contract is a contract like a
 port's, so the raw table it loads into gets the same descriptions and governed tags, set as soon as
 the table exists and before its first row is written (`dgp-ingest governance-preview` prints the

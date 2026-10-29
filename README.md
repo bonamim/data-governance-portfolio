@@ -214,6 +214,7 @@ platform/                 The self-serve platform, owned by the platform team (m
 governance/               Federated governance, owned by the governance guild
   domains/                The domain registry: owners, contacts, alert routes
   tags/                   Governed tags (sensitivity, privacy category), mirrored to warehouse and catalog
+  system_columns.yaml     The platform's _system_* columns on every raw table (ADR-0028)
   ontology/               The business ontology (ADR-0027): one Apache Ossie document
   standards/              The standards: data products, breaking changes, the ontology, AI agents
   policies/               The checks that enforce them, run in CI

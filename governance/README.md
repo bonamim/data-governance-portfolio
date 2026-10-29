@@ -8,6 +8,7 @@ platform (`platform/`) is *how* they are enforced at run time.
 |---|---|---|
 | [`domains/`](domains/) | the domain registry: each domain's owner, contact and alert route | the guild, when a domain joins |
 | [`tags/`](tags/) | the governed tags (sensitivity, privacy category), their allowed values and the warehouse tag each becomes | the guild |
+| [`system_columns.yaml`](system_columns.yaml) | the platform's system columns (`_system_*`) every raw table carries, and the two reserved prefixes (ADR-0028) | the platform team with the guild |
 | [`ontology/`](ontology/) | the business ontology: one Apache Ossie document of entity types, value types and relationships (ADR-0027) | the guild |
 | [`standards/`](standards/) | the standards a domain meets: [data products](standards/data-product.md), [breaking changes](standards/breaking-changes.md), [the ontology](standards/ontology.md), [AI agents](standards/ai-agent.md), [model metadata](standards/model-metadata.md) | the guild |
 | [`policies/`](policies/) | the checks that enforce the standards, one script per policy | the guild |
