@@ -82,14 +82,21 @@ definitions that drive the grants and the contracts, and is never maintained by 
 - **Meaning** (ADR-0027): the business glossary (entity types, and the value types the ontology
   gives a business definition, grouped by the domain responsible for each), and the data
   dictionary. Every contracted asset gets it: each output port, each raw table from its source
-  contract (a landing file's or an OLTP table's), and each landing file (S3) too. The table carries the term of
-  the entity one row is, and every column the data element it holds, its business term and its
+  contract (a landing file's or an OLTP table's), and each landing file (S3) too. The table
+  carries the term of the entity one row is, and every column the data element it holds, its business term and its
   governed tags (sensitivity, privacy category), all from the resolved contract. Every raw table,
   an OLTP source's too, also carries the platform's system columns (ADR-0028). The landing file
-  doesn't: no source delivers them. A raw table that is a dbt source opens in DataHub as its dbt
-  sibling, which gets the same terms and tags once ingested. Its column descriptions are the loader's
-  `COMMENT`s, which dbt's catalog carries, and only its table description is set here: DataHub's
-  dbt ingest doesn't carry a table's comment. A dbt source's YAML stays hand-written.
+  doesn't: no source delivers them. Descriptions are never written here: the warehouse ingest reads
+  them from the `COMMENT`s (the loader's on a raw table, dbt's `persist_docs` on a model).
+
+**Which sibling opens.** A table that dbt reads or builds is two DataHub entities, the warehouse's
+and dbt's, linked as siblings. The warehouse one is primary (`dbt_is_primary_sibling: false` in the
+dbt recipe), so a page, a search hit and a lineage node open it: it has the warehouse's own
+description, and the terms and tags published here. dbt's entity adds the model's tests, SQL and
+lineage to the full page. DataHub's dbt ingest doesn't carry a table's `COMMENT` (only its columns'),
+which is why the dbt entity is not the primary one. The side panel a single click opens shows the
+clicked entity only, so something only dbt emits (a dbt tag such as `dbt:output_port`) appears on
+the full page and not in the panel.
 - **Deprecation**: a port version being retired carries its sunset date and its successor
   (ADR-0019).
 - **Where each dataset is built**: a link from every warehouse dataset to the Airflow DAG that

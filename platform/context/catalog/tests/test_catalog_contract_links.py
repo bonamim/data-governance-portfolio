@@ -51,7 +51,6 @@ def generator(monkeypatch):
             "PropertyValueClass",
             "EditableSchemaFieldInfoClass",
             "EditableSchemaMetadataClass",
-            "EditableDatasetPropertiesClass",
             "GlobalTagsClass",
             "TagAssociationClass",
             "GlossaryTermsClass",
@@ -190,25 +189,12 @@ def test_business_terms_are_glossary_terms_and_data_elements_a_property(generato
     assert {"StateCode", "OrderId", "PaymentAmount"} <= {v.value for v in element.allowedValues}
 
 
-@pytest.mark.parametrize("ingested", [True, False])
-def test_the_dbt_sibling_gets_the_meaning_only_once_ingested(generator, ingested):
-    """A raw table that is a dbt source opens as its dbt sibling, so that one carries the meaning
-    too, but never before it was ingested: writing to it would create an empty entity."""
-    gms = SimpleNamespace(has_aspect=lambda urn, aspect: ingested)
+def test_nothing_is_written_to_a_raw_tables_dbt_sibling(generator):
+    """The warehouse entity is the primary sibling (the dbt recipe's dbt_is_primary_sibling), and it
+    carries the meaning: the dbt entity of a raw table gets nothing from here."""
     emitter = Recorder()
-    generator.publish_ingested(emitter, gms)
-    dbt = generator.make_dataset_urn("dbt", "analytics.customer_experience_raw.reviews")
-    assert bool(emitter.aspects(dbt, "editableSchemaFieldInfo")) is ingested
-    if ingested:
-        # dbt's catalog carries the columns' COMMENTs to DataHub, not the table's: only that is set.
-        (table,) = emitter.aspects(dbt, "description")
-        assert table.description.startswith("One row per survey answer and order")
-    pg = generator.make_dataset_urn(
-        generator.WAREHOUSE_PLATFORM, "analytics.customer_experience_raw.reviews"
-    )
-    for urn in (pg, dbt) if ingested else (pg,):
-        (schema,) = emitter.aspects(urn, "editableSchemaFieldInfo")
-        assert all(not getattr(f, "description", None) for f in schema.editableSchemaFieldInfo)
+    generator.publish_ingested(emitter)
+    assert not [m for m in emitter.mcps if ":dbt," in m.entityUrn]
 
 
 def test_every_raw_table_carries_its_contract_and_the_system_columns(generator):

@@ -11,6 +11,11 @@ source:
     # Keep URNs exactly as the warehouse names them, so the dbt node and the Postgres dataset
     # ingested by postgres_analytics.yml share one URN (set explicitly: DataHub warns otherwise).
     convert_urns_to_lowercase: false
+    # The warehouse entity is the primary sibling, the one a page and a lineage node open: it holds
+    # what the warehouse itself says (the loader's and dbt's COMMENTs, table description included)
+    # and catalog-govern's terms and tags. The dbt entity adds the model's tests, SQL and lineage.
+    # Experimental in DataHub (needs server 1.3+), tested here before adoption.
+    dbt_is_primary_sibling: false
     # Emit only this project's nodes. dbt-loom puts other domains' public models in the manifest
     # as stubs (no descriptions), and emitting them would overwrite the owning domain's node.
     # They still resolve lineage, so the cross-domain edges remain.

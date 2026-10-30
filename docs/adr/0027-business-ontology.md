@@ -173,9 +173,10 @@ sets on a port (`dgp_governance.registry.warehouse_tags` is the one answer for b
 `dgp-ingest governance-preview --warehouse snowflake` prints the statements on any machine. Before
 the first row, not after the load: Snowflake commits DDL on its own, so a table governed after its
 rows would be readable ungoverned for a moment. The loader owns the raw table and dbt only reads it,
-so a dbt source's YAML stays hand-written: its catalog entity, the one DataHub opens, gets the
-column descriptions from the same `COMMENT`s through dbt's catalog, and its table description,
-terms and tags from `catalog-govern`.
+so a dbt source's YAML stays hand-written. In the catalog the warehouse entity is the primary
+sibling, the one a page and a lineage node open (the dbt recipe's `dbt_is_primary_sibling: false`):
+it shows what the warehouse says, the `COMMENT`s included, with the terms and tags `catalog-govern`
+gives it, and the dbt entity adds the model's tests, SQL and lineage.
 
 ### Semantic models and the mapping
 Ossie links an ontology to a semantic model through a **mapping**: which semantic-model fields

@@ -40,7 +40,6 @@ from datahub.metadata.schema_classes import (
     DeprecationClass,
     DomainPropertiesClass,
     DomainsClass,
-    EditableDatasetPropertiesClass,
     EditableSchemaFieldInfoClass,
     EditableSchemaMetadataClass,
     GlobalTagsClass,
@@ -386,24 +385,11 @@ def _publish_meaning(
     business: set[str],
     *,
     tagged: bool,
-    described: bool = False,
 ) -> None:
     """A contracted table's meaning on one asset: the term of the entity one row is on the table,
-    and each column's data element, business term and (when ``tagged``) governed tags. When
-    ``described``, the table's description too, for an asset that doesn't take it from the
-    warehouse (a dbt source: dbt reads the table's COMMENT, but DataHub's dbt ingest uses only the
-    columns' comments)."""
+    and each column's data element, business term and (when ``tagged``) governed tags."""
     columns = [c for c in schema.get("properties") or [] if c.get("name")]
     fields = _field_info(emitter, urn, columns, contract, business, tagged=tagged)
-    if described and schema.get("description"):
-        emitter.emit(
-            MetadataChangeProposalWrapper(
-                entityUrn=urn,
-                aspect=EditableDatasetPropertiesClass(
-                    description=schema["description"], created=AUDIT, lastModified=AUDIT
-                ),
-            )
-        )
     entity = registry.entity_of_table(schema)
     emitter.emit(
         MetadataChangeProposalWrapper(
@@ -425,16 +411,16 @@ def _publish_meaning(
         )
 
 
-def publish_ingested(emitter: DatahubRestEmitter, gms: Gms | None = None) -> None:
+def publish_ingested(emitter: DatahubRestEmitter) -> None:
     """The meaning of every dataset the platform ingests, on each asset it is.
 
     A dataset's resolved source contract (landing or OLTP) goes on the raw table it loads into, and
     a landing one on its landing file too (S3, always tagged here: object storage has no column
-    tags). Every raw table,
-    an OLTP source's too, also carries the platform's system columns (ADR-0028). A raw table is
-    tagged here unless the warehouse has native tags (the loader sets those). A raw table that is
-    a dbt source has a dbt sibling, the primary one DataHub opens: it gets the same meaning, once
-    ingested (writing to a dbt URN that was never ingested would create an empty entity)."""
+    tags). Every raw table, an OLTP source's too, also carries the platform's system columns
+    (ADR-0028). A raw table is tagged here unless the warehouse has native tags (the loader sets
+    those). Its descriptions are the loader's COMMENTs, which the warehouse ingest reads. A raw
+    table that is a dbt source has a dbt sibling, but the warehouse entity is the primary one (the
+    dbt recipe's dbt_is_primary_sibling), so nothing is written to the dbt entity."""
     business, n = _business_concepts(), 0
     system = [dict(c) for c in registry.system_columns()]
     for d in load_datasets(root()):
@@ -445,14 +431,7 @@ def publish_ingested(emitter: DatahubRestEmitter, gms: Gms | None = None) -> Non
             _publish_meaning(emitter, s3_urn, schema, path, business, tagged=True)
         raw = {**schema, "properties": [*(schema.get("properties") or []), *system]}
         raw_urn = make_dataset_urn(WAREHOUSE_PLATFORM, f"{DB}.{d.raw_schema}.{d.raw_table}")
-        dbt_urn = make_dataset_urn("dbt", f"{DB}.{d.raw_schema}.{d.raw_table}")
-        # Descriptions come from the loader's COMMENTs: the warehouse ingest reads them, and the dbt
-        # sibling's columns get them through dbt's catalog. Only its table description is set here.
         _publish_meaning(emitter, raw_urn, raw, path, business, tagged=not NATIVE_TAGS)
-        if gms is not None and gms.has_aspect(dbt_urn, "schemaMetadata"):
-            _publish_meaning(
-                emitter, dbt_urn, raw, path, business, tagged=not NATIVE_TAGS, described=True
-            )
         n += 1
     print(f"  ingested datasets with their meaning (landing file, raw table): {n}")
 
@@ -569,7 +548,7 @@ def main() -> int:
     file_datasets(emitter, gms)
     publish_tags_and_glossary(emitter)
     publish_products(emitter)
-    publish_ingested(emitter, gms)
+    publish_ingested(emitter)
     link_building_dags(emitter, gms)
     link_bi_datasets(emitter)
     return 0
