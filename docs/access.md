@@ -14,6 +14,7 @@ in `.env.example`. Run `make endpoints` to print the live values from your `.env
 | **DataHub** (catalog) | http://localhost:9002 | | | **No login hardening yet** (dev `datahub` / `datahub`) |
 | **Superset** (BI) | http://localhost:8088 | | | **No SSO yet** (dev `admin` / `admin`) |
 | **pgAdmin** (database UI, `make pgadmin`) | http://localhost:5050 | | | **No login** (desktop mode). Servers preloaded (`verify-full` TLS), passwords injected from `.env` |
+| **Ossie Visualizer** (the ontology as a graph, `make ossie-ui`) | http://127.0.0.1:4178 | | | **No login**, loopback only. *Import document* → `build/ossie/commerce.ontology.yaml` |
 
 **pgAdmin** opens with a `governance-platform` group holding every platform Postgres, already
 authenticated: `shop_oltp` (superuser), `analytics` (superuser), `analytics` **as
@@ -31,8 +32,11 @@ of those are dev-only stores that production replaces with managed databases.
 | MinIO landing loader (what ingestion runs as) | http://localhost:9000 | | `LANDING_LOADER_USER` (landing-loader) | `LANDING_LOADER_SECRET_KEY` |
 | MinIO partner `olist` (write-only, PoC simulator) | http://localhost:9000 | | `partner-olist` | `LANDING_PARTNER_OLIST_SECRET` |
 | **DataHub GMS API** | http://localhost:8081 | | | dev: no token (ingestion/CLI target) |
+| **Semantic MCP server**, remote (`make ai-mcp-http`) | http://127.0.0.1:8900/mcp | | | No auth, loopback only. Local clients run it over stdio instead (`make ai-mcp`), with no URL. See [ai/README.md](../ai/README.md) |
 | **Postgres shop_oltp** (operational source) | localhost:5432 | `shop_oltp` | `OLTP_SUPERUSER` (postgres) | `OLTP_SUPERUSER_PASSWORD` |
 | **Postgres analytics** (warehouse) | localhost:5433 | `analytics` | `ANALYTICS_SUPERUSER` (postgres) | `ANALYTICS_SUPERUSER_PASSWORD` |
+| Restore-drill sandbox, while `make restore-drill` / `make prove-p9` runs | 127.0.0.1:55432 (OLTP), 127.0.0.1:55433 (analytics) | as above | as above | Restored from the backups, removed after the drill |
+| DataHub's own stores (dev quickstart) | MySQL localhost:3306, OpenSearch http://localhost:9200, Kafka localhost:9092 | | `datahub` (MySQL) | `datahub` (MySQL). Internal to the catalog, never a data path |
 
 Least-privilege roles on the warehouse (passwords in `.env`): `platform_loader`,
 `sales_role`, `customer_role`, `marketplace_role`, `customer_experience_role`,

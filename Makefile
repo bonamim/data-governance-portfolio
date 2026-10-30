@@ -137,13 +137,16 @@ endpoints: ## Print local service URLs and credentials (from .env)
 	@echo "UIs"
 	@echo "  S3 browser      http://localhost:$(MINIO_CONSOLE_PORT)   (no login, browses MinIO via the S3 API)"
 	@echo "  Airflow         http://localhost:$(AIRFLOW_API_PORT)       (dev: no login)"
-	@echo "  DataHub         http://localhost:9002                      user: datahub   pass: datahub"
+	@echo "  DataHub         http://localhost:$(DATAHUB_MAPPED_FRONTEND_PORT)                      user: datahub   pass: datahub"
 	@echo "  Superset        http://localhost:$(SUPERSET_PORT)                      user: $(SUPERSET_ADMIN)   pass: $(SUPERSET_ADMIN_PASSWORD)"
 	@echo "  pgAdmin         http://localhost:$(PGADMIN_PORT)                      (dev: no login, make pgadmin)"
+	@echo "  Ossie Visualizer http://127.0.0.1:$${OSSIE_UI_PORT:-4178}                 (no login, make ossie-ui)"
 	@echo "Databases / APIs"
 	@echo "  MinIO S3 API    http://localhost:$(MINIO_API_PORT)   user: $(MINIO_ROOT_USER)   pass: $(MINIO_ROOT_PASSWORD)"
 	@echo "  Postgres OLTP   localhost:$(OLTP_PORT)   db: $(OLTP_DB)   user: $(OLTP_SUPERUSER)   pass: $(OLTP_SUPERUSER_PASSWORD)"
 	@echo "  Postgres WH     localhost:$(ANALYTICS_PORT)   db: $(ANALYTICS_DB)   user: $(ANALYTICS_SUPERUSER)   pass: $(ANALYTICS_SUPERUSER_PASSWORD)"
+	@echo "  DataHub GMS     http://localhost:$(DATAHUB_MAPPED_GMS_PORT)   (dev: no token)"
+	@echo "  Semantic MCP    http://127.0.0.1:$${MCP_PORT:-8900}/mcp   (no auth, make ai-mcp-http)"
 
 # --- Airflow 3 orchestration ------------------------------------------------
 .PHONY: airflow-build
