@@ -19,8 +19,8 @@ The Olist dataset contains nine files. Each one is assigned to exactly one ownin
 
 A domain publishes an output port only for a named consumer with a use case
 ([data-product standard](../governance/standards/data-product.md)): marketplace and reference ingest
-and govern their data (landing contracts, raw tables) but publish nothing until someone needs it. A
-landing contract is not an output port either way. It governs what a partner delivers, and consumers
+and govern their data (source contracts, raw tables) but publish nothing until someone needs it. A
+source contract is not an output port either way. It governs what a source delivers, and consumers
 read the owning domain's published port, never the landing file or its raw table.
 
 Each domain is registered in `governance/domains/` with its owner, team, and contact channel.
@@ -141,19 +141,28 @@ A domain is free to add stricter checks, never fewer.
 ### Where contracts live: two governed boundaries
 
 A contract is an agreement at a **boundary where a producer hands data to a consumer**.
-There are exactly two such boundaries. The layers in between are internal and carry only
+There are exactly two such boundaries: what a **source delivers** into a domain, and what a
+domain **publishes** for others. The layers in between are internal and carry only
 *engineering* quality checks, never a consumer-facing contract.
 
 | Layer | Governed? | Contract | Quality | Consumed by |
 |---|---|---|---|---|
-| **Landing zone** (files in object storage) | **Yes, governed boundary** | **ODCS** (file contract) | Gate: a file must match its contract **before load**, or it is quarantined (proof P2) | Every domain that ingests the file, governed so all consume the same standardized shape |
-| `<domain>_raw`, `<domain>_bronze/silver/gold` (internal medallion) | No contract | none | Engineering DQ, owned by the domain (dbt tests) | The owning domain only |
+| **Source**: a partner file in the landing zone, or a table of the shop's database (`shop_oltp`) | **Yes, governed boundary** | **ODCS** source contract, `domains/<domain>/contracts/sources/` (one folder whatever the transport, `sources.yml` says how each arrives) | Landing file: the gate checks it against its contract **before load**, or it is quarantined (proofs P2, P14). Database table: the loader governs and describes the raw table from its contract before the first row, and refuses a table whose columns no longer match | The owning domain, through its raw table |
+| `<domain>_raw`, `<domain>_bronze/silver/gold` (internal medallion) | No contract of its own | none. A raw table carries its source contract's descriptions and tags | Engineering DQ, owned by the domain (dbt tests) | The owning domain only |
 | **Output port**: a model tagged `output_port` in any layer | **Yes, governed boundary** | **ODCS** (table/view contract, carrying the `output_port` tag) | Contractual DQ declared in the contract, with results visible to consumers | Other domains, BI, AI (output ports only) |
 | **Semantic output port** | **Yes, governed boundary** | **Apache Ossie** (semantic model) | Definitions resolve to governed concepts | BI and the AI agent (one metric definition for both) |
 
-**Landing is not Raw.** Landing is the shared, governed file boundary where data enters the
-platform once and many data products consume it. `<domain>_raw` is each domain's private
-copy after ingestion. Governing the landing files with ODCS is what makes consumption
+The semantic output port is the same boundary as the output port, published as a semantic model
+instead of a table.
+
+Every source has a contract, since 29 October 2026: three landing files (reviews, sellers,
+geolocation) and six database tables (customers, orders, order_items, order_payments, products,
+the category name translation). Before that only the landing files had one, and the database
+tables' columns showed in the catalog with descriptions borrowed through lineage.
+
+**Landing is not Raw.** Landing is the shared, governed file boundary where a partner's data
+enters the platform. `<domain>_raw` is each domain's private copy after ingestion. Governing
+every source with ODCS, files and database tables alike, is what makes consumption
 *standardized* across domains.
 
 ODCS therefore applies to **files, tables and views**, and Apache Ossie governs the **semantic

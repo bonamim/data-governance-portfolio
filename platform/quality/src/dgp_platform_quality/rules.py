@@ -1,8 +1,8 @@
 """Load an ODCS contract and turn its schema into executable column rules.
 
 Only the subset the landing gate needs is parsed (required, unique, value range,
-logical type). datacontract-cli validates the *contract itself* in CI, and this engine
-*executes* the rules the contract declares.
+logical type, and uniqueness across several columns together). datacontract-cli validates the
+*contract itself* in CI, and this engine *executes* the rules the contract declares.
 """
 
 from __future__ import annotations
@@ -34,6 +34,9 @@ class Contract:
     columns: list[ColumnRule] = field(default_factory=list)
     # File-completeness floor from the ODCS `quality` rowCount rule, if declared.
     min_rows: int | None = None
+    # Column sets that must be unique together, from schema-level ODCS `duplicateValues`
+    # rules (`arguments.properties`, `mustBe: 0`). One column alone may repeat.
+    unique_keys: list[tuple[str, ...]] = field(default_factory=list)
     # ODCS `customProperties` as {property: value}: the landing operational rules
     # (partitioning, file naming, retention, completeness signal, ADR-0024).
     properties: dict = field(default_factory=dict)
@@ -84,6 +87,7 @@ def load_contract(path: Path) -> Contract:
         path=path,
         columns=[_parse_column(p) for p in properties],
         min_rows=_min_rows(schema.get("quality") or []),
+        unique_keys=_unique_keys(path, schema.get("quality") or []),
         properties={
             p["property"]: p.get("value")
             for p in raw.get("customProperties") or []
@@ -108,6 +112,25 @@ def _min_rows(quality_rules: list[dict]) -> int | None:
             if bound is not None:
                 return int(bound)
     return None
+
+
+def _unique_keys(path: Path, quality_rules: list[dict]) -> list[tuple[str, ...]]:
+    """Read the column sets an ODCS library duplicateValues rule says are unique together.
+
+    Only ``mustBe: 0`` is supported, since the gate either accepts a file or quarantines it. A rule
+    the gate can't execute is an error, never silently skipped."""
+    keys = []
+    for rule in quality_rules:
+        if rule.get("type") != "library" or rule.get("metric") != "duplicateValues":
+            continue
+        columns = (rule.get("arguments") or {}).get("properties") or []
+        if len(columns) < 2 or rule.get("mustBe") != 0:
+            raise ValueError(
+                f"{path}: a schema-level duplicateValues rule needs arguments.properties with"
+                " two or more columns and mustBe: 0"
+            )
+        keys.append(tuple(columns))
+    return keys
 
 
 def load_contract_for(repo_root: Path, domain: str, dataset: str) -> Contract | None:

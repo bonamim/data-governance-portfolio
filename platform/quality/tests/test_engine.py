@@ -71,3 +71,35 @@ def test_completeness_floor_fails_when_too_few_rows(tmp_path: Path):
     result = validate_file(csv, contract)
     assert not result.passed
     assert any(a.check == "completeness.row_count" for a in result.failures())
+
+
+PAIR = Contract(
+    id="reviews",
+    name="Reviews",
+    version="1.0.0",
+    path=Path("reviews.odcs.yaml"),
+    columns=[ColumnRule(name="review_id", required=True), ColumnRule(name="order_id")],
+    unique_keys=[("review_id", "order_id")],
+)
+
+
+def test_unique_key_allows_each_column_to_repeat(tmp_path: Path):
+    # One survey answer on two orders, and one order with two answers: the pair is still unique.
+    csv = _write(tmp_path, "review_id,order_id\nr1,o1\nr1,o2\nr2,o1\n")
+    result = validate_file(csv, PAIR)
+    assert result.passed, result.summary()
+
+
+def test_unique_key_fails_on_a_repeated_pair(tmp_path: Path):
+    csv = _write(tmp_path, "review_id,order_id\nr1,o1\nr1,o2\nr1,o1\n")
+    result = validate_file(csv, PAIR)
+    assert not result.passed
+    [failure] = result.failures()
+    assert (failure.check, failure.column) == ("unique_key", "review_id+order_id")
+    assert failure.detail == "1 duplicate combinations"
+
+
+def test_unique_key_leaves_empty_values_to_not_null(tmp_path: Path):
+    csv = _write(tmp_path, "review_id,order_id\nr1,\nr1,\n")
+    result = validate_file(csv, PAIR)
+    assert [a.check for a in result.failures()] == []

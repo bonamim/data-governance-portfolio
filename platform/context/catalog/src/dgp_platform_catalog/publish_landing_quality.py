@@ -8,7 +8,7 @@ record, DataHub is the read model, ADR-0018):
     and where its inbox / accepted / quarantine prefixes are.
   * **lineage** landing dataset → ``<domain>_raw.<table>``, joining the warehouse/dbt graph.
   * one **assertion per contract rule** the gate executes (schema, completeness, not-null,
-    unique, type, range, file naming).
+    unique, unique together, type, range, file naming).
   * one **assertion run event per delivered file and rule**, from the ingestion ledger: result,
     partition, row count, and where the file was filed (accepted/ or quarantine/ + _reason.json).
   * one **operation per delivered file, at the time it landed** in the inbox (ADR-0016), so the
@@ -84,6 +84,7 @@ from dgp_platform_ingestion import layout
 from dgp_platform_ingestion.config import Dataset, load_datasets
 from dgp_platform_ingestion.layout import LandingRules
 from dgp_platform_ingestion.settings import PostgresSettings
+from dgp_platform_quality.engine import key_label
 from dgp_platform_quality.rules import contract_path, load_contract
 
 from .gms import Gms, default_url
@@ -159,6 +160,18 @@ def _rules(contract, rules: LandingRules) -> list[dict]:
                 "agg": AssertionStdAggregationClass.ROW_COUNT,
                 "params": AssertionStdParametersClass(value=_param(contract.min_rows)),
                 "desc": f"File completeness: more than {contract.min_rows} rows",
+            }
+        )
+    for key in contract.unique_keys:
+        out.append(
+            {
+                "check": "unique_key",
+                "column": key_label(key),
+                "fields": list(key),
+                "scope": "rows",
+                "op": AssertionStdOperatorClass._NATIVE_,
+                "agg": AssertionStdAggregationClass._NATIVE_,
+                "desc": f"{' and '.join(key)} are unique together",
             }
         )
     for c in contract.columns:
@@ -313,7 +326,9 @@ def _assertion_mcps(contract, rules: LandingRules, ds_urn: str) -> list:
             datasetAssertion=DatasetAssertionInfoClass(
                 dataset=ds_urn,
                 scope=_SCOPES[r["scope"]],
-                fields=[make_schema_field_urn(ds_urn, r["column"])] if r["column"] else None,
+                fields=[make_schema_field_urn(ds_urn, f) for f in r.get("fields") or [r["column"]]]
+                if r["column"]
+                else None,
                 operator=r["op"],
                 aggregation=r["agg"],
                 parameters=r.get("params"),
